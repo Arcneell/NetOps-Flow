@@ -24,6 +24,14 @@ class User(UserBase):
     class Config:
         from_attributes = True
 
+
+class UserUpdate(BaseModel):
+    """Schema for updating user (all fields optional)."""
+    password: Optional[str] = None
+    is_active: Optional[bool] = None
+    role: Optional[str] = None
+    permissions: Optional[Dict[str, bool]] = None
+
 # --- Servers ---
 class ServerBase(BaseModel):
     name: str

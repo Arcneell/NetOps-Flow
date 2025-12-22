@@ -1,5 +1,7 @@
 from datetime import datetime, timedelta
 from typing import Optional
+import os
+import secrets
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 from fastapi.security import OAuth2PasswordBearer
@@ -7,10 +9,18 @@ from fastapi import Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from backend import models, database
 
-# Secret key for JWT (Change this in production!)
-SECRET_KEY = "supersecretkeyfornetopsflowdevonly"
+# Security: Load SECRET_KEY from environment or generate a secure one
+# In production, always set JWT_SECRET_KEY environment variable
+SECRET_KEY = os.getenv("JWT_SECRET_KEY")
+if not SECRET_KEY:
+    # Generate a secure random key if not provided (will change on restart)
+    SECRET_KEY = secrets.token_urlsafe(32)
+    import logging
+    logging.warning("JWT_SECRET_KEY not set! Using generated key. Set JWT_SECRET_KEY in production.")
+
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 480 # 8 hours
+ACCESS_TOKEN_EXPIRE_MINUTES = 480  # 8 hours
+MIN_PASSWORD_LENGTH = 8
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
@@ -26,10 +36,17 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     if expires_delta:
         expire = datetime.utcnow() + expires_delta
     else:
-        expire = datetime.utcnow() + timedelta(minutes=15)
+        expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
+
+
+def validate_password_strength(password: str) -> bool:
+    """Validate password meets minimum security requirements."""
+    if len(password) < MIN_PASSWORD_LENGTH:
+        return False
+    return True
 
 def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(database.get_db)):
     credentials_exception = HTTPException(

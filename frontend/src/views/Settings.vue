@@ -161,13 +161,18 @@ const loadData = async () => {
 
 const updateMyPassword = async () => {
     if(!newPassword.value) return;
+    if(newPassword.value.length < 8) {
+        toast.add({ severity: 'warn', summary: 'Password Too Short', detail: 'Password must be at least 8 characters.' });
+        return;
+    }
     updatingPwd.value = true;
     try {
-        await api.put('/users/me/password', { username: 'dummy', password: newPassword.value });
+        await api.put('/users/me/password', { password: newPassword.value });
         toast.add({ severity: 'success', summary: 'Password Updated', detail: 'Your password has been changed.' });
         newPassword.value = '';
     } catch (e) {
-        toast.add({ severity: 'error', summary: 'Update Failed', detail: 'Could not update password.' });
+        const detail = e.response?.data?.detail || 'Could not update password.';
+        toast.add({ severity: 'error', summary: 'Update Failed', detail: detail });
     } finally {
         updatingPwd.value = false;
     }
@@ -195,13 +200,19 @@ const createUser = async () => {
 };
 
 const createServer = async () => {
+    // Validation client-side
+    if (!newServer.value.name || !newServer.value.ip_address || !newServer.value.username) {
+        toast.add({ severity: 'warn', summary: 'Validation Error', detail: 'Please fill all required fields.' });
+        return;
+    }
     try {
         await api.post('/servers/', newServer.value);
         showServerDialog.value = false;
         loadData();
         toast.add({ severity: 'success', summary: 'Server Added' });
     } catch (e) {
-        toast.add({ severity: 'error', summary: 'Failed' });
+        const detail = e.response?.data?.detail || 'Failed to add server.';
+        toast.add({ severity: 'error', summary: 'Failed', detail: detail });
     }
 };
 

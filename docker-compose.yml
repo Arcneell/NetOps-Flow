@@ -1,21 +1,37 @@
 version: '3.8'
 
+# Security Note: In production, use Docker secrets or external secret management
+# Create a .env file with your secrets (never commit to git!)
+
 services:
   db:
     image: postgres:15-alpine
     restart: always
     environment:
-      POSTGRES_USER: netops
-      POSTGRES_PASSWORD: netopspassword
-      POSTGRES_DB: netops_flow
+      POSTGRES_USER: ${POSTGRES_USER:-netops}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme_in_production}
+      POSTGRES_DB: ${POSTGRES_DB:-netops_flow}
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
+    # Security: Only expose DB port in development
+    # ports:
+    #   - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-netops} -d ${POSTGRES_DB:-netops_flow}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   redis:
     image: redis:7-alpine
     restart: always
+    # Security: Add Redis password in production
+    # command: redis-server --requirepass ${REDIS_PASSWORD:-changeme}
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   backend:
     build:
@@ -27,12 +43,16 @@ services:
       - .:/app
       - ./scripts_storage:/scripts_storage
     environment:
-      DATABASE_URL: postgresql://netops:netopspassword@db/netops_flow
+      DATABASE_URL: postgresql://${POSTGRES_USER:-netops}:${POSTGRES_PASSWORD:-changeme_in_production}@db/${POSTGRES_DB:-netops_flow}
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/0
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
     depends_on:
-      - db
-      - redis
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     ports:
       - "8000:8000"
 
@@ -46,13 +66,16 @@ services:
       - .:/app
       - ./scripts_storage:/scripts_storage
     environment:
-      DATABASE_URL: postgresql://netops:netopspassword@db/netops_flow
+      DATABASE_URL: postgresql://${POSTGRES_USER:-netops}:${POSTGRES_PASSWORD:-changeme_in_production}@db/${POSTGRES_DB:-netops_flow}
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/0
     depends_on:
-      - db
-      - redis
-      - backend
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      backend:
+        condition: service_started
 
   frontend:
     build:
@@ -65,7 +88,7 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - VITE_API_URL=http://localhost:8000
+      - VITE_API_URL=${VITE_API_URL:-http://localhost:8000}
 
 volumes:
   postgres_data:
