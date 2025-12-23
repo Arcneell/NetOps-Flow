@@ -62,6 +62,7 @@ class IPAddressCreate(IPAddressBase):
 class IPAddress(IPAddressBase):
     id: int
     subnet_id: int
+    equipment_id: Optional[int] = None
     last_scanned_at: Optional[datetime] = None
     class Config:
         from_attributes = True
@@ -111,3 +112,135 @@ class ScriptExecution(ScriptExecutionBase):
     completed_at: Optional[datetime] = None
     class Config:
         from_attributes = True
+
+
+# ==================== INVENTORY SCHEMAS ====================
+
+# --- Manufacturer ---
+class ManufacturerBase(BaseModel):
+    name: str
+    website: Optional[str] = None
+    notes: Optional[str] = None
+
+class ManufacturerCreate(ManufacturerBase):
+    pass
+
+class Manufacturer(ManufacturerBase):
+    id: int
+    class Config:
+        from_attributes = True
+
+
+# --- Equipment Type ---
+class EquipmentTypeBase(BaseModel):
+    name: str
+    icon: str = "pi-box"
+
+class EquipmentTypeCreate(EquipmentTypeBase):
+    pass
+
+class EquipmentType(EquipmentTypeBase):
+    id: int
+    class Config:
+        from_attributes = True
+
+
+# --- Equipment Model ---
+class EquipmentModelBase(BaseModel):
+    name: str
+    manufacturer_id: int
+    equipment_type_id: int
+    specs: Optional[Dict[str, Any]] = None
+
+class EquipmentModelCreate(EquipmentModelBase):
+    pass
+
+class EquipmentModel(EquipmentModelBase):
+    id: int
+    class Config:
+        from_attributes = True
+
+class EquipmentModelFull(EquipmentModel):
+    """Equipment model with expanded relationships"""
+    manufacturer: Optional[Manufacturer] = None
+    equipment_type: Optional[EquipmentType] = None
+
+
+# --- Location ---
+class LocationBase(BaseModel):
+    site: str
+    building: Optional[str] = None
+    room: Optional[str] = None
+
+class LocationCreate(LocationBase):
+    pass
+
+class Location(LocationBase):
+    id: int
+    class Config:
+        from_attributes = True
+
+
+# --- Supplier ---
+class SupplierBase(BaseModel):
+    name: str
+    contact_email: Optional[str] = None
+    phone: Optional[str] = None
+    website: Optional[str] = None
+    notes: Optional[str] = None
+
+class SupplierCreate(SupplierBase):
+    pass
+
+class Supplier(SupplierBase):
+    id: int
+    class Config:
+        from_attributes = True
+
+
+# --- Equipment ---
+class EquipmentBase(BaseModel):
+    name: str
+    serial_number: Optional[str] = None
+    asset_tag: Optional[str] = None
+    status: str = "in_service"
+    purchase_date: Optional[datetime] = None
+    warranty_expiry: Optional[datetime] = None
+    notes: Optional[str] = None
+    model_id: Optional[int] = None
+    location_id: Optional[int] = None
+    supplier_id: Optional[int] = None
+
+class EquipmentCreate(EquipmentBase):
+    pass
+
+class EquipmentUpdate(BaseModel):
+    name: Optional[str] = None
+    serial_number: Optional[str] = None
+    asset_tag: Optional[str] = None
+    status: Optional[str] = None
+    purchase_date: Optional[datetime] = None
+    warranty_expiry: Optional[datetime] = None
+    notes: Optional[str] = None
+    model_id: Optional[int] = None
+    location_id: Optional[int] = None
+    supplier_id: Optional[int] = None
+
+class Equipment(EquipmentBase):
+    id: int
+    created_at: datetime
+    updated_at: datetime
+    class Config:
+        from_attributes = True
+
+class EquipmentFull(Equipment):
+    """Equipment with expanded relationships"""
+    model: Optional[EquipmentModelFull] = None
+    location: Optional[Location] = None
+    supplier: Optional[Supplier] = None
+    ip_addresses: List[IPAddress] = []
+
+
+# --- IP Link ---
+class IPLinkRequest(BaseModel):
+    ip_address_id: int

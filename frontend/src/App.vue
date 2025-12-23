@@ -36,6 +36,14 @@
                 </div>
             </router-link>
 
+            <div v-if="hasPerm('inventory')" class="px-6 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider mt-4">{{ t('inventory') }}</div>
+
+            <router-link v-if="hasPerm('inventory')" to="/inventory" custom v-slot="{ navigate, isActive }">
+                <div @click="navigate" :class="['sidebar-link', isActive ? 'active' : '']">
+                    <i class="pi pi-box mr-3"></i> {{ t('inventory') }}
+                </div>
+            </router-link>
+
             <div class="px-6 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider mt-4">{{ t('system') }}</div>
 
             <router-link v-if="hasPerm('settings') || user.role === 'admin'" to="/settings" custom v-slot="{ navigate, isActive }">
@@ -106,6 +114,7 @@ const currentRouteName = computed(() => {
     if(route.name === 'IP Address Management') return t('ipam').value;
     if(route.name === 'Network Topology') return t('topology').value;
     if(route.name === 'Script Automation') return t('scriptRunner').value;
+    if(route.name === 'Inventory') return t('inventory').value;
     if(route.name === 'Settings') return t('settings').value;
     return route.name;
 });

@@ -1,7 +1,7 @@
 <template>
   <div>
     <!-- Stats Cards -->
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
         <div class="card flex items-center p-4 border-l-4 border-blue-500">
             <div class="p-3 rounded-full bg-blue-50 text-blue-600 mr-4">
                 <i class="pi pi-sitemap text-xl"></i>
@@ -41,6 +41,16 @@
                 <span class="block text-2xl font-bold">{{ stats.executions }}</span>
             </div>
         </div>
+
+        <div class="card flex items-center p-4 border-l-4 border-cyan-500">
+            <div class="p-3 rounded-full bg-cyan-50 text-cyan-600 mr-4">
+                <i class="pi pi-box text-xl"></i>
+            </div>
+            <div>
+                <span class="block text-sm font-medium opacity-70">{{ t('totalEquipment') }}</span>
+                <span class="block text-2xl font-bold">{{ stats.equipment }}</span>
+            </div>
+        </div>
     </div>
 
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -76,7 +86,7 @@ import { ref, onMounted } from 'vue';
 import api from '../api';
 import { t } from '../i18n';
 
-const stats = ref({ subnets: 0, ips: 0, scripts: 0, executions: 0 });
+const stats = ref({ subnets: 0, ips: 0, scripts: 0, executions: 0, equipment: 0 });
 
 onMounted(async () => {
   try {

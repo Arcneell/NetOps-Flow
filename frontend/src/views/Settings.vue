@@ -98,6 +98,10 @@
                           <input type="checkbox" id="perm_settings" v-model="newUser.permissions.settings">
                           <label for="perm_settings" class="text-sm">{{ t('accessSettings').value }}</label>
                       </div>
+                      <div class="flex items-center gap-2">
+                          <input type="checkbox" id="perm_inventory" v-model="newUser.permissions.inventory">
+                          <label for="perm_inventory" class="text-sm">{{ t('accessInventory').value }}</label>
+                      </div>
                   </div>
               </div>
           </div>
@@ -167,7 +171,7 @@ const newUser = ref({
     username: '',
     password: '',
     role: 'user',
-    permissions: { ipam: false, topology: false, scripts: false, settings: false }
+    permissions: { ipam: false, topology: false, scripts: false, settings: false, inventory: false }
 });
 
 const newServer = ref({ name: '', ip_address: '', port: 22, os_type: 'linux', connection_type: 'ssh', username: '', password: '' });
@@ -213,7 +217,7 @@ const openUserDialog = () => {
         username: '',
         password: '',
         role: 'user',
-        permissions: { ipam: true, topology: true, scripts: false, settings: false }
+        permissions: { ipam: true, topology: true, scripts: false, settings: false, inventory: false }
     };
     showUserDialog.value = true;
 };
