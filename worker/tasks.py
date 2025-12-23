@@ -1,34 +1,62 @@
+"""
+Celery Worker Tasks with Docker Sandboxing.
+Provides secure script execution in ephemeral containers.
+"""
 import os
 import subprocess
 import datetime
 import logging
 import socket
-import base64
+import json
+import tempfile
+import uuid
+from typing import Optional, Tuple, List
+
 import nmap
 import paramiko
 import winrm
 from celery import Celery
 from sqlalchemy.orm import Session
-from backend.database import SessionLocal
-from backend.models import ScriptExecution, Subnet, IPAddress, Server
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
+# Structured logging
 logger = logging.getLogger(__name__)
 
-# Configuration Celery
+
+def get_json_logger():
+    """Get JSON-formatted logger for structured logging."""
+    return logger
+
+
+# Configuration from environment
 CELERY_BROKER_URL = os.environ.get("CELERY_BROKER_URL", "redis://localhost:6379/0")
 CELERY_RESULT_BACKEND = os.environ.get("CELERY_RESULT_BACKEND", "redis://localhost:6379/0")
 
 celery_app = Celery("netops_worker", broker=CELERY_BROKER_URL, backend=CELERY_RESULT_BACKEND)
 
-# Security and configuration constants
-SCRIPTS_DIR = "/scripts_storage"
-SSH_TIMEOUT = 30  # seconds
-SSH_BANNER_TIMEOUT = 30  # seconds
-WINRM_TIMEOUT = 60  # seconds
-SCRIPT_EXECUTION_TIMEOUT = 300  # 5 minutes
-MAX_OUTPUT_SIZE = 1024 * 1024  # 1MB max output
+# Configuration
+SCRIPTS_DIR = os.environ.get("SCRIPTS_DIR", "/scripts_storage")
+SSH_TIMEOUT = int(os.environ.get("SSH_TIMEOUT", "30"))
+SSH_BANNER_TIMEOUT = int(os.environ.get("SSH_BANNER_TIMEOUT", "30"))
+WINRM_TIMEOUT = int(os.environ.get("WINRM_TIMEOUT", "60"))
+SCRIPT_EXECUTION_TIMEOUT = int(os.environ.get("SCRIPT_EXECUTION_TIMEOUT", "300"))
+MAX_OUTPUT_SIZE = int(os.environ.get("MAX_OUTPUT_SIZE", str(1024 * 1024)))
+
+# Docker Sandboxing Configuration
+DOCKER_SANDBOX_ENABLED = os.environ.get("DOCKER_SANDBOX_ENABLED", "true").lower() == "true"
+DOCKER_SANDBOX_IMAGE = os.environ.get("DOCKER_SANDBOX_IMAGE", "netops-sandbox:latest")
+DOCKER_SANDBOX_MEMORY = os.environ.get("DOCKER_SANDBOX_MEMORY", "256m")
+DOCKER_SANDBOX_CPU = float(os.environ.get("DOCKER_SANDBOX_CPU", "0.5"))
+DOCKER_SANDBOX_NETWORK = os.environ.get("DOCKER_SANDBOX_NETWORK", "none")
+
+
+def log_event(event_type: str, **kwargs):
+    """Log structured event."""
+    log_data = {
+        "event_type": event_type,
+        "timestamp": datetime.datetime.utcnow().isoformat() + "Z",
+        **kwargs
+    }
+    logger.info(json.dumps(log_data))
 
 
 def truncate_output(output: str, max_size: int = MAX_OUTPUT_SIZE) -> str:
@@ -38,7 +66,218 @@ def truncate_output(output: str, max_size: int = MAX_OUTPUT_SIZE) -> str:
     return output
 
 
-def run_local(cmd):
+class DockerSandbox:
+    """
+    Docker-based sandbox for script execution.
+    Provides isolation using ephemeral containers.
+    """
+
+    def __init__(self):
+        self._client = None
+
+    @property
+    def client(self):
+        """Lazy initialization of Docker client."""
+        if self._client is None:
+            try:
+                import docker
+                self._client = docker.from_env()
+            except Exception as e:
+                logger.error(f"Failed to initialize Docker client: {e}")
+                raise RuntimeError("Docker is not available for sandboxing")
+        return self._client
+
+    def is_available(self) -> bool:
+        """Check if Docker is available."""
+        try:
+            self.client.ping()
+            return True
+        except Exception:
+            return False
+
+    def ensure_sandbox_image(self) -> bool:
+        """Ensure sandbox image exists, build if necessary."""
+        try:
+            self.client.images.get(DOCKER_SANDBOX_IMAGE)
+            return True
+        except Exception:
+            logger.warning(f"Sandbox image {DOCKER_SANDBOX_IMAGE} not found, attempting to build...")
+            return self._build_sandbox_image()
+
+    def _build_sandbox_image(self) -> bool:
+        """Build the sandbox image."""
+        dockerfile_content = '''
+FROM python:3.11-slim
+
+# Install interpreters
+RUN apt-get update && apt-get install -y --no-install-recommends \\
+    bash \\
+    && rm -rf /var/lib/apt/lists/*
+
+# Create non-root user for script execution
+RUN useradd -m -s /bin/bash sandbox
+USER sandbox
+WORKDIR /workspace
+
+# Default command
+CMD ["/bin/bash"]
+'''
+        try:
+            with tempfile.TemporaryDirectory() as tmpdir:
+                dockerfile_path = os.path.join(tmpdir, "Dockerfile")
+                with open(dockerfile_path, "w") as f:
+                    f.write(dockerfile_content)
+
+                self.client.images.build(
+                    path=tmpdir,
+                    tag=DOCKER_SANDBOX_IMAGE,
+                    rm=True
+                )
+            logger.info(f"Built sandbox image: {DOCKER_SANDBOX_IMAGE}")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to build sandbox image: {e}")
+            return False
+
+    def execute(
+        self,
+        script_path: str,
+        script_type: str,
+        args: Optional[List[str]] = None,
+        timeout: int = SCRIPT_EXECUTION_TIMEOUT
+    ) -> Tuple[int, str, str]:
+        """
+        Execute a script in a sandboxed Docker container.
+
+        Args:
+            script_path: Path to the script file
+            script_type: Type of script (python, bash, powershell)
+            args: Script arguments
+            timeout: Execution timeout in seconds
+
+        Returns:
+            Tuple of (exit_code, stdout, stderr)
+        """
+        container = None
+        container_name = f"sandbox-{uuid.uuid4().hex[:12]}"
+
+        try:
+            # Ensure image exists
+            if not self.ensure_sandbox_image():
+                return -1, "", "Sandbox image not available"
+
+            # Prepare command
+            if script_type == "python":
+                cmd = ["python3", "/workspace/script.py"]
+            elif script_type == "bash":
+                cmd = ["bash", "/workspace/script.sh"]
+            else:
+                cmd = ["/workspace/script"]
+
+            if args:
+                cmd.extend(args)
+
+            log_event(
+                "sandbox_execution_start",
+                container_name=container_name,
+                script_type=script_type,
+                timeout=timeout
+            )
+
+            # Create container
+            container = self.client.containers.create(
+                image=DOCKER_SANDBOX_IMAGE,
+                name=container_name,
+                command=cmd,
+                volumes={
+                    script_path: {
+                        "bind": f"/workspace/script.{self._get_extension(script_type)}",
+                        "mode": "ro"
+                    }
+                },
+                mem_limit=DOCKER_SANDBOX_MEMORY,
+                cpu_period=100000,
+                cpu_quota=int(100000 * DOCKER_SANDBOX_CPU),
+                network_mode=DOCKER_SANDBOX_NETWORK,
+                user="sandbox",
+                read_only=True,
+                tmpfs={"/tmp": "size=64M,mode=1777"},
+                security_opt=["no-new-privileges"],
+                cap_drop=["ALL"],
+                detach=True
+            )
+
+            # Start and wait for completion
+            container.start()
+            result = container.wait(timeout=timeout)
+
+            # Get logs
+            stdout = container.logs(stdout=True, stderr=False).decode('utf-8', errors='replace')
+            stderr = container.logs(stdout=False, stderr=True).decode('utf-8', errors='replace')
+
+            exit_code = result.get("StatusCode", -1)
+
+            log_event(
+                "sandbox_execution_complete",
+                container_name=container_name,
+                exit_code=exit_code,
+                stdout_size=len(stdout),
+                stderr_size=len(stderr)
+            )
+
+            return exit_code, truncate_output(stdout), truncate_output(stderr)
+
+        except Exception as e:
+            error_type = type(e).__name__
+            error_msg = str(e)
+
+            if "timeout" in error_msg.lower() or "timed out" in error_msg.lower():
+                log_event(
+                    "sandbox_execution_timeout",
+                    container_name=container_name,
+                    timeout=timeout
+                )
+                return -1, "", f"Script execution timed out after {timeout} seconds"
+
+            log_event(
+                "sandbox_execution_error",
+                container_name=container_name,
+                error_type=error_type,
+                error_message=error_msg
+            )
+            return -1, "", f"Sandbox execution error: {error_msg}"
+
+        finally:
+            # Cleanup container
+            if container:
+                try:
+                    container.remove(force=True)
+                except Exception:
+                    pass
+
+    def _get_extension(self, script_type: str) -> str:
+        """Get file extension for script type."""
+        extensions = {
+            "python": "py",
+            "bash": "sh",
+            "powershell": "ps1"
+        }
+        return extensions.get(script_type, "sh")
+
+
+# Global sandbox instance
+_sandbox: Optional[DockerSandbox] = None
+
+
+def get_sandbox() -> DockerSandbox:
+    """Get or create sandbox instance."""
+    global _sandbox
+    if _sandbox is None:
+        _sandbox = DockerSandbox()
+    return _sandbox
+
+
+def run_local(cmd: List[str]) -> Tuple[int, str, str]:
     """Execute a command locally with proper error handling."""
     try:
         result = subprocess.run(
@@ -46,44 +285,63 @@ def run_local(cmd):
             capture_output=True,
             text=True,
             timeout=SCRIPT_EXECUTION_TIMEOUT,
-            cwd="/tmp"  # Run in a safe directory
+            cwd="/tmp"
         )
         stdout = truncate_output(result.stdout)
         stderr = truncate_output(result.stderr)
         return result.returncode, stdout, stderr
     except subprocess.TimeoutExpired:
-        logger.warning(f"Script execution timed out: {cmd}")
-        return -1, "", "Script execution timed out after 5 minutes."
+        log_event("local_execution_timeout", command=cmd[0], timeout=SCRIPT_EXECUTION_TIMEOUT)
+        return -1, "", f"Script execution timed out after {SCRIPT_EXECUTION_TIMEOUT} seconds."
     except FileNotFoundError as e:
-        logger.error(f"Interpreter not found: {e}")
+        log_event("local_execution_error", error_type="FileNotFoundError", message=str(e))
         return -1, "", f"Interpreter not found: {str(e)}"
     except PermissionError as e:
-        logger.error(f"Permission denied: {e}")
+        log_event("local_execution_error", error_type="PermissionError", message=str(e))
         return -1, "", f"Permission denied: {str(e)}"
     except Exception as e:
-        logger.error(f"Local execution error: {e}")
+        log_event("local_execution_error", error_type=type(e).__name__, message=str(e))
         return -1, "", f"Execution error: {str(e)}"
 
 
-def run_ssh_with_args(server, file_path, script_type, args_str):
-    """Execute a script on a remote server via SSH with proper error handling."""
+def run_ssh_with_args(
+    equipment,
+    file_path: str,
+    script_type: str,
+    args_str: str
+) -> Tuple[int, str, str]:
+    """Execute a script on a remote server via SSH."""
     client = paramiko.SSHClient()
-    # Note: AutoAddPolicy is used for simplicity. In production, consider using
-    # known_hosts file validation or a custom policy
     client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
 
-    try:
-        # Validate connection parameters
-        if not server.ip_address or not server.username:
-            return -1, "", "SSH Error: Missing server IP or username"
+    port = equipment.remote_port or 22
+    remote_ip = equipment.remote_ip
+    username = equipment.remote_username
 
-        # Attempt connection
-        logger.info(f"Connecting to {server.ip_address}:{server.port} via SSH")
+    # Decrypt password if encrypted
+    password = equipment.remote_password
+    try:
+        from backend.core.security import decrypt_value
+        password = decrypt_value(password)
+    except Exception:
+        pass  # Use password as-is if decryption fails
+
+    try:
+        if not remote_ip or not username:
+            return -1, "", "SSH Error: Missing equipment IP or username"
+
+        log_event(
+            "ssh_connection_start",
+            host=remote_ip,
+            port=port,
+            username=username
+        )
+
         client.connect(
-            hostname=server.ip_address,
-            port=server.port,
-            username=server.username,
-            password=server.password,
+            hostname=remote_ip,
+            port=port,
+            username=username,
+            password=password,
             timeout=SSH_TIMEOUT,
             banner_timeout=SSH_BANNER_TIMEOUT,
             auth_timeout=SSH_TIMEOUT,
@@ -94,16 +352,14 @@ def run_ssh_with_args(server, file_path, script_type, args_str):
         # Upload script
         sftp = client.open_sftp()
         remote_filename = os.path.basename(file_path)
-        # Sanitize remote filename
         remote_filename = "".join(c for c in remote_filename if c.isalnum() or c in "._-")
         remote_path = f"/tmp/{remote_filename}"
 
-        logger.info(f"Uploading script to {remote_path}")
         sftp.put(file_path, remote_path)
-        sftp.chmod(remote_path, 0o700)  # Make executable
+        sftp.chmod(remote_path, 0o700)
         sftp.close()
 
-        # Build execution command
+        # Build command
         if script_type == "python":
             command = f"python3 {remote_path}{args_str}"
         elif script_type == "bash":
@@ -113,43 +369,49 @@ def run_ssh_with_args(server, file_path, script_type, args_str):
         else:
             command = f"{remote_path}{args_str}"
 
-        logger.info(f"Executing: {command}")
+        log_event("ssh_command_execute", command=command)
+
         stdin, stdout, stderr = client.exec_command(
             command,
             timeout=SCRIPT_EXECUTION_TIMEOUT
         )
 
-        # Wait for completion
         exit_status = stdout.channel.recv_exit_status()
         out = truncate_output(stdout.read().decode('utf-8', errors='replace'))
         err = truncate_output(stderr.read().decode('utf-8', errors='replace'))
 
-        # Cleanup remote file
+        # Cleanup
         try:
             cleanup_client = client.open_sftp()
             cleanup_client.remove(remote_path)
             cleanup_client.close()
         except Exception:
-            pass  # Best effort cleanup
+            pass
 
         client.close()
-        logger.info(f"SSH execution completed with exit code: {exit_status}")
+
+        log_event(
+            "ssh_execution_complete",
+            host=remote_ip,
+            exit_code=exit_status
+        )
+
         return exit_status, out, err
 
     except socket.timeout:
-        logger.error(f"SSH connection timeout to {server.ip_address}")
-        return -1, "", f"SSH Error: Connection timed out to {server.ip_address}"
+        log_event("ssh_connection_timeout", host=remote_ip, timeout=SSH_TIMEOUT)
+        return -1, "", f"SSH Error: Connection timed out to {remote_ip}"
     except paramiko.AuthenticationException:
-        logger.error(f"SSH authentication failed for {server.ip_address}")
+        log_event("ssh_auth_failed", host=remote_ip)
         return -1, "", "SSH Error: Authentication failed. Check username/password."
     except paramiko.SSHException as e:
-        logger.error(f"SSH error: {e}")
+        log_event("ssh_error", host=remote_ip, error=str(e))
         return -1, "", f"SSH Error: {str(e)}"
     except socket.error as e:
-        logger.error(f"Socket error connecting to {server.ip_address}: {e}")
-        return -1, "", f"SSH Error: Cannot connect to {server.ip_address}:{server.port} - {str(e)}"
+        log_event("ssh_socket_error", host=remote_ip, error=str(e))
+        return -1, "", f"SSH Error: Cannot connect to {remote_ip}:{port} - {str(e)}"
     except Exception as e:
-        logger.error(f"Unexpected SSH error: {e}")
+        log_event("ssh_unexpected_error", host=remote_ip, error=str(e))
         return -1, "", f"SSH Error: {str(e)}"
     finally:
         try:
@@ -158,77 +420,106 @@ def run_ssh_with_args(server, file_path, script_type, args_str):
             pass
 
 
-def run_winrm_with_args(server, file_path, script_args=None):
-    """Execute a PowerShell script on a remote Windows server via WinRM."""
+def run_winrm_with_args(
+    equipment,
+    file_path: str,
+    script_args: Optional[List[str]] = None
+) -> Tuple[int, str, str]:
+    """Execute a PowerShell script via WinRM."""
     try:
-        # Read script content
         with open(file_path, 'r', encoding='utf-8') as f:
             script_content = f.read()
 
-        # Validate server
-        if not server.ip_address or not server.username:
-            return -1, "", "WinRM Error: Missing server IP or username"
+        if not equipment.remote_ip or not equipment.remote_username:
+            return -1, "", "WinRM Error: Missing equipment IP or username"
 
-        # Determine WinRM port and transport
-        port = server.port if server.port else 5985
+        port = equipment.remote_port or 5985
         use_ssl = port == 5986
 
-        logger.info(f"Connecting to {server.ip_address}:{port} via WinRM (SSL: {use_ssl})")
+        # Decrypt password
+        password = equipment.remote_password
+        try:
+            from backend.core.security import decrypt_value
+            password = decrypt_value(password)
+        except Exception:
+            pass
 
-        # Create session
+        log_event(
+            "winrm_connection_start",
+            host=equipment.remote_ip,
+            port=port,
+            ssl=use_ssl
+        )
+
         if use_ssl:
             session = winrm.Session(
-                f'https://{server.ip_address}:{port}/wsman',
-                auth=(server.username, server.password),
+                f'https://{equipment.remote_ip}:{port}/wsman',
+                auth=(equipment.remote_username, password),
                 transport='ntlm',
                 server_cert_validation='ignore'
             )
         else:
             session = winrm.Session(
-                f'http://{server.ip_address}:{port}/wsman',
-                auth=(server.username, server.password),
+                f'http://{equipment.remote_ip}:{port}/wsman',
+                auth=(equipment.remote_username, password),
                 transport='ntlm'
             )
 
-        # Prepare script with arguments
+        # Prepare script
         if script_args:
             args_block = " ".join([f'"{arg}"' for arg in script_args])
             ps_script = f"$args = @({args_block})\n$ProgressPreference = 'SilentlyContinue'\n{script_content}"
         else:
             ps_script = f"$ProgressPreference = 'SilentlyContinue'\n{script_content}"
 
-        logger.info("Executing PowerShell script via WinRM")
         result = session.run_ps(ps_script)
 
         stdout = truncate_output(result.std_out.decode('utf-8', errors='replace'))
         stderr = truncate_output(result.std_err.decode('utf-8', errors='replace'))
 
-        logger.info(f"WinRM execution completed with status: {result.status_code}")
+        log_event(
+            "winrm_execution_complete",
+            host=equipment.remote_ip,
+            exit_code=result.status_code
+        )
+
         return result.status_code, stdout, stderr
 
     except FileNotFoundError:
-        logger.error(f"Script file not found: {file_path}")
-        return -1, "", f"WinRM Error: Script file not found"
+        log_event("winrm_file_not_found", path=file_path)
+        return -1, "", "WinRM Error: Script file not found"
     except winrm.exceptions.WinRMTransportError as e:
-        logger.error(f"WinRM transport error: {e}")
-        return -1, "", f"WinRM Error: Cannot connect to {server.ip_address}. Ensure WinRM is enabled and accessible."
+        log_event("winrm_transport_error", host=equipment.remote_ip, error=str(e))
+        return -1, "", f"WinRM Error: Cannot connect to {equipment.remote_ip}. Ensure WinRM is enabled."
     except winrm.exceptions.InvalidCredentialsError:
-        logger.error(f"WinRM authentication failed for {server.ip_address}")
+        log_event("winrm_auth_failed", host=equipment.remote_ip)
         return -1, "", "WinRM Error: Authentication failed. Check username/password."
     except Exception as e:
-        logger.error(f"WinRM error: {e}")
+        log_event("winrm_error", host=equipment.remote_ip, error=str(e))
         return -1, "", f"WinRM Error: {str(e)}"
 
 
 @celery_app.task(bind=True)
-def execute_script_task(self, execution_id: int, filename: str, script_type: str, server_id: int = None, script_args: list = None):
-    """Execute a script locally or on a remote server."""
+def execute_script_task(
+    self,
+    execution_id: int,
+    filename: str,
+    script_type: str,
+    equipment_id: int = None,
+    script_args: list = None
+):
+    """Execute a script locally (sandboxed) or on remote equipment."""
+    from backend.core.database import SessionLocal
+    from backend.models import ScriptExecution, Equipment
+
     db: Session = SessionLocal()
     try:
-        execution = db.query(ScriptExecution).filter(ScriptExecution.id == execution_id).first()
+        execution = db.query(ScriptExecution).filter(
+            ScriptExecution.id == execution_id
+        ).first()
 
         if not execution:
-            logger.error(f"Execution {execution_id} not found")
+            log_event("execution_not_found", execution_id=execution_id)
             return "Execution not found"
 
         execution.status = "running"
@@ -236,14 +527,14 @@ def execute_script_task(self, execution_id: int, filename: str, script_type: str
 
         file_path = os.path.join(SCRIPTS_DIR, filename)
 
-        # Security check: ensure file is within scripts directory
+        # Security check
         real_path = os.path.realpath(file_path)
         if not real_path.startswith(os.path.realpath(SCRIPTS_DIR)):
             execution.status = "failure"
             execution.stderr = "Security error: Invalid file path"
             execution.completed_at = datetime.datetime.utcnow()
             db.commit()
-            logger.warning(f"Attempted path traversal attack: {filename}")
+            log_event("path_traversal_attempt", filename=filename)
             return "Security error"
 
         if not os.path.exists(file_path):
@@ -253,7 +544,6 @@ def execute_script_task(self, execution_id: int, filename: str, script_type: str
             db.commit()
             return "File not found"
 
-        # Prepare arguments string for SSH (sanitized in main.py)
         args_str = ""
         if script_args:
             args_str = " " + " ".join([f'"{arg}"' for arg in script_args])
@@ -262,37 +552,57 @@ def execute_script_task(self, execution_id: int, filename: str, script_type: str
         stdout = ""
         stderr = ""
 
-        if server_id:
-            server = db.query(Server).filter(Server.id == server_id).first()
-            if not server:
-                stderr = "Target server not found in database"
+        if equipment_id:
+            # Remote execution
+            equipment = db.query(Equipment).filter(Equipment.id == equipment_id).first()
+            if not equipment:
+                stderr = "Target equipment not found in database"
                 return_code = -1
             else:
-                logger.info(f"Executing script on remote server: {server.name} ({server.ip_address})")
-                if server.connection_type == "ssh":
-                    return_code, stdout, stderr = run_ssh_with_args(server, file_path, script_type, args_str)
-                elif server.connection_type == "winrm":
-                    return_code, stdout, stderr = run_winrm_with_args(server, file_path, script_args)
+                log_event(
+                    "remote_execution_start",
+                    equipment_name=equipment.name,
+                    equipment_ip=equipment.remote_ip,
+                    connection_type=equipment.connection_type
+                )
+
+                if equipment.connection_type == "ssh":
+                    return_code, stdout, stderr = run_ssh_with_args(
+                        equipment, file_path, script_type, args_str
+                    )
+                elif equipment.connection_type == "winrm":
+                    return_code, stdout, stderr = run_winrm_with_args(
+                        equipment, file_path, script_args
+                    )
                 else:
-                    stderr = f"Unknown connection type: {server.connection_type}"
+                    stderr = f"Unknown connection type: {equipment.connection_type}"
                     return_code = -1
         else:
-            # LOCAL EXECUTION
-            logger.info(f"Executing script locally: {filename}")
-            cmd = []
-            if script_type == "python":
-                cmd = ["python3", file_path]
-            elif script_type == "bash":
-                cmd = ["bash", file_path]
-            elif script_type == "powershell":
-                cmd = ["pwsh", "-File", file_path]
+            # Local execution - use Docker sandbox if available
+            log_event("local_execution_start", filename=filename, sandboxed=DOCKER_SANDBOX_ENABLED)
+
+            if DOCKER_SANDBOX_ENABLED:
+                try:
+                    sandbox = get_sandbox()
+                    if sandbox.is_available():
+                        return_code, stdout, stderr = sandbox.execute(
+                            file_path, script_type, script_args
+                        )
+                    else:
+                        log_event("sandbox_unavailable", fallback="direct_execution")
+                        # Fallback to direct execution
+                        return_code, stdout, stderr = _execute_directly(
+                            file_path, script_type, script_args
+                        )
+                except Exception as e:
+                    log_event("sandbox_error", error=str(e), fallback="direct_execution")
+                    return_code, stdout, stderr = _execute_directly(
+                        file_path, script_type, script_args
+                    )
             else:
-                cmd = [file_path]
-
-            if script_args:
-                cmd.extend(script_args)
-
-            return_code, stdout, stderr = run_local(cmd)
+                return_code, stdout, stderr = _execute_directly(
+                    file_path, script_type, script_args
+                )
 
         execution.stdout = stdout
         execution.stderr = stderr
@@ -300,11 +610,22 @@ def execute_script_task(self, execution_id: int, filename: str, script_type: str
         execution.completed_at = datetime.datetime.utcnow()
         db.commit()
 
-        logger.info(f"Execution {execution_id} completed with status: {execution.status}")
+        log_event(
+            "execution_complete",
+            execution_id=execution_id,
+            status=execution.status,
+            return_code=return_code
+        )
+
         return execution.status
 
     except Exception as e:
-        logger.error(f"Unexpected error in execute_script_task: {e}")
+        log_event(
+            "execution_error",
+            execution_id=execution_id,
+            error_type=type(e).__name__,
+            error_message=str(e)
+        )
         try:
             execution.status = "failure"
             execution.stderr = f"Unexpected error: {str(e)}"
@@ -317,32 +638,61 @@ def execute_script_task(self, execution_id: int, filename: str, script_type: str
         db.close()
 
 
+def _execute_directly(
+    file_path: str,
+    script_type: str,
+    script_args: Optional[List[str]] = None
+) -> Tuple[int, str, str]:
+    """Execute script directly (fallback when sandbox unavailable)."""
+    cmd = []
+    if script_type == "python":
+        cmd = ["python3", file_path]
+    elif script_type == "bash":
+        cmd = ["bash", file_path]
+    elif script_type == "powershell":
+        cmd = ["pwsh", "-File", file_path]
+    else:
+        cmd = [file_path]
+
+    if script_args:
+        cmd.extend(script_args)
+
+    return run_local(cmd)
+
+
 @celery_app.task(bind=True)
 def scan_subnet_task(self, subnet_id: int):
     """Scan a subnet for active hosts using nmap."""
+    from backend.core.database import SessionLocal
+    from backend.models import Subnet, IPAddress
+
     db: Session = SessionLocal()
     try:
         subnet = db.query(Subnet).filter(Subnet.id == subnet_id).first()
 
         if not subnet:
-            logger.error(f"Subnet {subnet_id} not found")
+            log_event("subnet_not_found", subnet_id=subnet_id)
             return "Subnet not found"
 
-        logger.info(f"Starting scan for subnet: {subnet.cidr}")
+        log_event("subnet_scan_start", subnet_id=subnet_id, cidr=str(subnet.cidr))
+
         nm = nmap.PortScanner()
 
         try:
-            # Use ARP ping scan for local networks, ICMP otherwise
             nm.scan(hosts=str(subnet.cidr), arguments='-sn -PR -R --max-retries 2')
         except nmap.PortScannerError as e:
-            logger.error(f"Nmap scan error: {e}")
+            log_event("nmap_error", subnet_id=subnet_id, error=str(e))
             return f"Scan failed: {str(e)}"
         except Exception as e:
-            logger.error(f"Scan error: {e}")
+            log_event("scan_error", subnet_id=subnet_id, error=str(e))
             return f"Scan failed: {str(e)}"
 
         scanned_hosts = nm.all_hosts()
-        logger.info(f"Found {len(scanned_hosts)} hosts in {subnet.cidr}")
+        log_event(
+            "subnet_scan_hosts_found",
+            subnet_id=subnet_id,
+            host_count=len(scanned_hosts)
+        )
 
         for host in scanned_hosts:
             status = 'active' if nm[host].state() == 'up' else 'available'
@@ -375,11 +725,23 @@ def scan_subnet_task(self, subnet_id: int):
                 db.add(new_ip)
 
         db.commit()
-        logger.info(f"Scan complete for {subnet.cidr}")
+
+        log_event(
+            "subnet_scan_complete",
+            subnet_id=subnet_id,
+            cidr=str(subnet.cidr),
+            hosts_found=len(scanned_hosts)
+        )
+
         return f"Scan complete for {subnet.cidr}. Found {len(scanned_hosts)} hosts."
 
     except Exception as e:
-        logger.error(f"Unexpected error in scan_subnet_task: {e}")
+        log_event(
+            "subnet_scan_error",
+            subnet_id=subnet_id,
+            error_type=type(e).__name__,
+            error_message=str(e)
+        )
         return f"Scan failed: {str(e)}"
     finally:
         db.close()

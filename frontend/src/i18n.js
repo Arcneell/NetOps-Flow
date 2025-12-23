@@ -233,7 +233,15 @@ const translations = {
         confirmDeleteEquipment: "Are you sure you want to delete this equipment?",
         confirmDeleteItem: "Are you sure you want to delete this item?",
         noAvailableIps: "No available IPs to link",
-        linkedEquipment: "Linked Equipment"
+        linkedEquipment: "Linked Equipment",
+
+        // Remote Execution
+        supportsRemoteExecution: "Supports Remote Execution",
+        remoteExecution: "Remote Execution",
+        remoteIp: "Remote IP",
+        remotePort: "Port",
+        osType: "OS Type",
+        connectionType: "Connection Type"
     },
     fr: {
         // Auth
@@ -465,7 +473,15 @@ const translations = {
         confirmDeleteEquipment: "Êtes-vous sûr de vouloir supprimer cet équipement ?",
         confirmDeleteItem: "Êtes-vous sûr de vouloir supprimer cet élément ?",
         noAvailableIps: "Aucune IP disponible à lier",
-        linkedEquipment: "Équipement lié"
+        linkedEquipment: "Équipement lié",
+
+        // Remote Execution
+        supportsRemoteExecution: "Supporte l'exécution à distance",
+        remoteExecution: "Exécution à distance",
+        remoteIp: "IP distante",
+        remotePort: "Port",
+        osType: "Type d'OS",
+        connectionType: "Type de connexion"
     }
 };
 

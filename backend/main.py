@@ -295,52 +295,6 @@ def delete_user(
     return {"ok": True}
 
 
-# --- Server Management ---
-
-@app.post("/servers/", response_model=schemas.Server)
-def create_server(server: schemas.ServerCreate, db: Session = Depends(database.get_db), current_user: models.User = Depends(auth.get_current_admin_user)):
-    # Validate IP address format
-    try:
-        ipaddress.ip_address(server.ip_address)
-    except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid IP address format")
-
-    # Validate connection type
-    if server.connection_type not in ["ssh", "winrm"]:
-        raise HTTPException(status_code=400, detail="Connection type must be 'ssh' or 'winrm'")
-
-    # Validate OS type
-    if server.os_type not in ["linux", "windows"]:
-        raise HTTPException(status_code=400, detail="OS type must be 'linux' or 'windows'")
-
-    # Validate port range
-    if not (1 <= server.port <= 65535):
-        raise HTTPException(status_code=400, detail="Port must be between 1 and 65535")
-
-    # Check for duplicate server name
-    existing = db.query(models.Server).filter(models.Server.name == server.name).first()
-    if existing:
-        raise HTTPException(status_code=400, detail="Server name already exists")
-
-    db_server = models.Server(**server.model_dump())
-    db.add(db_server)
-    db.commit()
-    db.refresh(db_server)
-    logger.info(f"Server '{server.name}' created by '{current_user.username}'")
-    return db_server
-
-@app.get("/servers/", response_model=List[schemas.Server])
-def read_servers(db: Session = Depends(database.get_db), current_user: models.User = Depends(auth.get_current_active_user)):
-    return db.query(models.Server).all()
-
-@app.delete("/servers/{server_id}")
-def delete_server(server_id: int, db: Session = Depends(database.get_db), current_user: models.User = Depends(auth.get_current_admin_user)):
-    server = db.query(models.Server).filter(models.Server.id == server_id).first()
-    if not server:
-        raise HTTPException(status_code=404, detail="Server not found")
-    db.delete(server)
-    db.commit()
-    return {"ok": True}
 
 # --- IPAM Endpoints ---
 
@@ -552,7 +506,7 @@ def sanitize_script_args(args: Optional[List[str]]) -> List[str]:
 
 
 class ScriptExecutionRequest(BaseModel):
-    server_id: Optional[int] = None
+    equipment_id: Optional[int] = None
     password: str
     script_args: Optional[List[str]] = None
 
@@ -576,25 +530,27 @@ def run_script(
     if not script:
         raise HTTPException(status_code=404, detail="Script not found")
 
-    # Validate server exists if specified
-    if exec_req.server_id:
-        server = db.query(models.Server).filter(models.Server.id == exec_req.server_id).first()
-        if not server:
-            raise HTTPException(status_code=404, detail="Target server not found")
+    # Validate equipment exists if specified and has remote execution configured
+    if exec_req.equipment_id:
+        equipment = db.query(models.Equipment).filter(models.Equipment.id == exec_req.equipment_id).first()
+        if not equipment:
+            raise HTTPException(status_code=404, detail="Target equipment not found")
+        if not equipment.remote_ip or not equipment.remote_username:
+            raise HTTPException(status_code=400, detail="Equipment is not configured for remote execution")
 
     # Sanitize script arguments
     safe_args = sanitize_script_args(exec_req.script_args)
 
     execution = models.ScriptExecution(
         script_id=script_id,
-        server_id=exec_req.server_id,
+        equipment_id=exec_req.equipment_id,
         status="pending",
     )
     db.add(execution)
     db.commit()
     db.refresh(execution)
 
-    task = execute_script_task.delay(execution.id, script.filename, script.script_type, exec_req.server_id, safe_args)
+    task = execute_script_task.delay(execution.id, script.filename, script.script_type, exec_req.equipment_id, safe_args)
 
     # Save task_id
     execution.task_id = task.id
@@ -986,6 +942,25 @@ def list_equipment(
     if location_id:
         query = query.filter(models.Equipment.location_id == location_id)
     return query.order_by(models.Equipment.name).offset(skip).limit(limit).all()
+
+
+@app.get("/inventory/equipment/executable/", response_model=List[schemas.EquipmentFull])
+def list_executable_equipment(
+    db: Session = Depends(database.get_db),
+    current_user: models.User = Depends(auth.get_current_active_user)
+):
+    """Get equipment configured for remote script execution."""
+    if current_user.role != "admin" and not current_user.permissions.get("scripts"):
+        raise HTTPException(status_code=403, detail="Permission denied")
+    return db.query(models.Equipment).join(
+        models.EquipmentModel
+    ).join(
+        models.EquipmentType
+    ).filter(
+        models.EquipmentType.supports_remote_execution == True,
+        models.Equipment.remote_ip != None,
+        models.Equipment.remote_username != None
+    ).order_by(models.Equipment.name).all()
 
 
 @app.get("/inventory/equipment/{equipment_id}", response_model=schemas.EquipmentFull)

@@ -20,6 +20,7 @@ A self-hosted NetDevOps platform for network operations management, featuring IP
 ### Script Runner
 - Upload and manage Python (`.py`), Bash (`.sh`), and PowerShell (`.ps1`) scripts
 - Execute scripts locally on the server or remotely via SSH/WinRM
+- Docker sandboxing for secure local script execution
 - Support for script arguments
 - Real-time capture of stdout/stderr logs
 - Execution status tracking (pending, running, success, failure, cancelled)
@@ -54,23 +55,71 @@ A self-hosted NetDevOps platform for network operations management, featuring IP
 
 ### Security
 - JWT-based authentication with configurable secret
+- Fernet symmetric encryption for sensitive data (passwords)
 - CORS protection with configurable origins
-- Rate limiting on login endpoint
+- Redis-based distributed rate limiting
 - Path traversal protection for file uploads
+- Docker sandboxing for script execution
 - Input validation and sanitization
 
 ### Internationalization
-- Full support for English and French
+- Full support for English and French using vue-i18n
 - Language preference persisted across sessions
 
 ## Architecture
 
+### Technology Stack
+
 | Component | Technology |
 |-----------|------------|
-| **Backend** | FastAPI (Python 3.11) |
-| **Worker** | Celery + Redis |
-| **Database** | PostgreSQL 15 |
-| **Frontend** | Vue.js 3 + TailwindCSS + PrimeVue |
+| **Backend API** | FastAPI (Python 3.11) with modular routers |
+| **Task Queue** | Celery + Redis |
+| **Database** | PostgreSQL 15 with SQLAlchemy ORM |
+| **Migrations** | Alembic |
+| **Frontend** | Vue.js 3 + Pinia + TailwindCSS + PrimeVue |
+| **i18n** | vue-i18n |
+| **Containerization** | Docker with multi-stage builds |
+
+### Backend Structure
+
+```
+backend/
+├── core/
+│   ├── config.py       # Pydantic Settings configuration
+│   ├── database.py     # SQLAlchemy engine & session
+│   ├── security.py     # JWT, hashing, Fernet encryption
+│   ├── rate_limiter.py # Redis-based rate limiting
+│   └── logging.py      # Structured JSON logging
+├── routers/
+│   ├── auth.py         # Authentication endpoints
+│   ├── users.py        # User management (admin)
+│   ├── ipam.py         # IP Address Management
+│   ├── inventory.py    # Equipment management
+│   ├── scripts.py      # Script upload & execution
+│   ├── topology.py     # Network visualization
+│   └── dashboard.py    # Statistics
+├── models.py           # SQLAlchemy models
+├── schemas.py          # Pydantic schemas
+└── app.py              # FastAPI application factory
+```
+
+### Frontend Structure
+
+```
+frontend/src/
+├── components/
+│   └── shared/         # Reusable components
+├── stores/
+│   ├── auth.js         # Authentication state (Pinia)
+│   └── ui.js           # UI preferences (Pinia)
+├── i18n/
+│   ├── index.js        # vue-i18n configuration
+│   └── locales/        # EN/FR translations
+├── views/              # Page components
+├── api.js              # Axios client with interceptors
+├── main.js             # Application entry point
+└── router.js           # Vue Router configuration
+```
 
 ## Getting Started
 
@@ -92,12 +141,21 @@ A self-hosted NetDevOps platform for network operations management, featuring IP
    cp .env.example .env
    ```
 
-3. Run the stack:
+3. Generate secure keys:
+   ```bash
+   # Generate JWT secret
+   openssl rand -base64 32
+
+   # Generate Fernet encryption key
+   python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+   ```
+
+4. Run the stack:
    ```bash
    docker-compose up --build
    ```
 
-4. Access the services:
+5. Access the services:
    - **Frontend**: http://localhost:3000
    - **API Docs**: http://localhost:8000/docs
 
@@ -109,8 +167,15 @@ A self-hosted NetDevOps platform for network operations management, featuring IP
 | `POSTGRES_PASSWORD` | Database password | `netopspassword` |
 | `POSTGRES_DB` | Database name | `netops_flow` |
 | `JWT_SECRET_KEY` | Secret key for JWT tokens | (generated if not set) |
+| `ENCRYPTION_KEY` | Fernet key for password encryption | (optional) |
 | `ALLOWED_ORIGINS` | CORS allowed origins | `http://localhost:3000` |
 | `VITE_API_URL` | Frontend API URL | `http://localhost:8000` |
+| `LOG_LEVEL` | Logging level | `INFO` |
+| `LOG_FORMAT` | Log format (text/json) | `text` |
+| `DOCKER_SANDBOX_ENABLED` | Enable Docker sandboxing | `true` |
+| `DOCKER_SANDBOX_IMAGE` | Sandbox Docker image | `netops-sandbox:latest` |
+| `DOCKER_SANDBOX_MEMORY` | Sandbox memory limit | `256m` |
+| `DOCKER_SANDBOX_CPU` | Sandbox CPU limit | `0.5` |
 
 ## Default Credentials
 
@@ -124,6 +189,29 @@ A self-hosted NetDevOps platform for network operations management, featuring IP
 - **Database**: `netops_flow`
 
 > **Important**: Change the default credentials immediately after installation for security purposes.
+
+## Development
+
+### Running Alembic Migrations
+
+```bash
+# Create a new migration
+docker-compose exec backend alembic revision --autogenerate -m "Description"
+
+# Apply migrations
+docker-compose exec backend alembic upgrade head
+
+# Rollback one migration
+docker-compose exec backend alembic downgrade -1
+```
+
+### Building the Sandbox Image
+
+If Docker sandboxing is enabled, the sandbox image will be built automatically on first script execution. To build it manually:
+
+```bash
+docker build -t netops-sandbox:latest -f docker/sandbox.Dockerfile .
+```
 
 ## Contributing
 

@@ -1,7 +1,15 @@
+# =============================================================================
+# NetOps-Flow Docker Compose
+# =============================================================================
+
 services:
+  # ---------------------------------------------------------------------------
+  # PostgreSQL Database
+  # ---------------------------------------------------------------------------
   db:
     image: postgres:15-alpine
-    restart: always
+    container_name: netops-db
+    restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-netops}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-netopspassword}
@@ -9,58 +17,91 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
-      - "5432:5432"
+      - "${DB_PORT:-5432}:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U netops -d netops_flow"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-netops} -d ${POSTGRES_DB:-netops_flow}"]
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 30s
+    networks:
+      - netops-network
 
+  # ---------------------------------------------------------------------------
+  # Redis Cache & Message Broker
+  # ---------------------------------------------------------------------------
   redis:
     image: redis:7-alpine
-    restart: always
+    container_name: netops-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --maxmemory 128mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - netops-network
 
+  # ---------------------------------------------------------------------------
+  # Backend API
+  # ---------------------------------------------------------------------------
   backend:
     build:
       context: .
       dockerfile: backend/Dockerfile
-    restart: always
-    command: uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload
+    container_name: netops-backend
+    restart: unless-stopped
+    command: uvicorn backend.app:app --host 0.0.0.0 --port 8000 --reload
     volumes:
       - .:/app
-      - ./scripts_storage:/scripts_storage
+      - scripts_storage:/scripts_storage
     environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER:-netops}:${POSTGRES_PASSWORD:-netopspassword}@db/${POSTGRES_DB:-netops_flow}
-      CELERY_BROKER_URL: redis://redis:6379/0
-      CELERY_RESULT_BACKEND: redis://redis:6379/0
-      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-default_dev_secret_change_in_prod}
-      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-netops}:${POSTGRES_PASSWORD:-netopspassword}@db/${POSTGRES_DB:-netops_flow}
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-default_dev_secret_change_in_prod}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY:-}
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - LOG_FORMAT=${LOG_FORMAT:-text}
+      - DOCKER_SANDBOX_ENABLED=${DOCKER_SANDBOX_ENABLED:-false}
     depends_on:
       db:
         condition: service_healthy
       redis:
         condition: service_healthy
     ports:
-      - "8000:8000"
+      - "${BACKEND_PORT:-8000}:8000"
+    networks:
+      - netops-network
 
+  # ---------------------------------------------------------------------------
+  # Celery Worker
+  # ---------------------------------------------------------------------------
   worker:
     build:
       context: .
       dockerfile: backend/Dockerfile
-    restart: always
+    container_name: netops-worker
+    restart: unless-stopped
     command: celery -A worker.tasks.celery_app worker --loglevel=info
     volumes:
       - .:/app
-      - ./scripts_storage:/scripts_storage
+      - scripts_storage:/scripts_storage
+      - /var/run/docker.sock:/var/run/docker.sock:ro
     environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER:-netops}:${POSTGRES_PASSWORD:-netopspassword}@db/${POSTGRES_DB:-netops_flow}
-      CELERY_BROKER_URL: redis://redis:6379/0
-      CELERY_RESULT_BACKEND: redis://redis:6379/0
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-netops}:${POSTGRES_PASSWORD:-netopspassword}@db/${POSTGRES_DB:-netops_flow}
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY:-}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - DOCKER_SANDBOX_ENABLED=${DOCKER_SANDBOX_ENABLED:-false}
+      - SCRIPTS_DIR=/scripts_storage
     depends_on:
       db:
         condition: service_healthy
@@ -68,19 +109,42 @@ services:
         condition: service_healthy
       backend:
         condition: service_started
+    networks:
+      - netops-network
 
+  # ---------------------------------------------------------------------------
+  # Frontend
+  # ---------------------------------------------------------------------------
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    restart: always
+    container_name: netops-frontend
+    restart: unless-stopped
     volumes:
       - ./frontend:/app
       - /app/node_modules
     ports:
-      - "3000:3000"
+      - "${FRONTEND_PORT:-3000}:3000"
     environment:
       - VITE_API_URL=${VITE_API_URL:-http://localhost:8000}
+    networks:
+      - netops-network
 
+# =============================================================================
+# Networks
+# =============================================================================
+networks:
+  netops-network:
+    driver: bridge
+
+# =============================================================================
+# Volumes
+# =============================================================================
 volumes:
   postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  scripts_storage:
+    driver: local

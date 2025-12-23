@@ -343,6 +343,37 @@
           <label class="block text-sm font-medium mb-1">{{ t('notes').value }}</label>
           <Textarea v-model="equipmentForm.notes" rows="3" class="w-full" />
         </div>
+
+        <!-- Remote Execution Section -->
+        <div v-if="selectedModelSupportsRemoteExecution" class="col-span-2 border-t pt-4 mt-2" style="border-color: var(--border-color);">
+          <h4 class="font-semibold mb-3 text-blue-500">{{ t('remoteExecution').value }}</h4>
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label class="block text-sm font-medium mb-1">{{ t('remoteIp').value }}</label>
+              <InputText v-model="equipmentForm.remote_ip" class="w-full" placeholder="192.168.1.100" />
+            </div>
+            <div>
+              <label class="block text-sm font-medium mb-1">{{ t('remotePort').value }}</label>
+              <InputNumber v-model="equipmentForm.remote_port" class="w-full" :placeholder="22" :min="1" :max="65535" />
+            </div>
+            <div>
+              <label class="block text-sm font-medium mb-1">{{ t('osType').value }}</label>
+              <Dropdown v-model="equipmentForm.os_type" :options="osTypeOptions" class="w-full" :placeholder="t('osType').value" />
+            </div>
+            <div>
+              <label class="block text-sm font-medium mb-1">{{ t('connectionType').value }}</label>
+              <Dropdown v-model="equipmentForm.connection_type" :options="connectionTypeOptions" class="w-full" :placeholder="t('connectionType').value" />
+            </div>
+            <div>
+              <label class="block text-sm font-medium mb-1">{{ t('username').value }}</label>
+              <InputText v-model="equipmentForm.remote_username" class="w-full" />
+            </div>
+            <div>
+              <label class="block text-sm font-medium mb-1">{{ t('password').value }}</label>
+              <Password v-model="equipmentForm.remote_password" class="w-full" :feedback="false" toggleMask />
+            </div>
+          </div>
+        </div>
       </div>
       <template #footer>
         <div class="flex justify-end gap-3">
@@ -423,6 +454,10 @@
               <i :class="'pi ' + slotProps.option + ' mr-2'"></i> {{ slotProps.option }}
             </template>
           </Dropdown>
+        </div>
+        <div class="flex items-center gap-2 border-t pt-4" style="border-color: var(--border-color);">
+          <Checkbox v-model="typeForm.supports_remote_execution" binary inputId="supports_remote" />
+          <label for="supports_remote" class="text-sm cursor-pointer">{{ t('supportsRemoteExecution').value }}</label>
         </div>
       </div>
       <template #footer>
@@ -596,14 +631,21 @@ const selectedIpToLink = ref(null);
 const equipmentForm = ref({
   name: '', serial_number: '', asset_tag: '', status: 'in_service',
   purchase_date: null, warranty_expiry: null, notes: '',
-  model_id: null, location_id: null, supplier_id: null
+  model_id: null, location_id: null, supplier_id: null,
+  // Remote execution fields
+  remote_ip: '', os_type: null, connection_type: null,
+  remote_username: '', remote_password: '', remote_port: null
 });
 
 const manufacturerForm = ref({ name: '', website: '', notes: '' });
 const modelForm = ref({ name: '', manufacturer_id: null, equipment_type_id: null });
-const typeForm = ref({ name: '', icon: 'pi-box' });
+const typeForm = ref({ name: '', icon: 'pi-box', supports_remote_execution: false });
 const locationForm = ref({ site: '', building: '', room: '' });
 const supplierForm = ref({ name: '', contact_email: '', phone: '', website: '', notes: '' });
+
+// Remote execution options
+const osTypeOptions = ['linux', 'windows'];
+const connectionTypeOptions = ['ssh', 'winrm'];
 
 // Options
 const statusOptions = computed(() => [
@@ -635,6 +677,13 @@ const filteredEquipment = computed(() => {
     result = result.filter(eq => eq.location_id === filterLocation.value);
   }
   return result;
+});
+
+// Check if selected model supports remote execution
+const selectedModelSupportsRemoteExecution = computed(() => {
+  if (!equipmentForm.value.model_id) return false;
+  const model = models.value.find(m => m.id === equipmentForm.value.model_id);
+  return model?.equipment_type?.supports_remote_execution || false;
 });
 
 // Helpers
@@ -703,13 +752,22 @@ const openEquipmentDialog = (eq = null) => {
       notes: eq.notes || '',
       model_id: eq.model_id,
       location_id: eq.location_id,
-      supplier_id: eq.supplier_id
+      supplier_id: eq.supplier_id,
+      // Remote execution fields
+      remote_ip: eq.remote_ip || '',
+      os_type: eq.os_type || null,
+      connection_type: eq.connection_type || null,
+      remote_username: eq.remote_username || '',
+      remote_password: '',  // Never pre-fill password for security
+      remote_port: eq.remote_port || null
     };
   } else {
     equipmentForm.value = {
       name: '', serial_number: '', asset_tag: '', status: 'in_service',
       purchase_date: null, warranty_expiry: null, notes: '',
-      model_id: null, location_id: null, supplier_id: null
+      model_id: null, location_id: null, supplier_id: null,
+      remote_ip: '', os_type: null, connection_type: null,
+      remote_username: '', remote_password: '', remote_port: null
     };
   }
   showEquipmentDialog.value = true;
@@ -882,7 +940,7 @@ const deleteModel = async (id) => {
 // Type CRUD
 const openTypeDialog = (tp = null) => {
   editingType.value = tp;
-  typeForm.value = tp ? { ...tp } : { name: '', icon: 'pi-box' };
+  typeForm.value = tp ? { ...tp } : { name: '', icon: 'pi-box', supports_remote_execution: false };
   showTypeDialog.value = true;
 };
 

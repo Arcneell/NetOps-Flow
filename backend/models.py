@@ -14,17 +14,6 @@ class User(Base):
     role = Column(String, default="user") # admin, user
     permissions = Column(JSON, default={}) # ex: {"ipam": true, "scripts": false}
 
-class Server(Base):
-    __tablename__ = "servers"
-
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String, unique=True, index=True)
-    ip_address = Column(String, nullable=False)
-    os_type = Column(String, nullable=False) # linux, windows
-    connection_type = Column(String, default="ssh") # ssh, winrm
-    username = Column(String, nullable=False)
-    password = Column(String, nullable=True) 
-    port = Column(Integer, default=22)
 
 class Subnet(Base):
     __tablename__ = "subnets"
@@ -68,7 +57,7 @@ class ScriptExecution(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     script_id = Column(Integer, ForeignKey("scripts.id", ondelete="SET NULL"), nullable=True)
-    server_id = Column(Integer, ForeignKey("servers.id"), nullable=True)
+    equipment_id = Column(Integer, ForeignKey("equipment.id", ondelete="SET NULL"), nullable=True)
     task_id = Column(String, nullable=True)
     status = Column(String, default="pending")
     stdout = Column(Text, nullable=True)
@@ -77,7 +66,7 @@ class ScriptExecution(Base):
     completed_at = Column(DateTime, nullable=True)
 
     script = relationship("Script", back_populates="executions")
-    server = relationship("Server")
+    equipment = relationship("Equipment")
 
 
 # ==================== INVENTORY MODELS ====================
@@ -101,6 +90,7 @@ class EquipmentType(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, unique=True, nullable=False, index=True)
     icon = Column(String, default="pi-box")  # PrimeIcons class
+    supports_remote_execution = Column(Boolean, default=False)  # Enable SSH/WinRM fields
 
     models = relationship("EquipmentModel", back_populates="equipment_type")
 
@@ -165,6 +155,14 @@ class Equipment(Base):
     model_id = Column(Integer, ForeignKey("equipment_models.id"), nullable=True)
     location_id = Column(Integer, ForeignKey("locations.id"), nullable=True)
     supplier_id = Column(Integer, ForeignKey("suppliers.id"), nullable=True)
+
+    # Remote execution fields (optional, used when equipment type supports it)
+    remote_ip = Column(String, nullable=True)
+    os_type = Column(String, nullable=True)  # linux, windows
+    connection_type = Column(String, nullable=True)  # ssh, winrm
+    remote_username = Column(String, nullable=True)
+    remote_password = Column(String, nullable=True)
+    remote_port = Column(Integer, nullable=True)
 
     # Relationships
     model = relationship("EquipmentModel", back_populates="equipment")

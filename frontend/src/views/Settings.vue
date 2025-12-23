@@ -43,27 +43,6 @@
             </DataTable>
         </div>
 
-        <!-- Server Inventory -->
-        <div class="card">
-            <div class="flex justify-between items-center mb-4">
-                <h3 class="text-lg font-bold">{{ t('serverInventory').value }}</h3>
-                <Button :label="t('newServer').value" icon="pi pi-plus" size="small" @click="showServerDialog = true" />
-            </div>
-            <DataTable :value="servers" size="small" stripedRows>
-                <Column field="name" :header="t('name').value"></Column>
-                <Column field="ip_address" header="IP"></Column>
-                <Column field="os_type" header="OS">
-                    <template #body="slotProps">
-                        <i :class="getOsIcon(slotProps.data.os_type)" class="mr-2"></i> {{ slotProps.data.os_type }}
-                    </template>
-                </Column>
-                <Column :header="t('actions').value">
-                    <template #body="slotProps">
-                        <Button icon="pi pi-trash" text rounded severity="danger" @click="deleteServer(slotProps.data.id)" />
-                    </template>
-                </Column>
-            </DataTable>
-        </div>
       </div>
 
       <!-- Create User Dialog -->
@@ -127,32 +106,6 @@
           </template>
       </Dialog>
 
-      <!-- Create Server Dialog -->
-      <Dialog v-model:visible="showServerDialog" modal :header="t('newServer').value" :style="{ width: '500px' }">
-          <div class="grid grid-cols-2 gap-4 mt-2">
-              <div class="col-span-2"><label class="text-sm font-medium">{{ t('name').value }}</label><InputText v-model="newServer.name" class="w-full" /></div>
-              <div><label class="text-sm font-medium">{{ t('ipAddress').value }}</label><InputText v-model="newServer.ip_address" class="w-full" /></div>
-              <div><label class="text-sm font-medium">Port</label><InputText v-model="newServer.port" type="number" class="w-full" /></div>
-
-              <div>
-                  <label class="text-sm font-medium">OS Type</label>
-                  <Dropdown v-model="newServer.os_type" :options="['linux', 'windows']" class="w-full" />
-              </div>
-              <div>
-                  <label class="text-sm font-medium">Connection</label>
-                  <Dropdown v-model="newServer.connection_type" :options="['ssh', 'winrm']" class="w-full" />
-              </div>
-
-              <div><label class="text-sm font-medium">{{ t('username').value }}</label><InputText v-model="newServer.username" class="w-full" /></div>
-              <div><label class="text-sm font-medium">{{ t('password').value }}</label><InputText v-model="newServer.password" type="password" class="w-full" /></div>
-          </div>
-          <template #footer>
-              <div class="flex justify-end gap-3">
-                  <Button :label="t('cancel').value" severity="secondary" outlined @click="showServerDialog = false" />
-                  <Button :label="t('saveServer').value" icon="pi pi-check" @click="createServer" />
-              </div>
-          </template>
-      </Dialog>
   </div>
 </template>
 
@@ -164,10 +117,8 @@ import { t } from '../i18n';
 
 const toast = useToast();
 const users = ref([]);
-const servers = ref([]);
 const currentUser = ref({ role: 'user' });
 const showUserDialog = ref(false);
-const showServerDialog = ref(false);
 const showDeleteUserDialog = ref(false);
 const userToDelete = ref(null);
 const updatingPwd = ref(false);
@@ -180,8 +131,6 @@ const newUser = ref({
     permissions: { ipam: false, topology: false, scripts: false, settings: false, inventory: false }
 });
 
-const newServer = ref({ name: '', ip_address: '', port: 22, os_type: 'linux', connection_type: 'ssh', username: '', password: '' });
-
 const loadData = async () => {
     try {
         const meRes = await api.get('/users/me');
@@ -191,9 +140,6 @@ const loadData = async () => {
              const uRes = await api.get('/users/');
              users.value = uRes.data;
         }
-
-        const sRes = await api.get('/servers/');
-        servers.value = sRes.data;
     } catch (e) {
         console.error(e);
     }
@@ -264,34 +210,6 @@ const deleteUser = async () => {
         const detail = e.response?.data?.detail || t('error').value;
         toast.add({ severity: 'error', summary: t('error').value, detail: detail });
     }
-};
-
-const createServer = async () => {
-    // Validation client-side
-    if (!newServer.value.name || !newServer.value.ip_address || !newServer.value.username) {
-        toast.add({ severity: 'warn', summary: t('validationError').value, detail: t('fillRequiredFields').value });
-        return;
-    }
-    try {
-        await api.post('/servers/', newServer.value);
-        showServerDialog.value = false;
-        loadData();
-        toast.add({ severity: 'success', summary: t('success').value, detail: 'Server Added' });
-    } catch (e) {
-        const detail = e.response?.data?.detail || t('error').value;
-        toast.add({ severity: 'error', summary: t('error').value, detail: detail });
-    }
-};
-
-const deleteServer = async (id) => {
-    if(confirm('Are you sure?')) {
-        await api.delete(`/servers/${id}`);
-        loadData();
-    }
-};
-
-const getOsIcon = (os) => {
-    return os === 'windows' ? 'pi pi-microsoft' : 'pi pi-linux';
 };
 
 onMounted(loadData);

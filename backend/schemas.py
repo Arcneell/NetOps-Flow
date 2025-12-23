@@ -32,22 +32,6 @@ class UserUpdate(BaseModel):
     role: Optional[str] = None
     permissions: Optional[Dict[str, bool]] = None
 
-# --- Servers ---
-class ServerBase(BaseModel):
-    name: str
-    ip_address: str
-    os_type: str 
-    connection_type: str = "ssh"
-    username: str
-    port: int = 22
-
-class ServerCreate(ServerBase):
-    password: str
-
-class Server(ServerBase):
-    id: int
-    class Config:
-        from_attributes = True
 
 # --- IPAM ---
 class IPAddressBase(BaseModel):
@@ -120,7 +104,7 @@ class Script(ScriptBase):
 
 class ScriptExecutionBase(BaseModel):
     script_id: Optional[int] = None
-    server_id: Optional[int] = None 
+    equipment_id: Optional[int] = None
     password: Optional[str] = None # For confirmation
     script_args: Optional[List[str]] = None
 
@@ -156,6 +140,7 @@ class Manufacturer(ManufacturerBase):
 class EquipmentTypeBase(BaseModel):
     name: str
     icon: str = "pi-box"
+    supports_remote_execution: bool = False
 
 class EquipmentTypeCreate(EquipmentTypeBase):
     pass
@@ -231,9 +216,15 @@ class EquipmentBase(BaseModel):
     model_id: Optional[int] = None
     location_id: Optional[int] = None
     supplier_id: Optional[int] = None
+    # Remote execution fields
+    remote_ip: Optional[str] = None
+    os_type: Optional[str] = None
+    connection_type: Optional[str] = None
+    remote_username: Optional[str] = None
+    remote_port: Optional[int] = None
 
 class EquipmentCreate(EquipmentBase):
-    pass
+    remote_password: Optional[str] = None
 
 class EquipmentUpdate(BaseModel):
     name: Optional[str] = None
@@ -246,6 +237,13 @@ class EquipmentUpdate(BaseModel):
     model_id: Optional[int] = None
     location_id: Optional[int] = None
     supplier_id: Optional[int] = None
+    # Remote execution fields
+    remote_ip: Optional[str] = None
+    os_type: Optional[str] = None
+    connection_type: Optional[str] = None
+    remote_username: Optional[str] = None
+    remote_password: Optional[str] = None
+    remote_port: Optional[int] = None
 
 class Equipment(EquipmentBase):
     id: int

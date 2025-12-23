@@ -78,7 +78,7 @@
                 <Column field="id" header="#" style="width: 3rem" class="opacity-50"></Column>
                 <Column :header="t('targetServer').value">
                      <template #body="slotProps">
-                         <span v-if="slotProps.data.server_id" class="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">Remote</span>
+                         <span v-if="slotProps.data.equipment_id" class="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">Remote</span>
                          <span v-else class="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded">Local</span>
                      </template>
                 </Column>
@@ -112,7 +112,7 @@
             
             <div class="flex flex-col gap-2">
                 <label class="text-sm font-bold">{{ t('targetServer').value }}</label>
-                <Dropdown v-model="selectedServerId" :options="serverOptions" optionLabel="name" optionValue="id" :placeholder="t('localhost').value" class="w-full" showClear />
+                <Dropdown v-model="selectedEquipmentId" :options="equipmentOptions" optionLabel="name" optionValue="id" :placeholder="t('localhost').value" class="w-full" showClear />
                 <small class="opacity-50">{{ t('leaveEmpty').value }}</small>
             </div>
 
@@ -201,7 +201,7 @@ import { t } from '../i18n';
 const toast = useToast();
 const scripts = ref([]);
 const executions = ref([]);
-const servers = ref([]);
+const executableEquipment = ref([]);
 const uploading = ref(false);
 const fileInput = ref(null);
 const selectedFile = ref(null);
@@ -213,7 +213,7 @@ const showAccessDeniedDialog = ref(false);
 const selectedExecution = ref(null);
 const selectedScript = ref(null);
 const scriptToDelete = ref(null);
-const selectedServerId = ref(null);
+const selectedEquipmentId = ref(null);
 const scriptArgs = ref('');
 const confirmPassword = ref('');
 let refreshInterval = null;
@@ -224,8 +224,8 @@ const uploadForm = ref({
     type: 'python'
 });
 
-const serverOptions = computed(() => {
-    return servers.value.map(s => ({ name: `${s.name} (${s.ip_address})`, id: s.id }));
+const equipmentOptions = computed(() => {
+    return executableEquipment.value.map(e => ({ name: `${e.name} (${e.remote_ip})`, id: e.id }));
 });
 
 const onFileSelected = (event) => {
@@ -258,14 +258,14 @@ const getFileIcon = computed(() => {
 
 const loadData = async () => {
     try {
-        const [scRes, exRes, svRes] = await Promise.all([
+        const [scRes, exRes, eqRes] = await Promise.all([
             api.get('/scripts/'),
             api.get('/executions/'),
-            api.get('/servers/')
+            api.get('/inventory/equipment/executable/')
         ]);
         scripts.value = scRes.data;
         executions.value = exRes.data;
-        servers.value = svRes.data;
+        executableEquipment.value = eqRes.data;
     } catch (e) { console.error(e); }
 };
 
@@ -304,7 +304,7 @@ const uploadScript = async () => {
 
 const confirmRun = (script) => {
     selectedScript.value = script;
-    selectedServerId.value = null;
+    selectedEquipmentId.value = null;
     scriptArgs.value = '';
     confirmPassword.value = '';
     showRunDialog.value = true;
@@ -327,11 +327,11 @@ const runScript = async () => {
 
     try {
         await api.post(`/scripts/${selectedScript.value.id}/run`, {
-            server_id: selectedServerId.value,
+            equipment_id: selectedEquipmentId.value,
             password: confirmPassword.value,
             script_args: argsArray
         });
-        
+
         toast.add({ severity: 'info', summary: t('started').value, detail: t('scriptQueued').value });
         showRunDialog.value = false;
         fetchExecutions();
