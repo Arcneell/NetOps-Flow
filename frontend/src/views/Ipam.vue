@@ -32,6 +32,15 @@
               <Column field="address" :header="t('address').value" sortable class="font-mono text-sm"></Column>
               <Column field="hostname" :header="t('hostname').value" class="text-sm"></Column>
               <Column field="mac_address" :header="t('mac').value" class="font-mono text-xs opacity-70"></Column>
+              <Column :header="t('linkedEquipment').value" class="text-sm">
+                 <template #body="ipSlot">
+                    <span v-if="ipSlot.data.equipment" class="flex items-center gap-2">
+                       <i class="pi pi-box text-blue-500"></i>
+                       <span class="font-medium">{{ ipSlot.data.equipment.name }}</span>
+                    </span>
+                    <span v-else class="opacity-50">-</span>
+                 </template>
+              </Column>
               <Column field="last_scanned_at" :header="t('lastScan').value" class="text-xs opacity-70">
                  <template #body="ip">
                     {{ ip.data.last_scanned_at ? new Date(ip.data.last_scanned_at).toLocaleString() : '-' }}
@@ -66,8 +75,10 @@
         </div>
       </div>
       <template #footer>
-        <Button :label="t('cancel').value" text class="p-button-secondary" @click="showSubnetDialog = false" />
-        <Button :label="t('save').value" icon="pi pi-check" @click="createSubnet" />
+        <div class="flex justify-end gap-3">
+          <Button :label="t('cancel').value" severity="secondary" outlined @click="showSubnetDialog = false" />
+          <Button :label="t('save').value" icon="pi pi-check" @click="createSubnet" />
+        </div>
       </template>
     </Dialog>
 
@@ -88,8 +99,10 @@
         </div>
       </div>
       <template #footer>
-        <Button :label="t('cancel').value" text class="p-button-secondary" @click="showIpDialog = false" />
-        <Button :label="t('allocate').value" icon="pi pi-check" @click="createIp" />
+        <div class="flex justify-end gap-3">
+          <Button :label="t('cancel').value" severity="secondary" outlined @click="showIpDialog = false" />
+          <Button :label="t('allocate').value" icon="pi pi-check" @click="createIp" />
+        </div>
       </template>
     </Dialog>
   </div>

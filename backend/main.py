@@ -1,7 +1,7 @@
 from fastapi import FastAPI, Depends, HTTPException, UploadFile, File, Form, status, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordRequestForm
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from typing import List, Optional
 from pydantic import BaseModel, field_validator
 import shutil
@@ -358,7 +358,7 @@ def create_subnet(subnet: schemas.SubnetCreate, db: Session = Depends(database.g
     db.refresh(db_subnet)
     return db_subnet
 
-@app.get("/subnets/", response_model=List[schemas.Subnet])
+@app.get("/subnets/", response_model=List[schemas.SubnetWithEquipment])
 def read_subnets(skip: int = 0, limit: int = 100, db: Session = Depends(database.get_db), current_user: models.User = Depends(auth.get_current_active_user)):
     # Read access might be open or restricted. For now, let's keep it open to active users or check IPAM?
     # User asked to check rights. Let's enforce IPAM or Topology for reading subnets as they are basic network data?
@@ -366,7 +366,11 @@ def read_subnets(skip: int = 0, limit: int = 100, db: Session = Depends(database
     # But for now, let's stick to modifying the write operations as critical path, and specific feature pages.
     if current_user.role != "admin" and not current_user.permissions.get("ipam") and not current_user.permissions.get("topology"):
          raise HTTPException(status_code=403, detail="Permission denied")
-    return db.query(models.Subnet).offset(skip).limit(limit).all()
+    # Load IPs with their equipment relationship
+    subnets = db.query(models.Subnet).options(
+        joinedload(models.Subnet.ips).joinedload(models.IPAddress.equipment)
+    ).offset(skip).limit(limit).all()
+    return subnets
 
 @app.post("/subnets/{subnet_id}/ips/", response_model=schemas.IPAddress)
 def create_ip_for_subnet(subnet_id: int, ip: schemas.IPAddressCreate, db: Session = Depends(database.get_db), current_user: models.User = Depends(auth.get_current_active_user)):

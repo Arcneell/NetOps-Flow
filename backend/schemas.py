@@ -67,6 +67,27 @@ class IPAddress(IPAddressBase):
     class Config:
         from_attributes = True
 
+class EquipmentBrief(BaseModel):
+    """Brief equipment info for IPAM display"""
+    id: int
+    name: str
+    class Config:
+        from_attributes = True
+
+class IPAddressWithEquipment(IPAddress):
+    """IP Address with equipment relationship for IPAM"""
+    equipment: Optional[EquipmentBrief] = None
+
+class SubnetWithEquipment(BaseModel):
+    """Subnet with IPs that include equipment info"""
+    id: int
+    cidr: str
+    name: Optional[str] = None
+    description: Optional[str] = None
+    ips: List[IPAddressWithEquipment] = []
+    class Config:
+        from_attributes = True
+
 class SubnetBase(BaseModel):
     cidr: str
     name: Optional[str] = None

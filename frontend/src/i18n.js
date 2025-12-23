@@ -231,7 +231,8 @@ const translations = {
         confirmDelete: "Confirm Delete",
         confirmDeleteEquipment: "Are you sure you want to delete this equipment?",
         confirmDeleteItem: "Are you sure you want to delete this item?",
-        noAvailableIps: "No available IPs to link"
+        noAvailableIps: "No available IPs to link",
+        linkedEquipment: "Linked Equipment"
     },
     fr: {
         // Auth
@@ -461,7 +462,8 @@ const translations = {
         confirmDelete: "Confirmer la suppression",
         confirmDeleteEquipment: "Êtes-vous sûr de vouloir supprimer cet équipement ?",
         confirmDeleteItem: "Êtes-vous sûr de vouloir supprimer cet élément ?",
-        noAvailableIps: "Aucune IP disponible à lier"
+        noAvailableIps: "Aucune IP disponible à lier",
+        linkedEquipment: "Équipement lié"
     }
 };
 
