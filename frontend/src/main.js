@@ -22,6 +22,7 @@ import FileUpload from 'primevue/fileupload';
 import Tag from 'primevue/tag';
 import Toast from 'primevue/toast';
 import ToastService from 'primevue/toastservice';
+import Calendar from 'primevue/calendar';
 
 const app = createApp(App)
 
@@ -40,5 +41,6 @@ app.component('Textarea', Textarea)
 app.component('FileUpload', FileUpload)
 app.component('Tag', Tag)
 app.component('Toast', Toast)
+app.component('Calendar', Calendar)
 
 app.mount('#app')
