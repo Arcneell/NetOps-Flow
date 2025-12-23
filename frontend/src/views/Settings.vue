@@ -106,8 +106,10 @@
               </div>
           </div>
           <template #footer>
-              <Button :label="t('cancel').value" text @click="showUserDialog = false" />
-              <Button :label="t('saveUser').value" @click="createUser" />
+              <div class="flex justify-end gap-3">
+                  <Button :label="t('cancel').value" severity="secondary" outlined @click="showUserDialog = false" />
+                  <Button :label="t('saveUser').value" icon="pi pi-check" @click="createUser" />
+              </div>
           </template>
       </Dialog>
 
@@ -118,8 +120,10 @@
               <span>{{ t('confirmDeleteUser').value }} <b>{{ userToDelete?.username }}</b>?</span>
           </div>
           <template #footer>
-              <Button :label="t('cancel').value" text @click="showDeleteUserDialog = false" />
-              <Button :label="t('deleteUser').value" icon="pi pi-trash" @click="deleteUser" severity="danger" />
+              <div class="flex justify-end gap-3">
+                  <Button :label="t('cancel').value" severity="secondary" outlined @click="showDeleteUserDialog = false" />
+                  <Button :label="t('delete').value" icon="pi pi-trash" @click="deleteUser" severity="danger" />
+              </div>
           </template>
       </Dialog>
 
@@ -143,8 +147,10 @@
               <div><label class="text-sm font-medium">{{ t('password').value }}</label><InputText v-model="newServer.password" type="password" class="w-full" /></div>
           </div>
           <template #footer>
-              <Button :label="t('cancel').value" text @click="showServerDialog = false" />
-              <Button :label="t('saveServer').value" @click="createServer" />
+              <div class="flex justify-end gap-3">
+                  <Button :label="t('cancel').value" severity="secondary" outlined @click="showServerDialog = false" />
+                  <Button :label="t('saveServer').value" icon="pi pi-check" @click="createServer" />
+              </div>
           </template>
       </Dialog>
   </div>

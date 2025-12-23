@@ -116,7 +116,7 @@
               <template #body="slotProps">
                 <div class="flex gap-1">
                   <Button icon="pi pi-pencil" text rounded size="small" @click="openEquipmentDialog(slotProps.data)" v-tooltip.top="t('edit').value" />
-                  <Button icon="pi pi-trash" text rounded size="small" severity="danger" @click="confirmDeleteEquipment(slotProps.data)" v-tooltip.top="t('deleted').value" />
+                  <Button icon="pi pi-trash" text rounded size="small" severity="danger" @click="confirmDeleteEquipment(slotProps.data)" v-tooltip.top="t('delete').value" />
                 </div>
               </template>
             </Column>
@@ -620,7 +620,7 @@ const locationOptions = computed(() => locations.value.map(l => ({
   label: `${l.site}${l.building ? ' / ' + l.building : ''}${l.room ? ' / ' + l.room : ''}`
 })));
 
-const iconOptions = ['pi-server', 'pi-desktop', 'pi-mobile', 'pi-box', 'pi-database', 'pi-wifi', 'pi-globe', 'pi-print', 'pi-shield', 'pi-bolt', 'pi-microchip', 'pi-hdd'];
+const iconOptions = ['pi-server', 'pi-desktop', 'pi-mobile', 'pi-box', 'pi-database', 'pi-wifi', 'pi-globe', 'pi-print', 'pi-shield', 'pi-bolt', 'pi-cog', 'pi-sitemap', 'pi-sliders-h', 'pi-tablet', 'pi-video'];
 
 // Filtered equipment
 const filteredEquipment = computed(() => {

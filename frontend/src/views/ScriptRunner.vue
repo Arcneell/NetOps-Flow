@@ -127,32 +127,38 @@
             </div>
         </div>
         <template #footer>
-            <Button :label="t('cancel').value" text @click="showRunDialog = false" />
-            <Button :label="t('runNow').value" icon="pi pi-play" @click="runScript" severity="danger" />
+            <div class="flex justify-end gap-3">
+                <Button :label="t('cancel').value" severity="secondary" outlined @click="showRunDialog = false" />
+                <Button :label="t('runNow').value" icon="pi pi-play" @click="runScript" severity="danger" />
+            </div>
         </template>
     </Dialog>
-    
+
     <!-- Delete Script Confirmation Dialog -->
-    <Dialog v-model:visible="showDeleteDialog" modal :header="t('actions').value" :style="{ width: '350px' }">
+    <Dialog v-model:visible="showDeleteDialog" modal :header="t('confirmDelete').value" :style="{ width: '350px' }">
         <div class="flex items-center gap-3">
             <i class="pi pi-exclamation-triangle text-red-500 text-2xl"></i>
             <span>{{ t('confirmDeleteScript').value }} <b>{{ scriptToDelete?.name }}</b>?</span>
         </div>
         <template #footer>
-            <Button :label="t('cancel').value" text @click="showDeleteDialog = false" />
-            <Button :label="t('actions').value" icon="pi pi-trash" @click="deleteScript" severity="danger" />
+            <div class="flex justify-end gap-3">
+                <Button :label="t('cancel').value" severity="secondary" outlined @click="showDeleteDialog = false" />
+                <Button :label="t('delete').value" icon="pi pi-trash" @click="deleteScript" severity="danger" />
+            </div>
         </template>
     </Dialog>
 
     <!-- Clear History Confirmation Dialog -->
-    <Dialog v-model:visible="showClearHistoryDialog" modal :header="t('actions').value" :style="{ width: '350px' }">
+    <Dialog v-model:visible="showClearHistoryDialog" modal :header="t('confirmDelete').value" :style="{ width: '350px' }">
         <div class="flex items-center gap-3">
             <i class="pi pi-exclamation-triangle text-red-500 text-2xl"></i>
             <span>{{ t('confirmDeleteHistory').value }}</span>
         </div>
         <template #footer>
-            <Button :label="t('cancel').value" text @click="showClearHistoryDialog = false" />
-            <Button :label="t('actions').value" icon="pi pi-trash" @click="clearHistory" severity="danger" />
+            <div class="flex justify-end gap-3">
+                <Button :label="t('cancel').value" severity="secondary" outlined @click="showClearHistoryDialog = false" />
+                <Button :label="t('delete').value" icon="pi pi-trash" @click="clearHistory" severity="danger" />
+            </div>
         </template>
     </Dialog>
 
