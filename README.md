@@ -36,6 +36,8 @@ A self-hosted NetDevOps platform for network operations management, featuring IP
 - Full tracking: serial number, asset tag, purchase date, warranty expiry
 - Equipment status: In Service, In Stock, Retired, Maintenance
 - Bidirectional IP-Equipment linking with IPAM integration
+- Integrated DCIM placement: Add rack assignment, U-position, and height directly from equipment form
+- Automatic rack list loading for seamless datacenter placement
 
 ### Network Topology
 - Visual network topology display showing subnets and IP addresses

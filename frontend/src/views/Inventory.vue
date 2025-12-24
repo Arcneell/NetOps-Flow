@@ -344,6 +344,29 @@
           <Textarea v-model="equipmentForm.notes" rows="3" class="w-full" />
         </div>
 
+        <!-- Rack Placement Section (DCIM) -->
+        <div class="col-span-2 border-t pt-4 mt-2" style="border-color: var(--border-color);">
+          <h4 class="font-semibold mb-3 text-purple-500 flex items-center gap-2">
+            <i class="pi pi-server"></i>
+            {{ t('dcim.rackPlacement') }}
+          </h4>
+          <div class="grid grid-cols-3 gap-4">
+            <div>
+              <label class="block text-sm font-medium mb-1">{{ t('dcim.racks') }}</label>
+              <Dropdown v-model="equipmentForm.rack_id" :options="racks" optionLabel="name" optionValue="id" :placeholder="t('dcim.selectRack')" class="w-full" showClear />
+            </div>
+            <div>
+              <label class="block text-sm font-medium mb-1">{{ t('dcim.positionU') }}</label>
+              <InputNumber v-model="equipmentForm.position_u" class="w-full" :placeholder="t('dcim.positionUPlaceholder')" :min="1" :max="42" />
+              <small class="opacity-70">{{ t('dcim.positionUHint') }}</small>
+            </div>
+            <div>
+              <label class="block text-sm font-medium mb-1">{{ t('dcim.heightU') }}</label>
+              <InputNumber v-model="equipmentForm.height_u" class="w-full" :placeholder="t('dcim.heightUPlaceholder')" :min="1" :max="42" />
+            </div>
+          </div>
+        </div>
+
         <!-- Remote Execution Section -->
         <div v-if="selectedModelSupportsRemoteExecution" class="col-span-2 border-t pt-4 mt-2" style="border-color: var(--border-color);">
           <h4 class="font-semibold mb-3 text-blue-500">{{ t('remote.remoteExecution') }}</h4>
@@ -599,6 +622,7 @@ const models = ref([]);
 const types = ref([]);
 const locations = ref([]);
 const suppliers = ref([]);
+const racks = ref([]);
 const availableIps = ref([]);
 const expandedRows = ref({});
 
@@ -635,7 +659,9 @@ const equipmentForm = ref({
   model_id: null, location_id: null, supplier_id: null,
   // Remote execution fields
   remote_ip: '', os_type: null, connection_type: null,
-  remote_username: '', remote_password: '', remote_port: null
+  remote_username: '', remote_password: '', remote_port: null,
+  // DCIM rack placement fields
+  rack_id: null, position_u: null, height_u: null
 });
 
 const manufacturerForm = ref({ name: '', website: '', notes: '' });
@@ -711,13 +737,14 @@ const formatDate = (date) => {
 // Data loading
 const loadData = async () => {
   try {
-    const [eqRes, mfRes, mdRes, tpRes, lcRes, spRes] = await Promise.all([
+    const [eqRes, mfRes, mdRes, tpRes, lcRes, spRes, rackRes] = await Promise.all([
       api.get('/inventory/equipment/'),
       api.get('/inventory/manufacturers/'),
       api.get('/inventory/models/'),
       api.get('/inventory/types/'),
       api.get('/inventory/locations/'),
-      api.get('/inventory/suppliers/')
+      api.get('/inventory/suppliers/'),
+      api.get('/dcim/racks/')
     ]);
     equipment.value = eqRes.data;
     manufacturers.value = mfRes.data;
@@ -725,6 +752,7 @@ const loadData = async () => {
     types.value = tpRes.data;
     locations.value = lcRes.data;
     suppliers.value = spRes.data;
+    racks.value = rackRes.data;
   } catch (e) {
     toast.add({ severity: 'error', summary: t('common.error'), detail: e.response?.data?.detail || 'Failed to load data' });
   }
@@ -760,7 +788,11 @@ const openEquipmentDialog = (eq = null) => {
       connection_type: eq.connection_type || null,
       remote_username: eq.remote_username || '',
       remote_password: '',  // Never pre-fill password for security
-      remote_port: eq.remote_port || null
+      remote_port: eq.remote_port || null,
+      // DCIM rack placement fields
+      rack_id: eq.rack_id || null,
+      position_u: eq.position_u || null,
+      height_u: eq.height_u || null
     };
   } else {
     equipmentForm.value = {
@@ -768,7 +800,8 @@ const openEquipmentDialog = (eq = null) => {
       purchase_date: null, warranty_expiry: null, notes: '',
       model_id: null, location_id: null, supplier_id: null,
       remote_ip: '', os_type: null, connection_type: null,
-      remote_username: '', remote_password: '', remote_port: null
+      remote_username: '', remote_password: '', remote_port: null,
+      rack_id: null, position_u: null, height_u: null
     };
   }
   showEquipmentDialog.value = true;

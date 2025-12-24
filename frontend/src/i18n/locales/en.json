@@ -346,7 +346,14 @@
     "newPosition": "New Position",
     "positionUpdated": "Position updated successfully",
     "confirmRemoveEquipment": "Remove {name} from this rack?",
-    "equipmentRemoved": "Equipment removed from rack"
+    "equipmentRemoved": "Equipment removed from rack",
+    "rackPlacement": "Rack Placement (DCIM)",
+    "selectRack": "Select rack",
+    "positionU": "Position U",
+    "positionUPlaceholder": "Starting U position",
+    "positionUHint": "Leave empty if not placed",
+    "heightU": "Height U",
+    "heightUPlaceholder": "Equipment height in U"
   },
   "contracts": {
     "title": "Contracts",

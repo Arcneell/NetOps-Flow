@@ -346,7 +346,14 @@
     "newPosition": "Nouvelle Position",
     "positionUpdated": "Position mise à jour avec succès",
     "confirmRemoveEquipment": "Retirer {name} de cette baie ?",
-    "equipmentRemoved": "Équipement retiré de la baie"
+    "equipmentRemoved": "Équipement retiré de la baie",
+    "rackPlacement": "Placement Rack (DCIM)",
+    "selectRack": "Sélectionner une baie",
+    "positionU": "Position U",
+    "positionUPlaceholder": "Position U de départ",
+    "positionUHint": "Laisser vide si non placé",
+    "heightU": "Hauteur U",
+    "heightUPlaceholder": "Hauteur de l'équipement en U"
   },
   "contracts": {
     "title": "Contrats",

@@ -86,6 +86,8 @@ worker/            # Celery worker
 - Hiérarchie: Fabricant → Modèle → Équipement
 - Localisation: Site → Bâtiment → Salle
 - Statuts: En service, En stock, Retiré, Maintenance
+- Intégration DCIM : Champs de placement rack (rack_id, position_u, height_u) dans le formulaire équipement
+- Chargement automatique de la liste des baies pour sélection directe
 
 ### Topologie Réseau
 - Visualisation graphique avec Vis.js
