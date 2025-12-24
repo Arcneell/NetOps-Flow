@@ -3,32 +3,46 @@
 @tailwind utilities;
 
 /* =========================================
-   1. VARIABLES DE THÈME (SIMPLE & HIGH CONTRAST)
+   1. MODERN SLATE COLOR PALETTE
    ========================================= */
 :root {
-    /* LIGHT MODE: White backgrounds, Black text */
-    --bg-app: #f3f4f6;       /* Light Grey Background */
-    --bg-card: #ffffff;      /* Pure White Card */
+    /* LIGHT MODE: Zinc tones with electric blue accents */
+    --bg-app: #fafafa;       /* Zinc 50 */
+    --bg-card: #ffffff;      /* Pure White */
     --bg-input: #ffffff;     /* White Input */
+    --bg-sidebar: #27272a;   /* Zinc 800 */
 
-    --text-main: #111827;    /* Almost Black */
-    --text-muted: #4b5563;   /* Dark Grey */
+    --text-main: #18181b;    /* Zinc 900 */
+    --text-muted: #71717a;   /* Zinc 500 */
 
-    --border-color: #d1d5db; /* Visible Grey Border */
-    --primary: #2563eb;      /* Blue 600 */
+    --border-color: #e4e4e7; /* Zinc 200 */
+    --primary: #0ea5e9;      /* Electric Blue (Sky 500) */
+    --primary-hover: #0284c7;/* Electric Blue Dark (Sky 600) */
+    --primary-light: #bae6fd;/* Electric Blue Light (Sky 200) */
+
+    --accent-success: #10b981; /* Emerald 500 */
+    --accent-warning: #f59e0b; /* Amber 500 */
+    --accent-danger: #ef4444;  /* Red 500 */
 }
 
 :root.dark {
-    /* DARK MODE: Dark Grey backgrounds, White text */
-    --bg-app: #111827;       /* Grey 900 */
-    --bg-card: #1f2937;      /* Grey 800 */
-    --bg-input: #0f172a;     /* Grey 950 */
+    /* DARK MODE: Anthracite and deep slate with electric blue */
+    --bg-app: #0f172a;       /* Slate 950 - Anthracite */
+    --bg-card: #1e293b;      /* Slate 800 */
+    --bg-input: #0f172a;     /* Slate 950 */
+    --bg-sidebar: #020617;   /* Slate 950 Darker */
 
-    --text-main: #f9fafb;    /* White */
-    --text-muted: #9ca3af;   /* Light Grey */
+    --text-main: #f8fafc;    /* Slate 50 */
+    --text-muted: #94a3b8;   /* Slate 400 */
 
-    --border-color: #374151; /* Grey 700 */
-    --primary: #3b82f6;      /* Blue 500 */
+    --border-color: #334155; /* Slate 700 */
+    --primary: #0ea5e9;      /* Electric Blue */
+    --primary-hover: #38bdf8;/* Electric Blue Bright */
+    --primary-light: #075985;/* Electric Blue Dark */
+
+    --accent-success: #10b981;
+    --accent-warning: #f59e0b;
+    --accent-danger: #ef4444;
 }
 
 /* =========================================
@@ -46,13 +60,20 @@ body {
    ========================================= */
 
 @layer components {
-    /* --- Cards --- */
+    /* --- Cards (Modern with backdrop blur) --- */
     .card {
         background-color: var(--bg-card);
         border: 1px solid var(--border-color);
-        border-radius: 0.5rem;
+        border-radius: 0.75rem; /* rounded-xl */
         padding: 1.5rem;
-        box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        backdrop-filter: blur(8px);
+        transition: all 0.2s ease;
+    }
+
+    .card:hover {
+        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        transform: translateY(-1px);
     }
 }
 
@@ -126,11 +147,14 @@ body {
     border-bottom: 1px solid var(--border-color) !important;
 }
 
-/* --- Dialogs --- */
+/* --- Dialogs (Modern with backdrop blur) --- */
 .p-dialog {
     background-color: var(--bg-card) !important;
     color: var(--text-main) !important;
     border: 1px solid var(--border-color) !important;
+    border-radius: 0.75rem !important; /* rounded-xl */
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04) !important;
+    backdrop-filter: blur(12px) !important;
 }
 .p-dialog-header, .p-dialog-content, .p-dialog-footer {
     background-color: var(--bg-card) !important;
@@ -139,10 +163,12 @@ body {
 }
 .p-dialog-header {
     border-bottom: 1px solid var(--border-color) !important;
+    border-radius: 0.75rem 0.75rem 0 0 !important;
 }
 .p-dialog-footer {
     border-top: 1px solid var(--border-color) !important;
     background-color: var(--bg-app) !important;
+    border-radius: 0 0 0.75rem 0.75rem !important;
 }
 
 /* --- Terminal --- */
@@ -157,39 +183,83 @@ body {
     overflow-x: auto;
 }
 
-/* --- Sidebar --- */
+/* --- Modern Minimalist Sidebar --- */
 .sidebar-container {
-    background-color: #111827; /* Always Dark Sidebar */
+    background-color: var(--bg-sidebar);
     color: white;
-    border-right: 1px solid #1f2937;
+    border-right: 1px solid rgba(255, 255, 255, 0.08);
+    width: 16rem;
+    backdrop-filter: blur(10px);
 }
 
 .sidebar-header {
-    background-color: #030712;
-    border-bottom: 1px solid #1f2937;
+    background: linear-gradient(180deg, rgba(0, 0, 0, 0.3) 0%, transparent 100%);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
     height: 4rem;
     display: flex;
     align-items: center;
-    padding: 0 1.5rem;
+    padding: 0 1.25rem;
 }
 
 .sidebar-link {
     display: flex;
     align-items: center;
-    padding: 0.75rem 1.5rem;
-    color: #9ca3af;
-    font-size: 0.875rem;
+    padding: 0.625rem 1rem;
+    margin: 0.25rem 0.75rem;
+    color: #94a3b8;
+    font-size: 0.8125rem;
     font-weight: 500;
-    transition: all 0.2s;
+    border-radius: 0.5rem;
+    transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    overflow: hidden;
+}
+
+.sidebar-link::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    height: 100%;
+    width: 3px;
+    background: var(--primary);
+    transform: scaleY(0);
+    transition: transform 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+    border-radius: 0 2px 2px 0;
 }
 
 .sidebar-link:hover {
-    background-color: #1f2937;
-    color: white;
+    background-color: rgba(255, 255, 255, 0.06);
+    color: #e2e8f0;
+    transform: translateX(2px);
+}
+
+.sidebar-link:hover::before {
+    transform: scaleY(1);
 }
 
 .sidebar-link.active {
-    background-color: #1f2937;
-    color: white;
-    border-left: 4px solid #3b82f6;
+    background-color: rgba(14, 165, 233, 0.15);
+    color: var(--primary);
+    font-weight: 600;
+}
+
+.sidebar-link.active::before {
+    transform: scaleY(1);
+}
+
+.sidebar-link i,
+.sidebar-link svg {
+    width: 1.25rem;
+    height: 1.25rem;
+    margin-right: 0.75rem;
+    opacity: 0.8;
+    transition: opacity 0.15s;
+}
+
+.sidebar-link:hover i,
+.sidebar-link:hover svg,
+.sidebar-link.active i,
+.sidebar-link.active svg {
+    opacity: 1;
 }

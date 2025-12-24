@@ -24,6 +24,13 @@ def check_inventory_permission(current_user: models.User):
         raise HTTPException(status_code=403, detail="Permission denied")
 
 
+def get_user_entity_filter(current_user: models.User):
+    """Get entity filter for multi-tenant queries."""
+    if current_user.role == "admin" and not current_user.entity_id:
+        return None  # Admin without entity sees all
+    return current_user.entity_id
+
+
 # --- Manufacturers ---
 
 @router.get("/manufacturers/", response_model=List[schemas.Manufacturer])
@@ -427,6 +434,11 @@ def list_equipment(
     check_inventory_permission(current_user)
     query = db.query(models.Equipment)
 
+    # Apply entity filter for multi-tenant isolation
+    entity_filter = get_user_entity_filter(current_user)
+    if entity_filter:
+        query = query.filter(models.Equipment.entity_id == entity_filter)
+
     if status:
         query = query.filter(models.Equipment.status == status)
     if type_id:
@@ -448,7 +460,7 @@ def list_executable_equipment(
     if current_user.role != "admin" and not current_user.permissions.get("scripts"):
         raise HTTPException(status_code=403, detail="Permission denied")
 
-    return db.query(models.Equipment).join(
+    query = db.query(models.Equipment).join(
         models.EquipmentModel
     ).join(
         models.EquipmentType
@@ -456,7 +468,14 @@ def list_executable_equipment(
         models.EquipmentType.supports_remote_execution == True,
         models.Equipment.remote_ip != None,
         models.Equipment.remote_username != None
-    ).order_by(models.Equipment.name).all()
+    )
+
+    # Apply entity filter for multi-tenant isolation
+    entity_filter = get_user_entity_filter(current_user)
+    if entity_filter:
+        query = query.filter(models.Equipment.entity_id == entity_filter)
+
+    return query.order_by(models.Equipment.name).all()
 
 
 @router.get("/equipment/{equipment_id}", response_model=schemas.EquipmentFull)
@@ -471,6 +490,12 @@ def get_equipment(
     ).first()
     if not equipment:
         raise HTTPException(status_code=404, detail="Equipment not found")
+
+    # Verify entity access
+    entity_filter = get_user_entity_filter(current_user)
+    if entity_filter and equipment.entity_id != entity_filter:
+        raise HTTPException(status_code=403, detail="Access denied to this equipment")
+
     return equipment
 
 
@@ -508,6 +533,10 @@ def create_equipment(
     if equipment_data.get("remote_password"):
         equipment_data["remote_password"] = encrypt_value(equipment_data["remote_password"])
 
+    # Set entity_id if not provided
+    if not equipment_data.get("entity_id") and current_user.entity_id:
+        equipment_data["entity_id"] = current_user.entity_id
+
     db_equipment = models.Equipment(**equipment_data)
     db.add(db_equipment)
     db.commit()
@@ -530,6 +559,11 @@ def update_equipment(
     ).first()
     if not db_equipment:
         raise HTTPException(status_code=404, detail="Equipment not found")
+
+    # Verify entity access
+    entity_filter = get_user_entity_filter(current_user)
+    if entity_filter and db_equipment.entity_id != entity_filter:
+        raise HTTPException(status_code=403, detail="Access denied to this equipment")
 
     update_data = equipment.model_dump(exclude_unset=True)
 
@@ -640,6 +674,17 @@ def get_available_ips(
 ):
     """Get IPs not linked to any equipment."""
     check_inventory_permission(current_user)
-    return db.query(models.IPAddress).filter(
+
+    query = db.query(models.IPAddress).filter(
         models.IPAddress.equipment_id == None
-    ).all()
+    )
+
+    # Apply entity filter for multi-tenant isolation
+    entity_filter = get_user_entity_filter(current_user)
+    if entity_filter:
+        # Join with subnet to filter by entity
+        query = query.join(models.Subnet).filter(
+            models.Subnet.entity_id == entity_filter
+        )
+
+    return query.all()
