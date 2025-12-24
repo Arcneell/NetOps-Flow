@@ -241,7 +241,12 @@ const translations = {
         remoteIp: "Remote IP",
         remotePort: "Port",
         osType: "OS Type",
-        connectionType: "Connection Type"
+        connectionType: "Connection Type",
+
+        // New modules navigation
+        dcim: "DCIM",
+        contracts: "Contracts",
+        software: "Software"
     },
     fr: {
         // Auth
@@ -481,7 +486,12 @@ const translations = {
         remoteIp: "IP distante",
         remotePort: "Port",
         osType: "Type d'OS",
-        connectionType: "Type de connexion"
+        connectionType: "Type de connexion",
+
+        // New modules navigation
+        dcim: "DCIM",
+        contracts: "Contrats",
+        software: "Logiciels"
     }
 };
 

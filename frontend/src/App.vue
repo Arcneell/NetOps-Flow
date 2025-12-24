@@ -43,6 +43,21 @@
                     <i class="pi pi-box mr-3"></i> {{ t('inventory') }}
                 </div>
             </router-link>
+            <router-link v-if="hasPerm('inventory')" to="/dcim" custom v-slot="{ navigate, isActive }">
+                <div @click="navigate" :class="['sidebar-link', isActive ? 'active' : '']">
+                    <i class="pi pi-server mr-3"></i> {{ t('dcim') }}
+                </div>
+            </router-link>
+            <router-link v-if="hasPerm('inventory')" to="/contracts" custom v-slot="{ navigate, isActive }">
+                <div @click="navigate" :class="['sidebar-link', isActive ? 'active' : '']">
+                    <i class="pi pi-file-edit mr-3"></i> {{ t('contracts') }}
+                </div>
+            </router-link>
+            <router-link v-if="hasPerm('inventory')" to="/software" custom v-slot="{ navigate, isActive }">
+                <div @click="navigate" :class="['sidebar-link', isActive ? 'active' : '']">
+                    <i class="pi pi-desktop mr-3"></i> {{ t('software') }}
+                </div>
+            </router-link>
 
             <div class="px-6 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider mt-4">{{ t('system') }}</div>
 
@@ -116,6 +131,9 @@ const currentRouteName = computed(() => {
     if(route.name === 'Script Automation') return t('scriptRunner').value;
     if(route.name === 'Inventory') return t('inventory').value;
     if(route.name === 'Settings') return t('settings').value;
+    if(route.name === 'DCIM') return t('dcim').value;
+    if(route.name === 'Contracts') return t('contracts').value;
+    if(route.name === 'Software') return t('software').value;
     return route.name;
 });
 
