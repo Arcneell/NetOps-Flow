@@ -17,7 +17,7 @@ def log_audit_event(
     resource_type: str,
     resource_id: Optional[str] = None,
     changes: Optional[Dict[str, Any]] = None,
-    metadata: Optional[Dict[str, Any]] = None,
+    extra_data: Optional[Dict[str, Any]] = None,
     ip_address: Optional[str] = None
 ) -> None:
     """
@@ -30,7 +30,7 @@ def log_audit_event(
         resource_type: Type of resource (equipment, subnet, user, etc.)
         resource_id: ID of the affected resource
         changes: Dictionary of changes (for UPDATE actions)
-        metadata: Additional context information
+        extra_data: Additional context information
         ip_address: Client IP address
     """
     try:
@@ -43,7 +43,7 @@ def log_audit_event(
             entity_id=user.entity_id if user else None,
             ip_address=ip_address,
             changes=changes or {},
-            metadata=metadata or {}
+            extra_data=extra_data or {}
         )
         db.add(audit_entry)
         db.commit()
