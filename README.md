@@ -53,6 +53,9 @@ A self-hosted NetDevOps platform for network operations management, featuring IP
 - Unassigned equipment panel with drag-and-place functionality
 - Conflict detection and validation for equipment placement
 - Click-through navigation to equipment details in Inventory
+- Context menu (right-click) on equipment for quick actions: View details, Change position, Remove from rack
+- Real-time position editing directly from rack view
+- Equipment removal from rack with confirmation dialog
 
 ### Contract Management
 - Maintenance, insurance, and leasing contracts

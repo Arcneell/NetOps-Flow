@@ -103,6 +103,9 @@ worker/            # Celery worker
 - Validation des conflits de position lors du placement
 - Tooltips détaillés au survol des équipements
 - Navigation vers fiche équipement (Inventaire) au clic
+- Menu contextuel (clic-droit) sur équipements : Voir détails, Changer position, Retirer de la baie
+- Modification de position à chaud depuis la vue rack
+- Retrait d'équipement du rack avec confirmation
 
 ### Gestion des Contrats
 - Contrats de maintenance, assurance, location
@@ -232,6 +235,8 @@ docker-compose exec db psql -U netops netops_flow
 | /api/v1/dcim/racks/ | GET/POST | Baies |
 | /api/v1/dcim/racks/{id}/layout | GET | Disposition baie (détails complets équipements + non assignés) |
 | /api/v1/dcim/racks/{id}/place-equipment | POST | Placer équipement dans baie (avec validation conflits) |
+| /api/v1/dcim/equipment/{id}/rack-position | PUT | Modifier position équipement dans baie |
+| /api/v1/dcim/equipment/{id}/rack-position | DELETE | Retirer équipement de la baie |
 | /api/v1/dcim/pdus/ | GET/POST | PDUs |
 | /api/v1/contracts/ | GET/POST | Contrats |
 | /api/v1/contracts/{id}/equipment | GET/POST/DELETE | Équipements contrat |
