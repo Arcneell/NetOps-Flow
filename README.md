@@ -46,7 +46,13 @@ A self-hosted NetDevOps platform for network operations management, featuring IP
 - Rack management with location assignment
 - U-position (1-42) and height tracking for equipment
 - PDU management with port allocation and power tracking
-- Visual rack layout display
+- Professional hardware-style rack visualization with metallic styling
+- Status-based equipment color coding (blue=in service, orange=maintenance, gray=retired, green=stock)
+- Dual U-number columns for realistic datacenter appearance
+- Rich tooltips displaying model, manufacturer, S/N, asset tag, and management IP
+- Unassigned equipment panel with drag-and-place functionality
+- Conflict detection and validation for equipment placement
+- Click-through navigation to equipment details in Inventory
 
 ### Contract Management
 - Maintenance, insurance, and leasing contracts
