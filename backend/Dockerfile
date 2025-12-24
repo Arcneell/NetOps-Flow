@@ -88,18 +88,23 @@ RUN pip install --no-cache-dir \
     isort \
     mypy
 
-# Install PowerShell for dev/testing
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    wget \
-    gnupg \
-    software-properties-common \
-    && wget -q "https://packages.microsoft.com/config/debian/12/packages-microsoft-prod.deb" \
-    && dpkg -i packages-microsoft-prod.deb \
-    && rm packages-microsoft-prod.deb \
-    && apt-get update \
-    && apt-get install -y powershell \
-    && rm -rf /var/lib/apt/lists/* \
-    && apt-get clean
+# Install PowerShell for dev/testing (AMD64 only - not available on ARM64/Apple Silicon)
+RUN arch=$(dpkg --print-architecture) && \
+    if [ "$arch" = "amd64" ]; then \
+        apt-get update && apt-get install -y --no-install-recommends \
+            wget \
+            gnupg \
+            software-properties-common \
+        && wget -q "https://packages.microsoft.com/config/debian/12/packages-microsoft-prod.deb" \
+        && dpkg -i packages-microsoft-prod.deb \
+        && rm packages-microsoft-prod.deb \
+        && apt-get update \
+        && apt-get install -y powershell \
+        && rm -rf /var/lib/apt/lists/* \
+        && apt-get clean; \
+    else \
+        echo "Skipping PowerShell installation on $arch (not available)"; \
+    fi
 
 USER netops
 

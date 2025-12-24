@@ -248,3 +248,5 @@ docker-compose exec db psql -U netops netops_flow
 **429 Too Many Requests**: Rate limited, attendre 60 secondes
 
 **Sandbox Docker indisponible**: Rebuild image `docker build -t netops-sandbox:latest -f docker/sandbox.Dockerfile .`
+
+**Build échoue sur macOS (Apple Silicon)**: PowerShell n'est installé que sur AMD64. Sur ARM64, l'exécution distante via WinRM ne sera pas disponible en développement (SSH reste fonctionnel)
