@@ -329,7 +329,15 @@
     "rackDeleted": "Baie supprimée avec succès",
     "pduCreated": "PDU créé avec succès",
     "pduUpdated": "PDU mis à jour avec succès",
-    "pduDeleted": "PDU supprimé avec succès"
+    "pduDeleted": "PDU supprimé avec succès",
+    "unassignedEquipment": "Équipements Non Assignés",
+    "noUnassigned": "Aucun équipement non assigné",
+    "clickToPlace": "Cliquer pour placer dans la baie",
+    "placeEquipment": "Placer l'Équipement",
+    "position": "Position",
+    "place": "Placer",
+    "selectPosition": "Sélectionner la position (1-{max}U)",
+    "equipmentPlaced": "Équipement placé avec succès"
   },
   "contracts": {
     "title": "Contrats",

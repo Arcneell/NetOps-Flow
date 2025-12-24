@@ -2,7 +2,7 @@
 DCIM Router - Rack and PDU management for datacenter infrastructure.
 """
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from typing import List
 import logging
 
@@ -70,26 +70,47 @@ def get_rack(
     return rack
 
 
-@router.get("/racks/{rack_id}/layout")
+@router.get("/racks/{rack_id}/layout", response_model=schemas.RackLayoutResponse)
 def get_rack_layout(
     rack_id: int,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_active_user)
 ):
-    """Get rack layout showing equipment placement."""
+    """Get rack layout showing equipment placement with full details."""
     check_dcim_permission(current_user)
 
     rack = db.query(models.Rack).filter(models.Rack.id == rack_id).first()
     if not rack:
         raise HTTPException(status_code=404, detail="Rack not found")
 
-    # Get equipment in this rack
-    equipment = db.query(models.Equipment).filter(
+    # Get equipment in this rack with optimized joins
+    equipment = db.query(models.Equipment).options(
+        joinedload(models.Equipment.model).joinedload(models.EquipmentModel.manufacturer),
+        joinedload(models.Equipment.model).joinedload(models.EquipmentModel.equipment_type)
+    ).filter(
         models.Equipment.rack_id == rack_id,
         models.Equipment.position_u.isnot(None)
     ).all()
 
-    # Build layout
+    # Get unassigned equipment (rack_id set but position_u is null)
+    unassigned = db.query(models.Equipment).options(
+        joinedload(models.Equipment.model).joinedload(models.EquipmentModel.manufacturer),
+        joinedload(models.Equipment.model).joinedload(models.EquipmentModel.equipment_type)
+    ).filter(
+        models.Equipment.rack_id == rack_id,
+        models.Equipment.position_u.is_(None)
+    ).all()
+
+    # Get management IPs for equipment
+    equipment_ips = {}
+    for eq in equipment + unassigned:
+        ip = db.query(models.IPAddress).filter(
+            models.IPAddress.equipment_id == eq.id
+        ).first()
+        if ip:
+            equipment_ips[eq.id] = ip.ip_address
+
+    # Build layout with full details
     layout = []
     for u in range(1, rack.height_u + 1):
         slot = {"u": u, "equipment": None}
@@ -100,10 +121,30 @@ def get_rack_layout(
                     "name": eq.name,
                     "height_u": eq.height_u,
                     "is_start": eq.position_u == u,
-                    "status": eq.status
+                    "status": eq.status,
+                    "serial_number": eq.serial_number,
+                    "asset_tag": eq.asset_tag,
+                    "model_name": eq.model.name if eq.model else None,
+                    "manufacturer_name": eq.model.manufacturer.name if eq.model and eq.model.manufacturer else None,
+                    "management_ip": equipment_ips.get(eq.id)
                 }
                 break
         layout.append(slot)
+
+    # Build unassigned equipment list
+    unassigned_list = []
+    for eq in unassigned:
+        unassigned_list.append({
+            "id": eq.id,
+            "name": eq.name,
+            "height_u": eq.height_u,
+            "status": eq.status,
+            "serial_number": eq.serial_number,
+            "asset_tag": eq.asset_tag,
+            "model_name": eq.model.name if eq.model else None,
+            "manufacturer_name": eq.model.manufacturer.name if eq.model and eq.model.manufacturer else None,
+            "management_ip": equipment_ips.get(eq.id)
+        })
 
     return {
         "rack": {
@@ -112,8 +153,67 @@ def get_rack_layout(
             "height_u": rack.height_u
         },
         "layout": layout,
-        "pdus": [{"id": p.id, "name": p.name} for p in rack.pdus]
+        "pdus": [{"id": p.id, "name": p.name} for p in rack.pdus],
+        "unassigned_equipment": unassigned_list
     }
+
+
+@router.post("/racks/{rack_id}/place-equipment")
+def place_equipment_in_rack(
+    rack_id: int,
+    equipment_id: int,
+    position_u: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user)
+):
+    """Place equipment in a specific position in the rack."""
+    check_dcim_permission(current_user)
+
+    # Verify rack exists
+    rack = db.query(models.Rack).filter(models.Rack.id == rack_id).first()
+    if not rack:
+        raise HTTPException(status_code=404, detail="Rack not found")
+
+    # Verify equipment exists
+    equipment = db.query(models.Equipment).filter(models.Equipment.id == equipment_id).first()
+    if not equipment:
+        raise HTTPException(status_code=404, detail="Equipment not found")
+
+    # Validate position
+    if position_u < 1 or position_u > rack.height_u:
+        raise HTTPException(status_code=400, detail=f"Position must be between 1 and {rack.height_u}")
+
+    if equipment.height_u and (position_u + equipment.height_u - 1) > rack.height_u:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Equipment height ({equipment.height_u}U) exceeds rack capacity at position {position_u}"
+        )
+
+    # Check for conflicts with existing equipment
+    existing = db.query(models.Equipment).filter(
+        models.Equipment.rack_id == rack_id,
+        models.Equipment.position_u.isnot(None)
+    ).all()
+
+    for eq in existing:
+        if eq.id == equipment_id:
+            continue
+        # Check if ranges overlap
+        eq_end = eq.position_u + eq.height_u - 1
+        new_end = position_u + equipment.height_u - 1
+        if not (new_end < eq.position_u or position_u > eq_end):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Position conflicts with {eq.name} at U{eq.position_u}"
+            )
+
+    # Update equipment
+    equipment.rack_id = rack_id
+    equipment.position_u = position_u
+    db.commit()
+
+    logger.info(f"Equipment '{equipment.name}' placed in rack '{rack.name}' at U{position_u} by '{current_user.username}'")
+    return {"ok": True, "message": f"Equipment placed at U{position_u}"}
 
 
 @router.post("/racks/", response_model=schemas.Rack)

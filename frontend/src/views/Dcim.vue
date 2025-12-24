@@ -131,41 +131,91 @@
           <div class="flex gap-6">
             <!-- Rack Visualization -->
             <div class="flex-1">
-              <div class="border rounded-lg p-4" style="border-color: var(--border-color); background: var(--bg-app);">
-                <div class="text-center mb-4 font-bold">{{ rackLayout.rack?.name }}</div>
-                <div class="flex flex-col-reverse">
-                  <div v-for="slot in rackLayout.layout" :key="slot.u" class="flex items-center border-b" style="border-color: var(--border-color);">
-                    <div class="w-12 text-center text-xs opacity-60 py-2">U{{ slot.u }}</div>
-                    <div
-                      class="flex-1 py-2 px-3 text-sm transition-colors"
-                      :class="[
-                        slot.equipment ? (slot.equipment.is_start ? 'bg-blue-500 text-white rounded' : 'bg-blue-400 text-white') : 'hover:bg-gray-100 dark:hover:bg-gray-800',
-                        slot.equipment?.status !== 'in_service' ? 'opacity-60' : ''
-                      ]"
-                    >
-                      <template v-if="slot.equipment?.is_start">
-                        {{ slot.equipment.name }}
-                        <span v-if="slot.equipment.height_u > 1" class="opacity-70">({{ slot.equipment.height_u }}U)</span>
-                      </template>
-                      <template v-else-if="!slot.equipment">
-                        <span class="opacity-30">{{ t('dcim.empty') }}</span>
-                      </template>
+              <div class="rack-container">
+                <div class="rack-header">{{ rackLayout.rack?.name }}</div>
+                <div class="rack-body">
+                  <div class="flex">
+                    <!-- U Numbers (Left) -->
+                    <div class="rack-u-numbers">
+                      <div v-for="slot in rackLayout.layout" :key="`u-left-${slot.u}`" class="rack-u-label">
+                        {{ slot.u }}
+                      </div>
+                    </div>
+
+                    <!-- Equipment Slots -->
+                    <div class="rack-slots">
+                      <div
+                        v-for="slot in rackLayout.layout"
+                        :key="`slot-${slot.u}`"
+                        class="rack-slot"
+                        :class="getSlotClass(slot)"
+                        @click="handleSlotClick(slot)"
+                        v-tooltip.right="getEquipmentTooltip(slot.equipment)"
+                      >
+                        <template v-if="slot.equipment?.is_start">
+                          <div class="rack-equipment-content">
+                            <div class="font-semibold">{{ slot.equipment.name }}</div>
+                            <div class="text-xs opacity-80">
+                              {{ slot.equipment.model_name || 'Unknown Model' }}
+                              <span v-if="slot.equipment.height_u > 1"> • {{ slot.equipment.height_u }}U</span>
+                            </div>
+                          </div>
+                        </template>
+                        <template v-else-if="!slot.equipment">
+                          <span class="rack-empty-label">{{ t('dcim.empty') }}</span>
+                        </template>
+                      </div>
+                    </div>
+
+                    <!-- U Numbers (Right) -->
+                    <div class="rack-u-numbers">
+                      <div v-for="slot in rackLayout.layout" :key="`u-right-${slot.u}`" class="rack-u-label">
+                        {{ slot.u }}
+                      </div>
                     </div>
                   </div>
                 </div>
               </div>
             </div>
 
-            <!-- PDUs in Rack -->
-            <div class="w-64">
-              <h4 class="font-semibold mb-3">{{ t('dcim.pdus') }}</h4>
-              <div v-if="rackLayout.pdus?.length">
-                <div v-for="pdu in rackLayout.pdus" :key="pdu.id" class="p-3 rounded-lg mb-2" style="background: var(--bg-app);">
-                  <i class="pi pi-bolt mr-2 text-yellow-500"></i>
-                  {{ pdu.name }}
+            <!-- Sidebar: PDUs & Unassigned Equipment -->
+            <div class="w-80 space-y-6">
+              <!-- PDUs in Rack -->
+              <div>
+                <h4 class="font-semibold mb-3 flex items-center gap-2">
+                  <i class="pi pi-bolt text-yellow-500"></i>
+                  {{ t('dcim.pdus') }}
+                </h4>
+                <div v-if="rackLayout.pdus?.length">
+                  <div v-for="pdu in rackLayout.pdus" :key="pdu.id" class="p-3 rounded-lg mb-2 border" style="border-color: var(--border-color); background: var(--surface-card);">
+                    {{ pdu.name }}
+                  </div>
                 </div>
+                <p v-else class="opacity-50 text-sm">{{ t('dcim.noPdus') }}</p>
               </div>
-              <p v-else class="opacity-50 text-sm">{{ t('dcim.noPdus') }}</p>
+
+              <!-- Unassigned Equipment -->
+              <div>
+                <h4 class="font-semibold mb-3 flex items-center gap-2">
+                  <i class="pi pi-box"></i>
+                  {{ t('dcim.unassignedEquipment') }}
+                </h4>
+                <div v-if="rackLayout.unassigned_equipment?.length">
+                  <div
+                    v-for="eq in rackLayout.unassigned_equipment"
+                    :key="eq.id"
+                    class="p-3 rounded-lg mb-2 border cursor-pointer hover:border-blue-500 transition-colors"
+                    style="border-color: var(--border-color); background: var(--surface-card);"
+                    @click="openPlacementDialog(eq)"
+                    v-tooltip.left="getUnassignedTooltip(eq)"
+                  >
+                    <div class="font-medium">{{ eq.name }}</div>
+                    <div class="text-xs opacity-70 mt-1">{{ eq.model_name || 'Unknown Model' }} • {{ eq.height_u }}U</div>
+                    <div class="text-xs text-blue-500 mt-1">{{ t('dcim.clickToPlace') }}</div>
+                  </div>
+                </div>
+                <p v-else class="opacity-50 text-sm">{{ t('dcim.noUnassigned') }}</p>
+              </div>
             </div>
           </div>
         </div>
@@ -265,6 +315,28 @@
         </div>
       </template>
     </Dialog>
+
+    <!-- Equipment Placement Dialog -->
+    <Dialog v-model:visible="showPlacementDialog" modal :header="t('dcim.placeEquipment')" :style="{ width: '400px' }">
+      <div v-if="equipmentToPlace" class="flex flex-col gap-4">
+        <div class="p-3 border rounded-lg" style="border-color: var(--border-color); background: var(--surface-100);">
+          <div class="font-semibold">{{ equipmentToPlace.name }}</div>
+          <div class="text-sm opacity-70 mt-1">{{ equipmentToPlace.model_name }}</div>
+          <div class="text-sm mt-1">{{ t('dcim.heightU') }}: {{ equipmentToPlace.height_u }}U</div>
+        </div>
+        <div>
+          <label class="block text-sm font-medium mb-1">{{ t('dcim.position') }} (U) <span class="text-red-500">*</span></label>
+          <InputNumber v-model="placementPosition" class="w-full" :min="1" :max="rackLayout?.rack?.height_u || 42" />
+          <small class="opacity-70">{{ t('dcim.selectPosition', { max: rackLayout?.rack?.height_u || 42 }) }}</small>
+        </div>
+      </div>
+      <template #footer>
+        <div class="flex justify-end gap-3">
+          <Button :label="t('common.cancel')" severity="secondary" outlined @click="showPlacementDialog = false" />
+          <Button :label="t('dcim.place')" icon="pi pi-check" @click="placeEquipment" />
+        </div>
+      </template>
+    </Dialog>
   </div>
 </template>
 
@@ -272,10 +344,12 @@
 import { ref, computed, onMounted } from 'vue';
 import { useToast } from 'primevue/usetoast';
 import { useI18n } from 'vue-i18n';
+import { useRouter } from 'vue-router';
 import api from '../api';
 
 const { t } = useI18n();
 const toast = useToast();
+const router = useRouter();
 
 // Active section
 const activeSection = ref('racks');
@@ -293,10 +367,15 @@ const filterLocation = ref(null);
 // Dialogs
 const showRackDialog = ref(false);
 const showPduDialog = ref(false);
+const showPlacementDialog = ref(false);
 
 // Editing states
 const editingRack = ref(null);
 const editingPdu = ref(null);
+
+// Equipment placement
+const equipmentToPlace = ref(null);
+const placementPosition = ref(1);
 
 // Forms
 const rackForm = ref({
@@ -447,5 +526,223 @@ const confirmDeletePdu = async (pdu) => {
   }
 };
 
+// Rack visualization helpers
+const getStatusColor = (status) => {
+  const colors = {
+    'in_service': 'bg-blue-600 text-white',
+    'maintenance': 'bg-orange-500 text-white',
+    'retired': 'bg-gray-500 text-white',
+    'stock': 'bg-green-500 text-white'
+  };
+  return colors[status] || 'bg-gray-400 text-white';
+};
+
+const getSlotClass = (slot) => {
+  if (!slot.equipment) {
+    return 'rack-slot-empty';
+  }
+  if (slot.equipment.is_start) {
+    return `rack-slot-equipment ${getStatusColor(slot.equipment.status)}`;
+  }
+  return `rack-slot-continuation ${getStatusColor(slot.equipment.status)}`;
+};
+
+const getEquipmentTooltip = (equipment) => {
+  if (!equipment) return null;
+  const parts = [
+    `<strong>${equipment.name}</strong>`,
+    equipment.manufacturer_name ? `${equipment.manufacturer_name} ${equipment.model_name || ''}` : (equipment.model_name || ''),
+    equipment.serial_number ? `S/N: ${equipment.serial_number}` : null,
+    equipment.asset_tag ? `Asset: ${equipment.asset_tag}` : null,
+    equipment.management_ip ? `IP: ${equipment.management_ip}` : null,
+    `Status: ${equipment.status}`
+  ];
+  return parts.filter(p => p).join('<br>');
+};
+
+const getUnassignedTooltip = (eq) => {
+  const parts = [
+    `<strong>${eq.name}</strong>`,
+    eq.manufacturer_name ? `${eq.manufacturer_name} ${eq.model_name || ''}` : (eq.model_name || ''),
+    eq.serial_number ? `S/N: ${eq.serial_number}` : null,
+    eq.asset_tag ? `Asset: ${eq.asset_tag}` : null,
+    eq.management_ip ? `IP: ${eq.management_ip}` : null,
+    `Height: ${eq.height_u}U`
+  ];
+  return parts.filter(p => p).join('<br>');
+};
+
+const handleSlotClick = (slot) => {
+  if (slot.equipment?.is_start && slot.equipment.id) {
+    // Navigate to equipment details in inventory
+    router.push({ name: 'Inventory', query: { equipmentId: slot.equipment.id } });
+  }
+};
+
+// Equipment placement
+const openPlacementDialog = (equipment) => {
+  equipmentToPlace.value = equipment;
+  placementPosition.value = 1;
+  showPlacementDialog.value = true;
+};
+
+const placeEquipment = async () => {
+  if (!equipmentToPlace.value || !placementPosition.value) {
+    toast.add({ severity: 'warn', summary: t('validation.error'), detail: t('validation.fillRequiredFields') });
+    return;
+  }
+  try {
+    await api.post(`/dcim/racks/${selectedRackId.value}/place-equipment`, null, {
+      params: {
+        equipment_id: equipmentToPlace.value.id,
+        position_u: placementPosition.value
+      }
+    });
+    toast.add({ severity: 'success', summary: t('common.success'), detail: t('dcim.equipmentPlaced') });
+    showPlacementDialog.value = false;
+    loadRackLayout();
+  } catch (e) {
+    toast.add({ severity: 'error', summary: t('common.error'), detail: e.response?.data?.detail || t('common.error') });
+  }
+};
+
 onMounted(loadData);
 </script>
+
+<style scoped>
+/* Rack Container - Hardware Style */
+.rack-container {
+  border: 3px solid #4a5568;
+  border-radius: 8px;
+  background: linear-gradient(to bottom, #2d3748, #1a202c);
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3), inset 0 2px 4px rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.rack-header {
+  background: linear-gradient(to bottom, #4a5568, #2d3748);
+  color: #e2e8f0;
+  font-weight: bold;
+  font-size: 1.1rem;
+  text-align: center;
+  padding: 1rem;
+  border-bottom: 2px solid #718096;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+}
+
+.rack-body {
+  padding: 1rem 0.5rem;
+  background: #1a202c;
+}
+
+/* U Numbers on sides */
+.rack-u-numbers {
+  display: flex;
+  flex-direction: column-reverse;
+  background: #2d3748;
+  border: 1px solid #4a5568;
+  border-radius: 4px;
+}
+
+.rack-u-label {
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7rem;
+  font-weight: bold;
+  color: #cbd5e0;
+  border-bottom: 1px solid #4a5568;
+  font-family: 'Courier New', monospace;
+  min-width: 40px;
+}
+
+.rack-u-label:last-child {
+  border-bottom: none;
+}
+
+/* Equipment Slots */
+.rack-slots {
+  flex: 1;
+  display: flex;
+  flex-direction: column-reverse;
+  margin: 0 0.5rem;
+  border: 2px solid #4a5568;
+  border-radius: 4px;
+  background: #2d3748;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.4);
+}
+
+.rack-slot {
+  height: 44px;
+  border-bottom: 1px solid #4a5568;
+  display: flex;
+  align-items: center;
+  padding: 0 0.75rem;
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+.rack-slot:last-child {
+  border-bottom: none;
+}
+
+/* Empty Slot */
+.rack-slot-empty {
+  background: repeating-linear-gradient(
+    45deg,
+    #2d3748,
+    #2d3748 10px,
+    #1a202c 10px,
+    #1a202c 20px
+  );
+  cursor: default;
+}
+
+.rack-slot-empty:hover {
+  background: repeating-linear-gradient(
+    45deg,
+    #374151,
+    #374151 10px,
+    #1f2937 10px,
+    #1f2937 20px
+  );
+}
+
+.rack-empty-label {
+  font-size: 0.75rem;
+  color: #718096;
+  font-style: italic;
+}
+
+/* Equipment Slot */
+.rack-slot-equipment {
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 3px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  cursor: pointer;
+}
+
+.rack-slot-equipment:hover {
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.4);
+  transform: translateX(2px);
+}
+
+/* Continuation slot (middle of multi-U equipment) */
+.rack-slot-continuation {
+  border-left: 1px solid rgba(255, 255, 255, 0.2);
+  border-right: 1px solid rgba(255, 255, 255, 0.2);
+  opacity: 0.9;
+}
+
+.rack-equipment-content {
+  width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Status-specific colors are applied via getStatusColor function */
+</style>

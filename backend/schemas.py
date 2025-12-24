@@ -361,6 +361,37 @@ class PDU(PDUBase):
         from_attributes = True
 
 
+# --- Rack Layout Schemas ---
+class RackEquipmentDetail(BaseModel):
+    """Detailed equipment info for rack layout visualization"""
+    id: int
+    name: str
+    height_u: int
+    is_start: bool
+    status: str
+    serial_number: Optional[str] = None
+    asset_tag: Optional[str] = None
+    model_name: Optional[str] = None
+    manufacturer_name: Optional[str] = None
+    management_ip: Optional[str] = None
+    class Config:
+        from_attributes = True
+
+
+class RackSlot(BaseModel):
+    """Single U slot in rack"""
+    u: int
+    equipment: Optional[RackEquipmentDetail] = None
+
+
+class RackLayoutResponse(BaseModel):
+    """Complete rack layout with equipment details"""
+    rack: dict
+    layout: List[RackSlot]
+    pdus: List[dict]
+    unassigned_equipment: List[dict] = []
+
+
 # ==================== CONTRACT SCHEMAS ====================
 
 class ContractBase(BaseModel):

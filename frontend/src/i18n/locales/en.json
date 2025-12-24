@@ -329,7 +329,15 @@
     "rackDeleted": "Rack deleted successfully",
     "pduCreated": "PDU created successfully",
     "pduUpdated": "PDU updated successfully",
-    "pduDeleted": "PDU deleted successfully"
+    "pduDeleted": "PDU deleted successfully",
+    "unassignedEquipment": "Unassigned Equipment",
+    "noUnassigned": "No unassigned equipment",
+    "clickToPlace": "Click to place in rack",
+    "placeEquipment": "Place Equipment",
+    "position": "Position",
+    "place": "Place",
+    "selectPosition": "Select position (1-{max}U)",
+    "equipmentPlaced": "Equipment placed successfully"
   },
   "contracts": {
     "title": "Contracts",
