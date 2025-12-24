@@ -40,6 +40,41 @@ A self-hosted NetDevOps platform for network operations management, featuring IP
 ### Network Topology
 - Visual network topology display showing subnets and IP addresses
 - Color-coded visualization (green for active IPs, gray for available)
+- Physical topology based on network port connections
+
+### DCIM (Data Center Infrastructure Management)
+- Rack management with location assignment
+- U-position (1-42) and height tracking for equipment
+- PDU management with port allocation and power tracking
+- Visual rack layout display
+
+### Contract Management
+- Maintenance, insurance, and leasing contracts
+- Link multiple equipment to contracts
+- Automatic expiration alerts (30 days before)
+- Annual cost and renewal tracking
+
+### Software & License Management
+- Software catalog with publisher and category
+- License management (key, quantity, expiration)
+- Installation tracking per equipment
+- License compliance calculation (installations vs. quota)
+- Automatic collection via SSH/WinRM
+
+### Physical Connectivity
+- Network ports per equipment (type, speed, MAC)
+- Bidirectional port-to-port connections
+- Complete switch-to-server mapping
+
+### Document Management
+- Attachments per equipment
+- Document categorization
+- Secure upload/download
+
+### Multi-Tenant (Entities)
+- Data isolation by entity
+- Automatic API result filtering
+- Entity management (admin only)
 
 ### Dashboard
 - Statistics overview: total subnets, active IPs, scripts, executions, and equipment
@@ -97,7 +132,13 @@ backend/
 │   ├── inventory.py    # Equipment management
 │   ├── scripts.py      # Script upload & execution
 │   ├── topology.py     # Network visualization
-│   └── dashboard.py    # Statistics
+│   ├── dashboard.py    # Statistics
+│   ├── dcim.py         # Racks and PDUs management
+│   ├── contracts.py    # Contract management
+│   ├── software.py     # Software and licenses
+│   ├── network_ports.py # Physical connectivity
+│   ├── attachments.py  # File attachments
+│   └── entities.py     # Multi-tenant entities
 ├── models.py           # SQLAlchemy models
 ├── schemas.py          # Pydantic schemas
 └── app.py              # FastAPI application factory
@@ -111,7 +152,12 @@ frontend/src/
 │   └── shared/         # Reusable components
 ├── stores/
 │   ├── auth.js         # Authentication state (Pinia)
-│   └── ui.js           # UI preferences (Pinia)
+│   ├── ui.js           # UI preferences (Pinia)
+│   ├── dcim.js         # DCIM state (Pinia)
+│   ├── contracts.js    # Contracts state (Pinia)
+│   ├── software.js     # Software state (Pinia)
+│   ├── networkPorts.js # Network ports state (Pinia)
+│   └── attachments.js  # Attachments state (Pinia)
 ├── i18n/
 │   ├── index.js        # vue-i18n configuration
 │   └── locales/        # EN/FR translations

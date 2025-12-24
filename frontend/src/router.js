@@ -7,6 +7,9 @@ import Login from './views/Login.vue'
 import Settings from './views/Settings.vue'
 import Unauthorized from './views/Unauthorized.vue'
 import Inventory from './views/Inventory.vue'
+import Dcim from './views/Dcim.vue'
+import Contracts from './views/Contracts.vue'
+import Software from './views/Software.vue'
 
 const routes = [
   { path: '/login', component: Login, name: 'Login', meta: { public: true } },
@@ -16,6 +19,9 @@ const routes = [
   { path: '/topology', component: Topology, name: 'Network Topology', meta: { permission: 'topology' } },
   { path: '/scripts', component: ScriptRunner, name: 'Script Automation', meta: { permission: 'scripts' } },
   { path: '/inventory', component: Inventory, name: 'Inventory', meta: { permission: 'inventory' } },
+  { path: '/dcim', component: Dcim, name: 'DCIM', meta: { permission: 'inventory' } },
+  { path: '/contracts', component: Contracts, name: 'Contracts', meta: { permission: 'inventory' } },
+  { path: '/software', component: Software, name: 'Software', meta: { permission: 'inventory' } },
   { path: '/settings', component: Settings, name: 'Settings', meta: { permission: 'settings' } }
 ]
 

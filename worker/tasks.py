@@ -745,3 +745,483 @@ def scan_subnet_task(self, subnet_id: int):
         return f"Scan failed: {str(e)}"
     finally:
         db.close()
+
+
+# ==================== EXPIRATION NOTIFICATION TASKS ====================
+
+@celery_app.task(bind=True)
+def check_expiring_warranties_task(self, days_threshold: int = 30):
+    """
+    Check for equipment warranties expiring within the threshold.
+    Logs alerts for administrators.
+    """
+    from backend.core.database import SessionLocal
+    from backend.models import Equipment
+
+    db: Session = SessionLocal()
+    try:
+        today = datetime.date.today()
+        threshold_date = today + datetime.timedelta(days=days_threshold)
+
+        expiring = db.query(Equipment).filter(
+            Equipment.warranty_expiry.isnot(None),
+            Equipment.warranty_expiry >= today,
+            Equipment.warranty_expiry <= threshold_date
+        ).all()
+
+        alerts = []
+        for eq in expiring:
+            days_remaining = (eq.warranty_expiry.date() - today).days
+            severity = "critical" if days_remaining <= 7 else "warning" if days_remaining <= 14 else "info"
+
+            alert = {
+                "type": "warranty_expiration",
+                "equipment_id": eq.id,
+                "equipment_name": eq.name,
+                "serial_number": eq.serial_number,
+                "expiry_date": eq.warranty_expiry.isoformat(),
+                "days_remaining": days_remaining,
+                "severity": severity
+            }
+            alerts.append(alert)
+
+            log_event(
+                "warranty_expiration_alert",
+                **alert
+            )
+
+        log_event(
+            "warranty_check_complete",
+            total_alerts=len(alerts),
+            critical=len([a for a in alerts if a["severity"] == "critical"]),
+            warning=len([a for a in alerts if a["severity"] == "warning"])
+        )
+
+        return {
+            "status": "complete",
+            "alerts_count": len(alerts),
+            "alerts": alerts
+        }
+
+    except Exception as e:
+        log_event(
+            "warranty_check_error",
+            error_type=type(e).__name__,
+            error_message=str(e)
+        )
+        return {"status": "error", "message": str(e)}
+    finally:
+        db.close()
+
+
+@celery_app.task(bind=True)
+def check_expiring_contracts_task(self, days_threshold: int = 30):
+    """
+    Check for contracts expiring within the threshold.
+    Logs alerts for administrators.
+    """
+    from backend.core.database import SessionLocal
+    from backend.models import Contract
+
+    db: Session = SessionLocal()
+    try:
+        today = datetime.date.today()
+        threshold_date = today + datetime.timedelta(days=days_threshold)
+
+        expiring = db.query(Contract).filter(
+            Contract.end_date >= today,
+            Contract.end_date <= threshold_date
+        ).all()
+
+        alerts = []
+        for contract in expiring:
+            days_remaining = (contract.end_date - today).days
+            severity = "critical" if days_remaining <= 7 else "warning" if days_remaining <= 14 else "info"
+
+            alert = {
+                "type": "contract_expiration",
+                "contract_id": contract.id,
+                "contract_name": contract.name,
+                "contract_type": contract.contract_type,
+                "contract_number": contract.contract_number,
+                "end_date": contract.end_date.isoformat(),
+                "days_remaining": days_remaining,
+                "severity": severity,
+                "renewal_type": contract.renewal_type
+            }
+            alerts.append(alert)
+
+            log_event(
+                "contract_expiration_alert",
+                **alert
+            )
+
+        log_event(
+            "contract_check_complete",
+            total_alerts=len(alerts),
+            critical=len([a for a in alerts if a["severity"] == "critical"]),
+            warning=len([a for a in alerts if a["severity"] == "warning"])
+        )
+
+        return {
+            "status": "complete",
+            "alerts_count": len(alerts),
+            "alerts": alerts
+        }
+
+    except Exception as e:
+        log_event(
+            "contract_check_error",
+            error_type=type(e).__name__,
+            error_message=str(e)
+        )
+        return {"status": "error", "message": str(e)}
+    finally:
+        db.close()
+
+
+@celery_app.task(bind=True)
+def check_expiring_licenses_task(self, days_threshold: int = 30):
+    """
+    Check for software licenses expiring within the threshold.
+    Logs alerts for administrators.
+    """
+    from backend.core.database import SessionLocal
+    from backend.models import SoftwareLicense, Software
+
+    db: Session = SessionLocal()
+    try:
+        today = datetime.date.today()
+        threshold_date = today + datetime.timedelta(days=days_threshold)
+
+        expiring = db.query(SoftwareLicense).filter(
+            SoftwareLicense.expiry_date.isnot(None),
+            SoftwareLicense.expiry_date >= today,
+            SoftwareLicense.expiry_date <= threshold_date
+        ).all()
+
+        alerts = []
+        for lic in expiring:
+            software = db.query(Software).filter(
+                Software.id == lic.software_id
+            ).first()
+
+            days_remaining = (lic.expiry_date - today).days
+            severity = "critical" if days_remaining <= 7 else "warning" if days_remaining <= 14 else "info"
+
+            alert = {
+                "type": "license_expiration",
+                "license_id": lic.id,
+                "software_id": lic.software_id,
+                "software_name": software.name if software else "Unknown",
+                "license_type": lic.license_type,
+                "quantity": lic.quantity,
+                "expiry_date": lic.expiry_date.isoformat(),
+                "days_remaining": days_remaining,
+                "severity": severity
+            }
+            alerts.append(alert)
+
+            log_event(
+                "license_expiration_alert",
+                **alert
+            )
+
+        log_event(
+            "license_check_complete",
+            total_alerts=len(alerts),
+            critical=len([a for a in alerts if a["severity"] == "critical"]),
+            warning=len([a for a in alerts if a["severity"] == "warning"])
+        )
+
+        return {
+            "status": "complete",
+            "alerts_count": len(alerts),
+            "alerts": alerts
+        }
+
+    except Exception as e:
+        log_event(
+            "license_check_error",
+            error_type=type(e).__name__,
+            error_message=str(e)
+        )
+        return {"status": "error", "message": str(e)}
+    finally:
+        db.close()
+
+
+@celery_app.task(bind=True)
+def check_all_expirations_task(self, days_threshold: int = 30):
+    """
+    Master task to check all expiration types.
+    Runs warranty, contract, and license checks.
+    """
+    log_event("expiration_check_start", threshold_days=days_threshold)
+
+    warranty_result = check_expiring_warranties_task.delay(days_threshold)
+    contract_result = check_expiring_contracts_task.delay(days_threshold)
+    license_result = check_expiring_licenses_task.delay(days_threshold)
+
+    log_event(
+        "expiration_check_tasks_queued",
+        warranty_task=str(warranty_result.id),
+        contract_task=str(contract_result.id),
+        license_task=str(license_result.id)
+    )
+
+    return {
+        "status": "queued",
+        "warranty_task_id": str(warranty_result.id),
+        "contract_task_id": str(contract_result.id),
+        "license_task_id": str(license_result.id)
+    }
+
+
+# ==================== SOFTWARE COLLECTION TASKS ====================
+
+@celery_app.task(bind=True)
+def collect_software_inventory_task(self, equipment_id: int):
+    """
+    Collect installed software from equipment via SSH/WinRM.
+    Uses sandboxed execution for safety.
+    """
+    from backend.core.database import SessionLocal
+    from backend.models import Equipment, Software, SoftwareInstallation
+    from backend.core.security import decrypt_value
+
+    db: Session = SessionLocal()
+    try:
+        equipment = db.query(Equipment).filter(
+            Equipment.id == equipment_id
+        ).first()
+
+        if not equipment:
+            log_event("software_collection_error", equipment_id=equipment_id, error="Equipment not found")
+            return {"status": "error", "message": "Equipment not found"}
+
+        if not equipment.remote_ip or not equipment.connection_type:
+            log_event("software_collection_error", equipment_id=equipment_id, error="Remote execution not configured")
+            return {"status": "error", "message": "Remote execution not configured"}
+
+        log_event(
+            "software_collection_start",
+            equipment_id=equipment_id,
+            equipment_name=equipment.name,
+            connection_type=equipment.connection_type
+        )
+
+        # Determine command based on OS type
+        if equipment.os_type == "linux":
+            # Try dpkg first, then rpm
+            command = "dpkg -l 2>/dev/null || rpm -qa 2>/dev/null"
+        elif equipment.os_type == "windows":
+            command = "Get-Package | Select-Object Name, Version | ConvertTo-Json"
+        else:
+            return {"status": "error", "message": f"Unsupported OS type: {equipment.os_type}"}
+
+        # Execute command
+        if equipment.connection_type == "ssh":
+            return_code, stdout, stderr = _collect_via_ssh(equipment, command)
+        elif equipment.connection_type == "winrm":
+            return_code, stdout, stderr = _collect_via_winrm(equipment, command)
+        else:
+            return {"status": "error", "message": f"Unknown connection type: {equipment.connection_type}"}
+
+        if return_code != 0:
+            log_event(
+                "software_collection_error",
+                equipment_id=equipment_id,
+                return_code=return_code,
+                stderr=stderr[:500]
+            )
+            return {"status": "error", "message": stderr[:500]}
+
+        # Parse output and store
+        software_list = _parse_software_output(stdout, equipment.os_type)
+        new_count = 0
+        updated_count = 0
+
+        for sw_info in software_list:
+            # Find or create software entry
+            software = db.query(Software).filter(
+                Software.name == sw_info["name"]
+            ).first()
+
+            if not software:
+                software = Software(
+                    name=sw_info["name"],
+                    version=sw_info.get("version"),
+                    category="discovered",
+                    entity_id=equipment.entity_id
+                )
+                db.add(software)
+                db.flush()
+
+            # Check for existing installation
+            installation = db.query(SoftwareInstallation).filter(
+                SoftwareInstallation.software_id == software.id,
+                SoftwareInstallation.equipment_id == equipment_id
+            ).first()
+
+            if installation:
+                installation.installed_version = sw_info.get("version")
+                installation.discovered_at = datetime.datetime.utcnow()
+                updated_count += 1
+            else:
+                installation = SoftwareInstallation(
+                    software_id=software.id,
+                    equipment_id=equipment_id,
+                    installed_version=sw_info.get("version"),
+                    discovered_at=datetime.datetime.utcnow()
+                )
+                db.add(installation)
+                new_count += 1
+
+        db.commit()
+
+        log_event(
+            "software_collection_complete",
+            equipment_id=equipment_id,
+            equipment_name=equipment.name,
+            new_software=new_count,
+            updated_software=updated_count,
+            total_found=len(software_list)
+        )
+
+        return {
+            "status": "success",
+            "equipment": equipment.name,
+            "new_software": new_count,
+            "updated_software": updated_count,
+            "total_found": len(software_list)
+        }
+
+    except Exception as e:
+        log_event(
+            "software_collection_error",
+            equipment_id=equipment_id,
+            error_type=type(e).__name__,
+            error_message=str(e)
+        )
+        return {"status": "error", "message": str(e)}
+    finally:
+        db.close()
+
+
+def _collect_via_ssh(equipment, command: str) -> Tuple[int, str, str]:
+    """Execute collection command via SSH."""
+    client = paramiko.SSHClient()
+    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+
+    try:
+        from backend.core.security import decrypt_value
+        password = equipment.remote_password
+        try:
+            password = decrypt_value(password)
+        except Exception:
+            pass
+
+        client.connect(
+            hostname=equipment.remote_ip,
+            port=equipment.remote_port or 22,
+            username=equipment.remote_username,
+            password=password,
+            timeout=SSH_TIMEOUT,
+            allow_agent=False,
+            look_for_keys=False
+        )
+
+        stdin, stdout, stderr = client.exec_command(command, timeout=60)
+        exit_status = stdout.channel.recv_exit_status()
+
+        return (
+            exit_status,
+            stdout.read().decode('utf-8', errors='replace'),
+            stderr.read().decode('utf-8', errors='replace')
+        )
+    except Exception as e:
+        return -1, "", str(e)
+    finally:
+        client.close()
+
+
+def _collect_via_winrm(equipment, command: str) -> Tuple[int, str, str]:
+    """Execute collection command via WinRM."""
+    try:
+        from backend.core.security import decrypt_value
+        password = equipment.remote_password
+        try:
+            password = decrypt_value(password)
+        except Exception:
+            pass
+
+        port = equipment.remote_port or 5985
+        use_ssl = port == 5986
+
+        if use_ssl:
+            session = winrm.Session(
+                f'https://{equipment.remote_ip}:{port}/wsman',
+                auth=(equipment.remote_username, password),
+                transport='ntlm',
+                server_cert_validation='ignore'
+            )
+        else:
+            session = winrm.Session(
+                f'http://{equipment.remote_ip}:{port}/wsman',
+                auth=(equipment.remote_username, password),
+                transport='ntlm'
+            )
+
+        result = session.run_ps(command)
+        return (
+            result.status_code,
+            result.std_out.decode('utf-8', errors='replace'),
+            result.std_err.decode('utf-8', errors='replace')
+        )
+    except Exception as e:
+        return -1, "", str(e)
+
+
+def _parse_software_output(output: str, os_type: str) -> List[dict]:
+    """Parse software list output from different OS types."""
+    software_list = []
+
+    if os_type == "linux":
+        # Parse dpkg or rpm output
+        for line in output.split('\n'):
+            parts = line.split()
+            if len(parts) >= 3 and parts[0] in ('ii', 'hi', 'rc'):
+                # dpkg format: status  name  version  description
+                software_list.append({
+                    "name": parts[1].split(':')[0],  # Remove architecture suffix
+                    "version": parts[2]
+                })
+            elif len(parts) >= 1 and '-' in parts[0]:
+                # rpm format: name-version-release.arch
+                name_parts = parts[0].rsplit('-', 2)
+                if len(name_parts) >= 2:
+                    software_list.append({
+                        "name": name_parts[0],
+                        "version": name_parts[1] if len(name_parts) > 1 else None
+                    })
+
+    elif os_type == "windows":
+        # Parse PowerShell JSON output
+        try:
+            import json
+            packages = json.loads(output)
+            if isinstance(packages, list):
+                for pkg in packages:
+                    if isinstance(pkg, dict) and "Name" in pkg:
+                        software_list.append({
+                            "name": pkg["Name"],
+                            "version": pkg.get("Version")
+                        })
+        except json.JSONDecodeError:
+            # Fallback: try line-by-line parsing
+            for line in output.split('\n'):
+                if line.strip():
+                    software_list.append({"name": line.strip(), "version": None})
+
+    return software_list

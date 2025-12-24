@@ -33,7 +33,7 @@ Plateforme de gestion des opérations réseau auto-hébergée, entièrement gén
 frontend/          # Vue.js 3 SPA
 ├── src/
 │   ├── components/shared/   # Composants réutilisables
-│   ├── stores/              # Pinia stores (auth.js, ui.js)
+│   ├── stores/              # Pinia stores (auth, ui, dcim, contracts, software, networkPorts, attachments)
 │   ├── views/               # Pages principales
 │   ├── i18n/                # Traductions EN/FR
 │   ├── api.js               # Client Axios
@@ -50,16 +50,22 @@ backend/           # FastAPI API
 │   ├── auth.py             # POST /token, GET /me
 │   ├── users.py            # CRUD utilisateurs (admin)
 │   ├── ipam.py             # Subnets, IPs, scan nmap
-│   ├── topology.py         # Données visualisation réseau
+│   ├── topology.py         # Données visualisation réseau + topologie physique
 │   ├── scripts.py          # Upload, exécution scripts
 │   ├── inventory.py        # Équipements, fabricants, fournisseurs
-│   └── dashboard.py        # Statistiques
+│   ├── dashboard.py        # Statistiques
+│   ├── dcim.py             # Gestion Racks et PDUs
+│   ├── contracts.py        # Contrats de maintenance/assurance
+│   ├── software.py         # Catalogue logiciels et licences
+│   ├── network_ports.py    # Ports réseau et connexions physiques
+│   ├── attachments.py      # Pièces jointes (documents)
+│   └── entities.py         # Entités multi-tenant
 ├── models.py               # Modèles SQLAlchemy
 ├── schemas.py              # Schémas Pydantic
 └── app.py                  # Application FastAPI
 
 worker/            # Celery worker
-└── tasks.py       # Tâches async (exécution scripts, scan subnet)
+└── tasks.py       # Tâches async (exécution scripts, scan subnet, alertes expirations, collecte logiciels)
 ```
 
 ## Fonctionnalités Principales
@@ -84,6 +90,41 @@ worker/            # Celery worker
 ### Topologie Réseau
 - Visualisation graphique avec Vis.js
 - Nodes colorés (vert=actif, gris=disponible)
+- Topologie physique basée sur les connexions de ports
+
+### DCIM (Data Center Infrastructure Management)
+- Gestion des baies (racks) par emplacement
+- Position U (1-42) et hauteur U des équipements
+- Gestion des PDUs avec ports et alimentation
+- Visualisation disposition des baies
+
+### Gestion des Contrats
+- Contrats de maintenance, assurance, location
+- Liaison contrats-équipements multiples
+- Alertes d'expiration automatiques (30 jours)
+- Suivi des coûts annuels et renouvellements
+
+### Inventaire Logiciel & Licences
+- Catalogue logiciels avec éditeur et catégorie
+- Gestion des licences (clé, quantité, expiration)
+- Suivi des installations par équipement
+- Calcul de conformité licences (installations vs quotas)
+- Collecte automatique via SSH/WinRM
+
+### Connectivité Physique
+- Ports réseau par équipement (type, vitesse, MAC)
+- Connexions bidirectionnelles port-à-port
+- Mapping switch-serveur complet
+
+### Gestion Documentaire
+- Pièces jointes par équipement
+- Catégorisation des documents
+- Upload/Download sécurisé
+
+### Multi-Tenant (Entités)
+- Isolation des données par entité
+- Filtrage automatique des résultats API
+- Gestion des entités (admin)
 
 ## Sécurité
 
@@ -154,10 +195,16 @@ docker-compose exec db psql -U netops netops_flow
 
 **Tables principales:**
 - `users` - Utilisateurs avec rôles et permissions
+- `entities` - Entités multi-tenant
 - `subnets` / `ip_addresses` - IPAM
 - `scripts` / `script_executions` - Automatisation
 - `manufacturers` / `equipment_types` / `equipment_models` - Catalogue
 - `locations` / `suppliers` / `equipment` - Inventaire
+- `racks` / `pdus` - DCIM
+- `contracts` / `contract_equipment` - Contrats
+- `software` / `software_licenses` / `software_installations` - Logiciels
+- `network_ports` - Ports réseau et connexions
+- `attachments` - Pièces jointes
 
 ## API Endpoints Principaux
 
@@ -172,6 +219,19 @@ docker-compose exec db psql -U netops netops_flow
 | /api/v1/executions/ | GET | Historique exécutions |
 | /api/v1/inventory/equipment/ | GET/POST | Équipements |
 | /api/v1/dashboard/stats | GET | Statistiques |
+| /api/v1/dcim/racks/ | GET/POST | Baies |
+| /api/v1/dcim/racks/{id}/layout | GET | Disposition baie |
+| /api/v1/dcim/pdus/ | GET/POST | PDUs |
+| /api/v1/contracts/ | GET/POST | Contrats |
+| /api/v1/contracts/{id}/equipment | GET/POST/DELETE | Équipements contrat |
+| /api/v1/software/ | GET/POST | Catalogue logiciels |
+| /api/v1/software/{id}/licenses | GET/POST | Licences |
+| /api/v1/software/{id}/installations | GET/POST | Installations |
+| /api/v1/network-ports/ | GET/POST | Ports réseau |
+| /api/v1/network-ports/{id}/connect | POST | Connecter ports |
+| /api/v1/attachments/ | GET/POST | Pièces jointes |
+| /api/v1/entities/ | GET/POST | Entités |
+| /api/v1/topology/physical | GET | Topologie physique |
 
 ## Troubleshooting
 

@@ -19,6 +19,12 @@ from backend.routers import (
     scripts_router,
     inventory_router,
     dashboard_router,
+    dcim_router,
+    contracts_router,
+    software_router,
+    network_ports_router,
+    attachments_router,
+    entities_router,
 )
 from backend.routers.scripts import executions_router
 
@@ -89,6 +95,12 @@ def create_app() -> FastAPI:
     app.include_router(executions_router, prefix=api_prefix)
     app.include_router(inventory_router, prefix=api_prefix)
     app.include_router(dashboard_router, prefix=api_prefix)
+    app.include_router(dcim_router, prefix=api_prefix)
+    app.include_router(contracts_router, prefix=api_prefix)
+    app.include_router(software_router, prefix=api_prefix)
+    app.include_router(network_ports_router, prefix=api_prefix)
+    app.include_router(attachments_router, prefix=api_prefix)
+    app.include_router(entities_router, prefix=api_prefix)
 
     # Legacy routes (for backwards compatibility)
     # These can be removed after frontend migration
@@ -100,6 +112,12 @@ def create_app() -> FastAPI:
     app.include_router(executions_router, prefix="", tags=["Legacy Executions"])
     app.include_router(inventory_router, prefix="", tags=["Legacy Inventory"])
     app.include_router(dashboard_router, prefix="", tags=["Legacy Dashboard"])
+    app.include_router(dcim_router, prefix="", tags=["Legacy DCIM"])
+    app.include_router(contracts_router, prefix="", tags=["Legacy Contracts"])
+    app.include_router(software_router, prefix="", tags=["Legacy Software"])
+    app.include_router(network_ports_router, prefix="", tags=["Legacy Network Ports"])
+    app.include_router(attachments_router, prefix="", tags=["Legacy Attachments"])
+    app.include_router(entities_router, prefix="", tags=["Legacy Entities"])
 
     @app.on_event("startup")
     async def startup_event():
