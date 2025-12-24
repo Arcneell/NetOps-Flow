@@ -27,7 +27,7 @@ class AuditLogResponse(BaseModel):
     entity_id: Optional[int] = None
     ip_address: Optional[str] = None
     changes: Optional[dict] = None
-    metadata: Optional[dict] = None
+    extra_data: Optional[dict] = None
 
     class Config:
         from_attributes = True

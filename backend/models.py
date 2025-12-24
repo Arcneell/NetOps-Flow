@@ -457,6 +457,6 @@ class AuditLog(Base):
     entity_id = Column(Integer, ForeignKey("entities.id", ondelete="SET NULL"), nullable=True)
     ip_address = Column(String, nullable=True)  # Client IP address
     changes = Column(JSON, nullable=True)  # {"field": {"old": "value", "new": "value"}}
-    metadata = Column(JSON, nullable=True)  # Additional context
+    extra_data = Column(JSON, nullable=True)  # Additional context (renamed from metadata to avoid SQLAlchemy conflict)
 
     # Note: No relationship to User to preserve logs even after user deletion
