@@ -21,18 +21,18 @@
                 <div class="inline-flex items-center justify-center w-16 h-16 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 shadow-lg shadow-blue-500/30 mb-4">
                     <i class="pi pi-bolt text-white text-3xl"></i>
                 </div>
-                <h1 class="text-3xl font-bold text-white tracking-tight">{{ t('loginTitle') }}</h1>
-                <p class="text-blue-200/70 mt-2 text-sm">{{ t('loginSubtitle') }}</p>
+                <h1 class="text-3xl font-bold text-white tracking-tight">{{ t('auth.loginTitle') }}</h1>
+                <p class="text-blue-200/70 mt-2 text-sm">{{ t('auth.loginSubtitle') }}</p>
             </div>
 
             <form @submit.prevent="handleLogin" class="space-y-6">
                 <div class="space-y-1">
-                    <label class="text-xs font-bold text-blue-100 uppercase tracking-wider ml-1">{{ t('username') }} <span class="text-red-500">*</span></label>
+                    <label class="text-xs font-bold text-blue-100 uppercase tracking-wider ml-1">{{ t('auth.username') }} <span class="text-red-500">*</span></label>
                     <div class="relative group">
                         <i class="pi pi-user absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-400 transition-colors z-20"></i>
                         <InputText
                             v-model="username"
-                            :placeholder="t('username')"
+                            :placeholder="t('auth.username')"
                             class="block w-full !pl-12 !py-3 !bg-slate-950/80 !border-slate-700 !text-white placeholder:!text-slate-500 focus:!border-blue-500 focus:!ring-1 focus:!ring-blue-500 transition-all"
                             style="padding-left: 3rem !important; background-color: #020617 !important; color: white !important;"
                         />
@@ -40,13 +40,13 @@
                 </div>
 
                 <div class="space-y-1">
-                    <label class="text-xs font-bold text-blue-100 uppercase tracking-wider ml-1">{{ t('password') }} <span class="text-red-500">*</span></label>
+                    <label class="text-xs font-bold text-blue-100 uppercase tracking-wider ml-1">{{ t('auth.password') }} <span class="text-red-500">*</span></label>
                     <div class="relative group">
                         <i class="pi pi-lock absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-400 transition-colors z-20"></i>
                         <InputText
                             v-model="password"
                             type="password"
-                            :placeholder="t('password')"
+                            :placeholder="t('auth.password')"
                             class="block w-full !pl-12 !py-3 !bg-slate-950/80 !border-slate-700 !text-white placeholder:!text-slate-500 focus:!border-blue-500 focus:!ring-1 focus:!ring-blue-500 transition-all"
                             style="padding-left: 3rem !important; background-color: #020617 !important; color: white !important;"
                         />
@@ -60,12 +60,12 @@
                     class="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 border-0 text-white font-bold py-3 rounded-lg shadow-lg shadow-blue-600/20 mt-2 transform active:scale-[0.98] transition-all flex items-center justify-center gap-2 h-12"
                 >
                     <i v-if="loading" class="pi pi-spinner pi-spin text-xl"></i>
-                    <span>{{ t('signIn') }}</span>
+                    <span>{{ t('auth.signIn') }}</span>
                 </button>
             </form>
 
             <div class="mt-8 text-center">
-                <p class="text-[10px] text-slate-600 uppercase tracking-widest">{{ t('authOnly') }}</p>
+                <p class="text-[10px] text-slate-600 uppercase tracking-widest">{{ t('auth.authOnly') }}</p>
             </div>
         </div>
     </div>
@@ -73,13 +73,14 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { useToast } from 'primevue/usetoast';
+import { useI18n } from 'vue-i18n';
 import axios from 'axios';
-import { t, toggleLang, langIcon, initLang } from '../i18n';
 import api from '../api';
 
+const { t, locale } = useI18n();
 const router = useRouter();
 const toast = useToast();
 
@@ -87,8 +88,17 @@ const username = ref('');
 const password = ref('');
 const loading = ref(false);
 
+const langIcon = computed(() => locale.value === 'fr' ? '🇫🇷' : '🇬🇧');
+
+const toggleLang = () => {
+    const newLang = locale.value === 'fr' ? 'en' : 'fr';
+    locale.value = newLang;
+    localStorage.setItem('lang', newLang);
+};
+
 onMounted(() => {
-    initLang();
+    const savedLang = localStorage.getItem('lang') || 'en';
+    locale.value = savedLang;
     localStorage.removeItem('token');
     localStorage.removeItem('username');
     localStorage.removeItem('user');
@@ -96,7 +106,7 @@ onMounted(() => {
 
 const handleLogin = async () => {
     if (!username.value || !password.value) {
-        toast.add({ severity: 'warn', summary: t('accessDenied'), detail: 'Please fill all fields', life: 3000 });
+        toast.add({ severity: 'warn', summary: t('auth.accessDenied'), detail: t('validation.fillRequiredFields'), life: 3000 });
         return;
     }
     loading.value = true;
@@ -119,7 +129,7 @@ const handleLogin = async () => {
         });
         localStorage.setItem('user', JSON.stringify(userRes.data));
 
-        toast.add({ severity: 'success', summary: t('accessGranted'), detail: t('welcomeBack'), life: 2000 });
+        toast.add({ severity: 'success', summary: t('auth.accessGranted'), detail: t('auth.welcomeBack'), life: 2000 });
 
         setTimeout(() => {
             window.location.href = '/';
@@ -128,7 +138,7 @@ const handleLogin = async () => {
     } catch (e) {
         let msg = "Invalid credentials";
         if (e.response?.data?.detail) msg = e.response.data.detail;
-        toast.add({ severity: 'error', summary: t('accessDenied'), detail: msg, life: 3000 });
+        toast.add({ severity: 'error', summary: t('auth.accessDenied'), detail: msg, life: 3000 });
     } finally {
         loading.value = false;
     }

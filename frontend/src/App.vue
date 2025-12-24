@@ -114,9 +114,8 @@ import { computed, ref, onMounted, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import api from './api';
-import { toggleLang, langIcon, initLang } from './i18n/index.js';
 
-const { t } = useI18n();
+const { t, locale } = useI18n();
 const route = useRoute();
 const router = useRouter();
 const user = ref({ username: '', role: '', permissions: {} });
@@ -124,6 +123,7 @@ const isDark = ref(false);
 
 const isLoginPage = computed(() => route.path === '/login' || route.path === '/unauthorized');
 const userInitials = computed(() => (user.value.username ? user.value.username.substring(0, 2).toUpperCase() : '??'));
+const langIcon = computed(() => locale.value === 'fr' ? '🇫🇷' : '🇬🇧');
 
 const currentRouteName = computed(() => {
     // Map route names to translation keys
@@ -140,7 +140,9 @@ const currentRouteName = computed(() => {
 });
 
 const handleToggleLang = () => {
-    toggleLang();
+    const newLang = locale.value === 'fr' ? 'en' : 'fr';
+    locale.value = newLang;
+    localStorage.setItem('lang', newLang);
 };
 
 const toggleTheme = () => {
@@ -198,7 +200,9 @@ watch(() => route.path, async (newPath) => {
 
 onMounted(async () => {
     initTheme();
-    initLang();
+    // Initialize language from localStorage
+    const savedLang = localStorage.getItem('lang') || 'en';
+    locale.value = savedLang;
     if (!isLoginPage.value) {
         await fetchUser();
     }

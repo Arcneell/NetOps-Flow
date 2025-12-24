@@ -193,6 +193,8 @@
     "linkedEquipment": "Équipement lié"
   },
   "messages": {
+    "saved": "Enregistré avec succès",
+    "deleted": "Supprimé avec succès",
     "equipmentCreated": "Équipement créé avec succès",
     "equipmentUpdated": "Équipement mis à jour avec succès",
     "equipmentDeleted": "Équipement supprimé avec succès",
@@ -206,7 +208,9 @@
     "locationDeleted": "Emplacement supprimé avec succès",
     "supplierCreated": "Fournisseur créé avec succès",
     "supplierDeleted": "Fournisseur supprimé avec succès",
-    "cannotDeleteHasItems": "Impossible de supprimer : éléments associés"
+    "cannotDeleteHasItems": "Impossible de supprimer : éléments associés",
+    "ipLinked": "IP liée avec succès",
+    "ipUnlinked": "IP déliée avec succès"
   },
   "filters": {
     "filterByType": "Filtrer par type",

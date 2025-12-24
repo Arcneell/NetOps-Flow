@@ -4,7 +4,7 @@
     <div class="w-64 flex-shrink-0">
       <div class="card p-0 overflow-hidden">
         <div class="p-4 border-b" style="border-color: var(--border-color);">
-          <h3 class="font-bold text-lg">{{ t('inventory') }}</h3>
+          <h3 class="font-bold text-lg">{{ t('inventory.title') }}</h3>
         </div>
         <nav class="p-2">
           <div
@@ -12,17 +12,17 @@
             :class="['flex items-center gap-3 px-4 py-3 rounded-lg cursor-pointer transition-colors', activeSection === 'equipment' ? 'bg-blue-500 text-white' : 'hover:bg-gray-100 dark:hover:bg-gray-800']"
           >
             <i class="pi pi-box"></i>
-            <span class="font-medium">{{ t('equipment') }}</span>
+            <span class="font-medium">{{ t('inventory.equipment') }}</span>
           </div>
 
-          <div class="px-4 py-2 text-xs font-semibold text-gray-500 uppercase mt-4">{{ t('configuration') }}</div>
+          <div class="px-4 py-2 text-xs font-semibold text-gray-500 uppercase mt-4">{{ t('common.configuration') }}</div>
 
           <div
             @click="activeSection = 'manufacturers'"
             :class="['flex items-center gap-3 px-4 py-2.5 rounded-lg cursor-pointer transition-colors text-sm', activeSection === 'manufacturers' ? 'bg-blue-500 text-white' : 'hover:bg-gray-100 dark:hover:bg-gray-800']"
           >
             <i class="pi pi-building"></i>
-            <span>{{ t('manufacturers') }}</span>
+            <span>{{ t('inventory.manufacturers') }}</span>
           </div>
 
           <div
@@ -30,7 +30,7 @@
             :class="['flex items-center gap-3 px-4 py-2.5 rounded-lg cursor-pointer transition-colors text-sm', activeSection === 'models' ? 'bg-blue-500 text-white' : 'hover:bg-gray-100 dark:hover:bg-gray-800']"
           >
             <i class="pi pi-th-large"></i>
-            <span>{{ t('equipmentModels') }}</span>
+            <span>{{ t('inventory.models') }}</span>
           </div>
 
           <div
@@ -38,7 +38,7 @@
             :class="['flex items-center gap-3 px-4 py-2.5 rounded-lg cursor-pointer transition-colors text-sm', activeSection === 'types' ? 'bg-blue-500 text-white' : 'hover:bg-gray-100 dark:hover:bg-gray-800']"
           >
             <i class="pi pi-tags"></i>
-            <span>{{ t('equipmentTypes') }}</span>
+            <span>{{ t('inventory.types') }}</span>
           </div>
 
           <div
@@ -46,7 +46,7 @@
             :class="['flex items-center gap-3 px-4 py-2.5 rounded-lg cursor-pointer transition-colors text-sm', activeSection === 'locations' ? 'bg-blue-500 text-white' : 'hover:bg-gray-100 dark:hover:bg-gray-800']"
           >
             <i class="pi pi-map-marker"></i>
-            <span>{{ t('locations') }}</span>
+            <span>{{ t('inventory.locations') }}</span>
           </div>
 
           <div
@@ -54,7 +54,7 @@
             :class="['flex items-center gap-3 px-4 py-2.5 rounded-lg cursor-pointer transition-colors text-sm', activeSection === 'suppliers' ? 'bg-blue-500 text-white' : 'hover:bg-gray-100 dark:hover:bg-gray-800']"
           >
             <i class="pi pi-truck"></i>
-            <span>{{ t('suppliers') }}</span>
+            <span>{{ t('inventory.suppliers') }}</span>
           </div>
         </nav>
       </div>
@@ -65,21 +65,21 @@
       <!-- Equipment Section -->
       <div v-if="activeSection === 'equipment'" class="card h-full flex flex-col">
         <div class="flex justify-between items-center mb-4">
-          <h3 class="text-lg font-bold">{{ t('equipmentList') }}</h3>
-          <Button :label="t('newEquipment')" icon="pi pi-plus" @click="openEquipmentDialog()" />
+          <h3 class="text-lg font-bold">{{ t('inventory.equipmentList') }}</h3>
+          <Button :label="t('inventory.newEquipment')" icon="pi pi-plus" @click="openEquipmentDialog()" />
         </div>
 
         <div class="flex gap-3 mb-4">
-          <Dropdown v-model="filterType" :options="typeOptions" optionLabel="name" optionValue="id" :placeholder="t('allTypes')" showClear class="w-48" />
-          <Dropdown v-model="filterStatus" :options="statusOptions" optionLabel="label" optionValue="value" :placeholder="t('allStatuses')" showClear class="w-48" />
-          <Dropdown v-model="filterLocation" :options="locationOptions" optionLabel="label" optionValue="id" :placeholder="t('allLocations')" showClear class="w-48" />
+          <Dropdown v-model="filterType" :options="typeOptions" optionLabel="name" optionValue="id" :placeholder="t('filters.allTypes')" showClear class="w-48" />
+          <Dropdown v-model="filterStatus" :options="statusOptions" optionLabel="label" optionValue="value" :placeholder="t('filters.allStatuses')" showClear class="w-48" />
+          <Dropdown v-model="filterLocation" :options="locationOptions" optionLabel="label" optionValue="id" :placeholder="t('filters.allLocations')" showClear class="w-48" />
         </div>
 
         <div class="flex-1 overflow-auto">
           <DataTable :value="filteredEquipment" stripedRows paginator :rows="10" v-model:expandedRows="expandedRows" dataKey="id" class="text-sm">
             <Column expander style="width: 3rem" />
-            <Column field="name" :header="t('name')" sortable></Column>
-            <Column :header="t('equipmentType')">
+            <Column field="name" :header="t('common.name')" sortable></Column>
+            <Column :header="t('inventory.type')">
               <template #body="slotProps">
                 <span v-if="slotProps.data.model?.equipment_type">
                   <i :class="'pi ' + slotProps.data.model.equipment_type.icon + ' mr-2'"></i>
@@ -88,7 +88,7 @@
                 <span v-else class="opacity-50">-</span>
               </template>
             </Column>
-            <Column :header="t('equipmentModel')">
+            <Column :header="t('inventory.model')">
               <template #body="slotProps">
                 <span v-if="slotProps.data.model">
                   {{ slotProps.data.model.manufacturer?.name }} {{ slotProps.data.model.name }}
@@ -96,8 +96,8 @@
                 <span v-else class="opacity-50">-</span>
               </template>
             </Column>
-            <Column field="serial_number" :header="t('serialNumber')"></Column>
-            <Column :header="t('location')">
+            <Column field="serial_number" :header="t('inventory.serialNumber')"></Column>
+            <Column :header="t('inventory.location')">
               <template #body="slotProps">
                 <span v-if="slotProps.data.location">
                   {{ slotProps.data.location.site }}
@@ -107,16 +107,16 @@
                 <span v-else class="opacity-50">-</span>
               </template>
             </Column>
-            <Column field="status" :header="t('status')">
+            <Column field="status" :header="t('ipam.status')">
               <template #body="slotProps">
                 <Tag :value="getStatusLabel(slotProps.data.status)" :severity="getStatusSeverity(slotProps.data.status)" />
               </template>
             </Column>
-            <Column :header="t('actions')" style="width: 100px">
+            <Column :header="t('common.actions')" style="width: 100px">
               <template #body="slotProps">
                 <div class="flex gap-1">
-                  <Button icon="pi pi-pencil" text rounded size="small" @click="openEquipmentDialog(slotProps.data)" v-tooltip.top="t('edit')" />
-                  <Button icon="pi pi-trash" text rounded size="small" severity="danger" @click="confirmDeleteEquipment(slotProps.data)" v-tooltip.top="t('delete')" />
+                  <Button icon="pi pi-pencil" text rounded size="small" @click="openEquipmentDialog(slotProps.data)" v-tooltip.top="t('common.edit')" />
+                  <Button icon="pi pi-trash" text rounded size="small" severity="danger" @click="confirmDeleteEquipment(slotProps.data)" v-tooltip.top="t('common.delete')" />
                 </div>
               </template>
             </Column>
@@ -124,25 +124,25 @@
             <template #expansion="slotProps">
               <div class="p-4 grid grid-cols-3 gap-6" style="background-color: var(--bg-app);">
                 <div>
-                  <h4 class="font-semibold mb-3 text-blue-500">{{ t('details') }}</h4>
-                  <p class="mb-2"><span class="opacity-60">{{ t('assetTag') }}:</span> {{ slotProps.data.asset_tag || '-' }}</p>
-                  <p class="mb-2"><span class="opacity-60">{{ t('purchaseDate') }}:</span> {{ formatDate(slotProps.data.purchase_date) }}</p>
-                  <p class="mb-2"><span class="opacity-60">{{ t('warrantyExpiry') }}:</span> {{ formatDate(slotProps.data.warranty_expiry) }}</p>
-                  <p><span class="opacity-60">{{ t('supplier') }}:</span> {{ slotProps.data.supplier?.name || '-' }}</p>
+                  <h4 class="font-semibold mb-3 text-blue-500">{{ t('common.details') }}</h4>
+                  <p class="mb-2"><span class="opacity-60">{{ t('inventory.assetTag') }}:</span> {{ slotProps.data.asset_tag || '-' }}</p>
+                  <p class="mb-2"><span class="opacity-60">{{ t('inventory.purchaseDate') }}:</span> {{ formatDate(slotProps.data.purchase_date) }}</p>
+                  <p class="mb-2"><span class="opacity-60">{{ t('inventory.warrantyExpiry') }}:</span> {{ formatDate(slotProps.data.warranty_expiry) }}</p>
+                  <p><span class="opacity-60">{{ t('inventory.supplier') }}:</span> {{ slotProps.data.supplier?.name || '-' }}</p>
                 </div>
                 <div>
-                  <h4 class="font-semibold mb-3 text-blue-500">{{ t('linkedIps') }}</h4>
+                  <h4 class="font-semibold mb-3 text-blue-500">{{ t('ip.linkedIps') }}</h4>
                   <div v-if="slotProps.data.ip_addresses?.length">
                     <div v-for="ip in slotProps.data.ip_addresses" :key="ip.id" class="flex items-center justify-between p-2 rounded mb-1" style="background-color: var(--bg-card);">
                       <span class="font-mono text-sm">{{ ip.address }}</span>
                       <Button icon="pi pi-times" text rounded size="small" severity="danger" @click="unlinkIpFromExpansion(slotProps.data.id, ip.id)" />
                     </div>
                   </div>
-                  <p v-else class="opacity-50 text-sm">{{ t('noIpLinked') }}</p>
-                  <Button :label="t('linkIp')" icon="pi pi-link" size="small" class="mt-3" @click="openLinkIpDialog(slotProps.data)" />
+                  <p v-else class="opacity-50 text-sm">{{ t('ip.noIpLinked') }}</p>
+                  <Button :label="t('ip.linkIp')" icon="pi pi-link" size="small" class="mt-3" @click="openLinkIpDialog(slotProps.data)" />
                 </div>
                 <div>
-                  <h4 class="font-semibold mb-3 text-blue-500">{{ t('notes') }}</h4>
+                  <h4 class="font-semibold mb-3 text-blue-500">{{ t('inventory.notes') }}</h4>
                   <p class="text-sm opacity-70 whitespace-pre-wrap">{{ slotProps.data.notes || '-' }}</p>
                 </div>
               </div>
@@ -154,23 +154,23 @@
       <!-- Manufacturers Section -->
       <div v-if="activeSection === 'manufacturers'" class="card">
         <div class="flex justify-between items-center mb-4">
-          <h3 class="text-lg font-bold">{{ t('manufacturers') }}</h3>
-          <Button :label="t('newManufacturer')" icon="pi pi-plus" @click="openManufacturerDialog()" />
+          <h3 class="text-lg font-bold">{{ t('inventory.manufacturers') }}</h3>
+          <Button :label="t('inventory.newManufacturer')" icon="pi pi-plus" @click="openManufacturerDialog()" />
         </div>
         <DataTable :value="manufacturers" stripedRows class="text-sm">
-          <Column field="name" :header="t('name')" sortable></Column>
-          <Column field="website" :header="t('website')">
+          <Column field="name" :header="t('common.name')" sortable></Column>
+          <Column field="website" :header="t('inventory.website')">
             <template #body="slotProps">
               <a v-if="slotProps.data.website" :href="slotProps.data.website" target="_blank" class="text-blue-500 hover:underline">{{ slotProps.data.website }}</a>
               <span v-else class="opacity-50">-</span>
             </template>
           </Column>
-          <Column field="notes" :header="t('notes')">
+          <Column field="notes" :header="t('inventory.notes')">
             <template #body="slotProps">
               <span class="truncate block max-w-xs">{{ slotProps.data.notes || '-' }}</span>
             </template>
           </Column>
-          <Column :header="t('actions')" style="width: 100px">
+          <Column :header="t('common.actions')" style="width: 100px">
             <template #body="slotProps">
               <div class="flex gap-1">
                 <Button icon="pi pi-pencil" text rounded size="small" @click="openManufacturerDialog(slotProps.data)" />
@@ -184,15 +184,15 @@
       <!-- Models Section -->
       <div v-if="activeSection === 'models'" class="card">
         <div class="flex justify-between items-center mb-4">
-          <h3 class="text-lg font-bold">{{ t('equipmentModels') }}</h3>
-          <Button :label="t('newModel')" icon="pi pi-plus" @click="openModelDialog()" />
+          <h3 class="text-lg font-bold">{{ t('inventory.models') }}</h3>
+          <Button :label="t('inventory.newModel')" icon="pi pi-plus" @click="openModelDialog()" />
         </div>
         <DataTable :value="models" stripedRows class="text-sm">
-          <Column field="name" :header="t('name')" sortable></Column>
-          <Column :header="t('manufacturer')">
+          <Column field="name" :header="t('common.name')" sortable></Column>
+          <Column :header="t('inventory.manufacturer')">
             <template #body="slotProps">{{ slotProps.data.manufacturer?.name || '-' }}</template>
           </Column>
-          <Column :header="t('equipmentType')">
+          <Column :header="t('inventory.type')">
             <template #body="slotProps">
               <span v-if="slotProps.data.equipment_type">
                 <i :class="'pi ' + slotProps.data.equipment_type.icon + ' mr-2'"></i>
@@ -201,7 +201,7 @@
               <span v-else class="opacity-50">-</span>
             </template>
           </Column>
-          <Column :header="t('actions')" style="width: 100px">
+          <Column :header="t('common.actions')" style="width: 100px">
             <template #body="slotProps">
               <div class="flex gap-1">
                 <Button icon="pi pi-pencil" text rounded size="small" @click="openModelDialog(slotProps.data)" />
@@ -215,17 +215,17 @@
       <!-- Types Section -->
       <div v-if="activeSection === 'types'" class="card">
         <div class="flex justify-between items-center mb-4">
-          <h3 class="text-lg font-bold">{{ t('equipmentTypes') }}</h3>
-          <Button :label="t('newType')" icon="pi pi-plus" @click="openTypeDialog()" />
+          <h3 class="text-lg font-bold">{{ t('inventory.types') }}</h3>
+          <Button :label="t('inventory.newType')" icon="pi pi-plus" @click="openTypeDialog()" />
         </div>
         <DataTable :value="types" stripedRows class="text-sm">
-          <Column :header="t('icon')" style="width: 80px">
+          <Column :header="t('inventory.icon')" style="width: 80px">
             <template #body="slotProps">
               <i :class="'pi ' + slotProps.data.icon + ' text-xl'"></i>
             </template>
           </Column>
-          <Column field="name" :header="t('name')" sortable></Column>
-          <Column :header="t('actions')" style="width: 100px">
+          <Column field="name" :header="t('common.name')" sortable></Column>
+          <Column :header="t('common.actions')" style="width: 100px">
             <template #body="slotProps">
               <div class="flex gap-1">
                 <Button icon="pi pi-pencil" text rounded size="small" @click="openTypeDialog(slotProps.data)" />
@@ -239,18 +239,18 @@
       <!-- Locations Section -->
       <div v-if="activeSection === 'locations'" class="card">
         <div class="flex justify-between items-center mb-4">
-          <h3 class="text-lg font-bold">{{ t('locations') }}</h3>
-          <Button :label="t('newLocation')" icon="pi pi-plus" @click="openLocationDialog()" />
+          <h3 class="text-lg font-bold">{{ t('inventory.locations') }}</h3>
+          <Button :label="t('inventory.newLocation')" icon="pi pi-plus" @click="openLocationDialog()" />
         </div>
         <DataTable :value="locations" stripedRows class="text-sm">
-          <Column field="site" :header="t('site')" sortable></Column>
-          <Column field="building" :header="t('building')">
+          <Column field="site" :header="t('inventory.site')" sortable></Column>
+          <Column field="building" :header="t('inventory.building')">
             <template #body="slotProps">{{ slotProps.data.building || '-' }}</template>
           </Column>
-          <Column field="room" :header="t('room')">
+          <Column field="room" :header="t('inventory.room')">
             <template #body="slotProps">{{ slotProps.data.room || '-' }}</template>
           </Column>
-          <Column :header="t('actions')" style="width: 100px">
+          <Column :header="t('common.actions')" style="width: 100px">
             <template #body="slotProps">
               <div class="flex gap-1">
                 <Button icon="pi pi-pencil" text rounded size="small" @click="openLocationDialog(slotProps.data)" />
@@ -264,27 +264,27 @@
       <!-- Suppliers Section -->
       <div v-if="activeSection === 'suppliers'" class="card">
         <div class="flex justify-between items-center mb-4">
-          <h3 class="text-lg font-bold">{{ t('suppliers') }}</h3>
-          <Button :label="t('newSupplier')" icon="pi pi-plus" @click="openSupplierDialog()" />
+          <h3 class="text-lg font-bold">{{ t('inventory.suppliers') }}</h3>
+          <Button :label="t('inventory.newSupplier')" icon="pi pi-plus" @click="openSupplierDialog()" />
         </div>
         <DataTable :value="suppliers" stripedRows class="text-sm">
-          <Column field="name" :header="t('name')" sortable></Column>
-          <Column field="contact_email" :header="t('contactEmail')">
+          <Column field="name" :header="t('common.name')" sortable></Column>
+          <Column field="contact_email" :header="t('inventory.contactEmail')">
             <template #body="slotProps">
               <a v-if="slotProps.data.contact_email" :href="'mailto:' + slotProps.data.contact_email" class="text-blue-500 hover:underline">{{ slotProps.data.contact_email }}</a>
               <span v-else class="opacity-50">-</span>
             </template>
           </Column>
-          <Column field="phone" :header="t('phone')">
+          <Column field="phone" :header="t('inventory.phone')">
             <template #body="slotProps">{{ slotProps.data.phone || '-' }}</template>
           </Column>
-          <Column field="website" :header="t('website')">
+          <Column field="website" :header="t('inventory.website')">
             <template #body="slotProps">
               <a v-if="slotProps.data.website" :href="slotProps.data.website" target="_blank" class="text-blue-500 hover:underline">{{ slotProps.data.website }}</a>
               <span v-else class="opacity-50">-</span>
             </template>
           </Column>
-          <Column :header="t('actions')" style="width: 100px">
+          <Column :header="t('common.actions')" style="width: 100px">
             <template #body="slotProps">
               <div class="flex gap-1">
                 <Button icon="pi pi-pencil" text rounded size="small" @click="openSupplierDialog(slotProps.data)" />
@@ -297,79 +297,79 @@
     </div>
 
     <!-- Equipment Dialog -->
-    <Dialog v-model:visible="showEquipmentDialog" modal :header="editingEquipment ? t('editEquipment') : t('newEquipment')" :style="{ width: '650px' }">
+    <Dialog v-model:visible="showEquipmentDialog" modal :header="editingEquipment ? t('inventory.editEquipment') : t('inventory.newEquipment')" :style="{ width: '650px' }">
       <div class="grid grid-cols-2 gap-x-4 gap-y-4">
         <div class="col-span-2">
-          <label class="block text-sm font-medium mb-1">{{ t('name') }} <span class="text-red-500">*</span></label>
+          <label class="block text-sm font-medium mb-1">{{ t('common.name') }} <span class="text-red-500">*</span></label>
           <InputText v-model="equipmentForm.name" class="w-full" />
         </div>
         <div>
-          <label class="block text-sm font-medium mb-1">{{ t('equipmentModel') }}</label>
-          <Dropdown v-model="equipmentForm.model_id" :options="models" optionLabel="name" optionValue="id" :placeholder="t('equipmentModel')" class="w-full" showClear>
+          <label class="block text-sm font-medium mb-1">{{ t('inventory.model') }}</label>
+          <Dropdown v-model="equipmentForm.model_id" :options="models" optionLabel="name" optionValue="id" :placeholder="t('inventory.model')" class="w-full" showClear>
             <template #option="slotProps">
               {{ slotProps.option.manufacturer?.name }} - {{ slotProps.option.name }}
             </template>
           </Dropdown>
         </div>
         <div>
-          <label class="block text-sm font-medium mb-1">{{ t('status') }}</label>
+          <label class="block text-sm font-medium mb-1">{{ t('ipam.status') }}</label>
           <Dropdown v-model="equipmentForm.status" :options="statusOptions" optionLabel="label" optionValue="value" class="w-full" />
         </div>
         <div>
-          <label class="block text-sm font-medium mb-1">{{ t('serialNumber') }}</label>
+          <label class="block text-sm font-medium mb-1">{{ t('inventory.serialNumber') }}</label>
           <InputText v-model="equipmentForm.serial_number" class="w-full" />
         </div>
         <div>
-          <label class="block text-sm font-medium mb-1">{{ t('assetTag') }}</label>
+          <label class="block text-sm font-medium mb-1">{{ t('inventory.assetTag') }}</label>
           <InputText v-model="equipmentForm.asset_tag" class="w-full" />
         </div>
         <div>
-          <label class="block text-sm font-medium mb-1">{{ t('location') }}</label>
-          <Dropdown v-model="equipmentForm.location_id" :options="locationOptions" optionLabel="label" optionValue="id" :placeholder="t('location')" class="w-full" showClear />
+          <label class="block text-sm font-medium mb-1">{{ t('inventory.location') }}</label>
+          <Dropdown v-model="equipmentForm.location_id" :options="locationOptions" optionLabel="label" optionValue="id" :placeholder="t('inventory.location')" class="w-full" showClear />
         </div>
         <div>
-          <label class="block text-sm font-medium mb-1">{{ t('supplier') }}</label>
-          <Dropdown v-model="equipmentForm.supplier_id" :options="suppliers" optionLabel="name" optionValue="id" :placeholder="t('supplier')" class="w-full" showClear />
+          <label class="block text-sm font-medium mb-1">{{ t('inventory.supplier') }}</label>
+          <Dropdown v-model="equipmentForm.supplier_id" :options="suppliers" optionLabel="name" optionValue="id" :placeholder="t('inventory.supplier')" class="w-full" showClear />
         </div>
         <div>
-          <label class="block text-sm font-medium mb-1">{{ t('purchaseDate') }}</label>
+          <label class="block text-sm font-medium mb-1">{{ t('inventory.purchaseDate') }}</label>
           <Calendar v-model="equipmentForm.purchase_date" dateFormat="yy-mm-dd" class="w-full" showIcon />
         </div>
         <div>
-          <label class="block text-sm font-medium mb-1">{{ t('warrantyExpiry') }}</label>
+          <label class="block text-sm font-medium mb-1">{{ t('inventory.warrantyExpiry') }}</label>
           <Calendar v-model="equipmentForm.warranty_expiry" dateFormat="yy-mm-dd" class="w-full" showIcon />
         </div>
         <div class="col-span-2">
-          <label class="block text-sm font-medium mb-1">{{ t('notes') }}</label>
+          <label class="block text-sm font-medium mb-1">{{ t('inventory.notes') }}</label>
           <Textarea v-model="equipmentForm.notes" rows="3" class="w-full" />
         </div>
 
         <!-- Remote Execution Section -->
         <div v-if="selectedModelSupportsRemoteExecution" class="col-span-2 border-t pt-4 mt-2" style="border-color: var(--border-color);">
-          <h4 class="font-semibold mb-3 text-blue-500">{{ t('remoteExecution') }}</h4>
+          <h4 class="font-semibold mb-3 text-blue-500">{{ t('remote.remoteExecution') }}</h4>
           <div class="grid grid-cols-2 gap-4">
             <div>
-              <label class="block text-sm font-medium mb-1">{{ t('remoteIp') }}</label>
+              <label class="block text-sm font-medium mb-1">{{ t('remote.remoteIp') }}</label>
               <InputText v-model="equipmentForm.remote_ip" class="w-full" placeholder="192.168.1.100" />
             </div>
             <div>
-              <label class="block text-sm font-medium mb-1">{{ t('remotePort') }}</label>
+              <label class="block text-sm font-medium mb-1">{{ t('remote.remotePort') }}</label>
               <InputNumber v-model="equipmentForm.remote_port" class="w-full" :placeholder="22" :min="1" :max="65535" />
             </div>
             <div>
-              <label class="block text-sm font-medium mb-1">{{ t('osType') }}</label>
-              <Dropdown v-model="equipmentForm.os_type" :options="osTypeOptions" class="w-full" :placeholder="t('osType')" />
+              <label class="block text-sm font-medium mb-1">{{ t('remote.osType') }}</label>
+              <Dropdown v-model="equipmentForm.os_type" :options="osTypeOptions" class="w-full" :placeholder="t('remote.osType')" />
             </div>
             <div>
-              <label class="block text-sm font-medium mb-1">{{ t('connectionType') }}</label>
-              <Dropdown v-model="equipmentForm.connection_type" :options="connectionTypeOptions" class="w-full" :placeholder="t('connectionType')" />
+              <label class="block text-sm font-medium mb-1">{{ t('remote.connectionType') }}</label>
+              <Dropdown v-model="equipmentForm.connection_type" :options="connectionTypeOptions" class="w-full" :placeholder="t('remote.connectionType')" />
             </div>
             <div>
-              <label class="block text-sm font-medium mb-1">{{ t('username') }}</label>
+              <label class="block text-sm font-medium mb-1">{{ t('auth.username') }}</label>
               <InputText v-model="equipmentForm.remote_username" class="w-full" />
             </div>
             <div>
-              <label class="block text-sm font-medium mb-1">{{ t('password') }}</label>
+              <label class="block text-sm font-medium mb-1">{{ t('auth.password') }}</label>
               <Password v-model="equipmentForm.remote_password" class="w-full" :feedback="false" toggleMask />
             </div>
           </div>
@@ -377,50 +377,50 @@
       </div>
       <template #footer>
         <div class="flex justify-end gap-3">
-          <Button :label="t('cancel')" severity="secondary" outlined @click="showEquipmentDialog = false" />
-          <Button :label="t('save')" icon="pi pi-check" @click="saveEquipment" />
+          <Button :label="t('common.cancel')" severity="secondary" outlined @click="showEquipmentDialog = false" />
+          <Button :label="t('common.save')" icon="pi pi-check" @click="saveEquipment" />
         </div>
       </template>
     </Dialog>
 
     <!-- Manufacturer Dialog -->
-    <Dialog v-model:visible="showManufacturerDialog" modal :header="editingManufacturer ? t('edit') + ' ' + t('manufacturer') : t('newManufacturer')" :style="{ width: '450px' }">
+    <Dialog v-model:visible="showManufacturerDialog" modal :header="editingManufacturer ? t('common.edit') + ' ' + t('inventory.manufacturer') : t('inventory.newManufacturer')" :style="{ width: '450px' }">
       <div class="flex flex-col gap-4">
         <div>
-          <label class="block text-sm font-medium mb-1">{{ t('name') }} <span class="text-red-500">*</span></label>
+          <label class="block text-sm font-medium mb-1">{{ t('common.name') }} <span class="text-red-500">*</span></label>
           <InputText v-model="manufacturerForm.name" class="w-full" />
         </div>
         <div>
-          <label class="block text-sm font-medium mb-1">{{ t('website') }}</label>
+          <label class="block text-sm font-medium mb-1">{{ t('inventory.website') }}</label>
           <InputText v-model="manufacturerForm.website" class="w-full" placeholder="https://" />
         </div>
         <div>
-          <label class="block text-sm font-medium mb-1">{{ t('notes') }}</label>
+          <label class="block text-sm font-medium mb-1">{{ t('inventory.notes') }}</label>
           <Textarea v-model="manufacturerForm.notes" rows="2" class="w-full" />
         </div>
       </div>
       <template #footer>
         <div class="flex justify-end gap-3">
-          <Button :label="t('cancel')" severity="secondary" outlined @click="showManufacturerDialog = false" />
-          <Button :label="t('save')" icon="pi pi-check" @click="saveManufacturer" />
+          <Button :label="t('common.cancel')" severity="secondary" outlined @click="showManufacturerDialog = false" />
+          <Button :label="t('common.save')" icon="pi pi-check" @click="saveManufacturer" />
         </div>
       </template>
     </Dialog>
 
     <!-- Model Dialog -->
-    <Dialog v-model:visible="showModelDialog" modal :header="editingModel ? t('edit') + ' ' + t('equipmentModel') : t('newModel')" :style="{ width: '450px' }">
+    <Dialog v-model:visible="showModelDialog" modal :header="editingModel ? t('common.edit') + ' ' + t('inventory.model') : t('inventory.newModel')" :style="{ width: '450px' }">
       <div class="flex flex-col gap-4">
         <div>
-          <label class="block text-sm font-medium mb-1">{{ t('name') }} <span class="text-red-500">*</span></label>
+          <label class="block text-sm font-medium mb-1">{{ t('common.name') }} <span class="text-red-500">*</span></label>
           <InputText v-model="modelForm.name" class="w-full" />
         </div>
         <div>
-          <label class="block text-sm font-medium mb-1">{{ t('manufacturer') }} <span class="text-red-500">*</span></label>
-          <Dropdown v-model="modelForm.manufacturer_id" :options="manufacturers" optionLabel="name" optionValue="id" :placeholder="t('manufacturer')" class="w-full" />
+          <label class="block text-sm font-medium mb-1">{{ t('inventory.manufacturer') }} <span class="text-red-500">*</span></label>
+          <Dropdown v-model="modelForm.manufacturer_id" :options="manufacturers" optionLabel="name" optionValue="id" :placeholder="t('inventory.manufacturer')" class="w-full" />
         </div>
         <div>
-          <label class="block text-sm font-medium mb-1">{{ t('equipmentType') }} <span class="text-red-500">*</span></label>
-          <Dropdown v-model="modelForm.equipment_type_id" :options="types" optionLabel="name" optionValue="id" :placeholder="t('equipmentType')" class="w-full">
+          <label class="block text-sm font-medium mb-1">{{ t('inventory.type') }} <span class="text-red-500">*</span></label>
+          <Dropdown v-model="modelForm.equipment_type_id" :options="types" optionLabel="name" optionValue="id" :placeholder="t('inventory.type')" class="w-full">
             <template #option="slotProps">
               <i :class="'pi ' + slotProps.option.icon + ' mr-2'"></i>
               {{ slotProps.option.name }}
@@ -430,25 +430,25 @@
       </div>
       <template #footer>
         <div class="flex justify-end gap-3">
-          <Button :label="t('cancel')" severity="secondary" outlined @click="showModelDialog = false" />
-          <Button :label="t('save')" icon="pi pi-check" @click="saveModel" />
+          <Button :label="t('common.cancel')" severity="secondary" outlined @click="showModelDialog = false" />
+          <Button :label="t('common.save')" icon="pi pi-check" @click="saveModel" />
         </div>
       </template>
     </Dialog>
 
     <!-- Type Dialog -->
-    <Dialog v-model:visible="showTypeDialog" modal :header="editingType ? t('edit') + ' ' + t('equipmentType') : t('newType')" :style="{ width: '450px' }">
+    <Dialog v-model:visible="showTypeDialog" modal :header="editingType ? t('common.edit') + ' ' + t('inventory.type') : t('inventory.newType')" :style="{ width: '450px' }">
       <div class="flex flex-col gap-4">
         <div>
-          <label class="block text-sm font-medium mb-1">{{ t('name') }} <span class="text-red-500">*</span></label>
+          <label class="block text-sm font-medium mb-1">{{ t('common.name') }} <span class="text-red-500">*</span></label>
           <InputText v-model="typeForm.name" class="w-full" />
         </div>
         <div>
-          <label class="block text-sm font-medium mb-1">{{ t('icon') }}</label>
+          <label class="block text-sm font-medium mb-1">{{ t('inventory.icon') }}</label>
           <Dropdown v-model="typeForm.icon" :options="iconOptions" class="w-full">
             <template #value="slotProps">
               <span v-if="slotProps.value"><i :class="'pi ' + slotProps.value + ' mr-2'"></i> {{ slotProps.value }}</span>
-              <span v-else>{{ t('icon') }}</span>
+              <span v-else>{{ t('inventory.icon') }}</span>
             </template>
             <template #option="slotProps">
               <i :class="'pi ' + slotProps.option + ' mr-2'"></i> {{ slotProps.option }}
@@ -457,85 +457,85 @@
         </div>
         <div class="flex items-center gap-2 border-t pt-4" style="border-color: var(--border-color);">
           <Checkbox v-model="typeForm.supports_remote_execution" binary inputId="supports_remote" />
-          <label for="supports_remote" class="text-sm cursor-pointer">{{ t('supportsRemoteExecution') }}</label>
+          <label for="supports_remote" class="text-sm cursor-pointer">{{ t('remote.supportsRemoteExecution') }}</label>
         </div>
       </div>
       <template #footer>
         <div class="flex justify-end gap-3">
-          <Button :label="t('cancel')" severity="secondary" outlined @click="showTypeDialog = false" />
-          <Button :label="t('save')" icon="pi pi-check" @click="saveType" />
+          <Button :label="t('common.cancel')" severity="secondary" outlined @click="showTypeDialog = false" />
+          <Button :label="t('common.save')" icon="pi pi-check" @click="saveType" />
         </div>
       </template>
     </Dialog>
 
     <!-- Location Dialog -->
-    <Dialog v-model:visible="showLocationDialog" modal :header="editingLocation ? t('edit') + ' ' + t('location') : t('newLocation')" :style="{ width: '450px' }">
+    <Dialog v-model:visible="showLocationDialog" modal :header="editingLocation ? t('common.edit') + ' ' + t('inventory.location') : t('inventory.newLocation')" :style="{ width: '450px' }">
       <div class="flex flex-col gap-4">
         <div>
-          <label class="block text-sm font-medium mb-1">{{ t('site') }} <span class="text-red-500">*</span></label>
+          <label class="block text-sm font-medium mb-1">{{ t('inventory.site') }} <span class="text-red-500">*</span></label>
           <InputText v-model="locationForm.site" class="w-full" />
         </div>
         <div>
-          <label class="block text-sm font-medium mb-1">{{ t('building') }}</label>
+          <label class="block text-sm font-medium mb-1">{{ t('inventory.building') }}</label>
           <InputText v-model="locationForm.building" class="w-full" />
         </div>
         <div>
-          <label class="block text-sm font-medium mb-1">{{ t('room') }}</label>
+          <label class="block text-sm font-medium mb-1">{{ t('inventory.room') }}</label>
           <InputText v-model="locationForm.room" class="w-full" />
         </div>
       </div>
       <template #footer>
         <div class="flex justify-end gap-3">
-          <Button :label="t('cancel')" severity="secondary" outlined @click="showLocationDialog = false" />
-          <Button :label="t('save')" icon="pi pi-check" @click="saveLocation" />
+          <Button :label="t('common.cancel')" severity="secondary" outlined @click="showLocationDialog = false" />
+          <Button :label="t('common.save')" icon="pi pi-check" @click="saveLocation" />
         </div>
       </template>
     </Dialog>
 
     <!-- Supplier Dialog -->
-    <Dialog v-model:visible="showSupplierDialog" modal :header="editingSupplier ? t('edit') + ' ' + t('supplier') : t('newSupplier')" :style="{ width: '500px' }">
+    <Dialog v-model:visible="showSupplierDialog" modal :header="editingSupplier ? t('common.edit') + ' ' + t('inventory.supplier') : t('inventory.newSupplier')" :style="{ width: '500px' }">
       <div class="flex flex-col gap-4">
         <div>
-          <label class="block text-sm font-medium mb-1">{{ t('name') }} <span class="text-red-500">*</span></label>
+          <label class="block text-sm font-medium mb-1">{{ t('common.name') }} <span class="text-red-500">*</span></label>
           <InputText v-model="supplierForm.name" class="w-full" />
         </div>
         <div class="grid grid-cols-2 gap-4">
           <div>
-            <label class="block text-sm font-medium mb-1">{{ t('contactEmail') }}</label>
+            <label class="block text-sm font-medium mb-1">{{ t('inventory.contactEmail') }}</label>
             <InputText v-model="supplierForm.contact_email" class="w-full" type="email" />
           </div>
           <div>
-            <label class="block text-sm font-medium mb-1">{{ t('phone') }}</label>
+            <label class="block text-sm font-medium mb-1">{{ t('inventory.phone') }}</label>
             <InputText v-model="supplierForm.phone" class="w-full" />
           </div>
         </div>
         <div>
-          <label class="block text-sm font-medium mb-1">{{ t('website') }}</label>
+          <label class="block text-sm font-medium mb-1">{{ t('inventory.website') }}</label>
           <InputText v-model="supplierForm.website" class="w-full" placeholder="https://" />
         </div>
         <div>
-          <label class="block text-sm font-medium mb-1">{{ t('notes') }}</label>
+          <label class="block text-sm font-medium mb-1">{{ t('inventory.notes') }}</label>
           <Textarea v-model="supplierForm.notes" rows="2" class="w-full" />
         </div>
       </div>
       <template #footer>
         <div class="flex justify-end gap-3">
-          <Button :label="t('cancel')" severity="secondary" outlined @click="showSupplierDialog = false" />
-          <Button :label="t('save')" icon="pi pi-check" @click="saveSupplier" />
+          <Button :label="t('common.cancel')" severity="secondary" outlined @click="showSupplierDialog = false" />
+          <Button :label="t('common.save')" icon="pi pi-check" @click="saveSupplier" />
         </div>
       </template>
     </Dialog>
 
     <!-- Link IP Dialog -->
-    <Dialog v-model:visible="showLinkIpDialog" modal :header="t('linkIp')" :style="{ width: '450px' }">
+    <Dialog v-model:visible="showLinkIpDialog" modal :header="t('ip.linkIp')" :style="{ width: '450px' }">
       <div v-if="linkingEquipment" class="flex flex-col gap-4">
         <div class="p-3 rounded-lg" style="background-color: var(--bg-app);">
-          <span class="opacity-60">{{ t('equipment') }}:</span>
+          <span class="opacity-60">{{ t('inventory.equipment') }}:</span>
           <strong class="ml-2">{{ linkingEquipment.name }}</strong>
         </div>
 
         <div v-if="linkingEquipment.ip_addresses?.length">
-          <label class="block text-sm font-medium mb-2">{{ t('linkedIps') }}</label>
+          <label class="block text-sm font-medium mb-2">{{ t('ip.linkedIps') }}</label>
           <div v-for="ip in linkingEquipment.ip_addresses" :key="ip.id" class="flex items-center justify-between p-3 rounded-lg mb-2" style="background-color: var(--bg-app);">
             <span class="font-mono">{{ ip.address }}</span>
             <Button icon="pi pi-times" text rounded size="small" severity="danger" @click="unlinkIp(ip.id)" />
@@ -543,37 +543,37 @@
         </div>
 
         <div>
-          <label class="block text-sm font-medium mb-2">{{ t('availableIps') }}</label>
-          <Dropdown v-model="selectedIpToLink" :options="availableIps" optionLabel="address" optionValue="id" :placeholder="t('selectIp')" class="w-full" showClear>
+          <label class="block text-sm font-medium mb-2">{{ t('ip.availableIps') }}</label>
+          <Dropdown v-model="selectedIpToLink" :options="availableIps" optionLabel="address" optionValue="id" :placeholder="t('ip.selectIp')" class="w-full" showClear>
             <template #option="slotProps">
               <span class="font-mono">{{ slotProps.option.address }}</span>
               <span v-if="slotProps.option.hostname" class="ml-2 opacity-60">({{ slotProps.option.hostname }})</span>
             </template>
           </Dropdown>
-          <p v-if="!availableIps.length" class="text-sm opacity-50 mt-2">{{ t('noAvailableIps') }}</p>
+          <p v-if="!availableIps.length" class="text-sm opacity-50 mt-2">{{ t('ip.noAvailableIps') }}</p>
         </div>
       </div>
       <template #footer>
         <div class="flex justify-end gap-3">
-          <Button :label="t('cancel')" severity="secondary" outlined @click="showLinkIpDialog = false" />
-          <Button :label="t('linkIp')" icon="pi pi-link" @click="linkIp" :disabled="!selectedIpToLink" />
+          <Button :label="t('common.cancel')" severity="secondary" outlined @click="showLinkIpDialog = false" />
+          <Button :label="t('ip.linkIp')" icon="pi pi-link" @click="linkIp" :disabled="!selectedIpToLink" />
         </div>
       </template>
     </Dialog>
 
     <!-- Delete Equipment Confirmation -->
-    <Dialog v-model:visible="showDeleteEquipmentDialog" modal :header="t('confirmDelete')" :style="{ width: '400px' }">
+    <Dialog v-model:visible="showDeleteEquipmentDialog" modal :header="t('common.confirmDelete')" :style="{ width: '400px' }">
       <div class="flex items-start gap-4">
         <i class="pi pi-exclamation-triangle text-orange-500 text-3xl"></i>
         <div>
-          <p class="mb-2">{{ t('confirmDeleteEquipment') }}</p>
+          <p class="mb-2">{{ t('common.confirmDeleteItem') }}</p>
           <p class="font-bold">{{ deletingEquipment?.name }}</p>
         </div>
       </div>
       <template #footer>
         <div class="flex justify-end gap-3">
-          <Button :label="t('cancel')" severity="secondary" outlined @click="showDeleteEquipmentDialog = false" />
-          <Button :label="t('deleted')" icon="pi pi-trash" severity="danger" @click="deleteEquipment" />
+          <Button :label="t('common.cancel')" severity="secondary" outlined @click="showDeleteEquipmentDialog = false" />
+          <Button :label="t('common.delete')" icon="pi pi-trash" severity="danger" @click="deleteEquipment" />
         </div>
       </template>
     </Dialog>
@@ -650,10 +650,10 @@ const connectionTypeOptions = ['ssh', 'winrm'];
 
 // Options
 const statusOptions = computed(() => [
-  { label: t('inService'), value: 'in_service' },
-  { label: t('inStock'), value: 'in_stock' },
-  { label: t('retired'), value: 'retired' },
-  { label: t('maintenance'), value: 'maintenance' }
+  { label: t('status.inService'), value: 'in_service' },
+  { label: t('status.inStock'), value: 'in_stock' },
+  { label: t('status.retired'), value: 'retired' },
+  { label: t('status.maintenance'), value: 'maintenance' }
 ]);
 
 const typeOptions = computed(() => types.value.map(tp => ({ id: tp.id, name: tp.name })));
@@ -726,7 +726,7 @@ const loadData = async () => {
     locations.value = lcRes.data;
     suppliers.value = spRes.data;
   } catch (e) {
-    toast.add({ severity: 'error', summary: t('error'), detail: e.response?.data?.detail || 'Failed to load data' });
+    toast.add({ severity: 'error', summary: t('common.error'), detail: e.response?.data?.detail || 'Failed to load data' });
   }
 };
 
@@ -776,7 +776,7 @@ const openEquipmentDialog = (eq = null) => {
 
 const saveEquipment = async () => {
   if (!equipmentForm.value.name) {
-    toast.add({ severity: 'warn', summary: t('validationError'), detail: t('fillRequiredFields') });
+    toast.add({ severity: 'warn', summary: t('validation.error'), detail: t('validation.fillRequiredFields') });
     return;
   }
   try {
@@ -793,15 +793,15 @@ const saveEquipment = async () => {
 
     if (editingEquipment.value) {
       await api.put(`/inventory/equipment/${editingEquipment.value.id}`, data);
-      toast.add({ severity: 'success', summary: t('success'), detail: t('equipmentUpdated') });
+      toast.add({ severity: 'success', summary: t('common.success'), detail: t('messages.equipmentUpdated') });
     } else {
       await api.post('/inventory/equipment/', data);
-      toast.add({ severity: 'success', summary: t('success'), detail: t('equipmentCreated') });
+      toast.add({ severity: 'success', summary: t('common.success'), detail: t('messages.equipmentCreated') });
     }
     showEquipmentDialog.value = false;
     loadData();
   } catch (e) {
-    toast.add({ severity: 'error', summary: t('error'), detail: e.response?.data?.detail || t('error') });
+    toast.add({ severity: 'error', summary: t('common.error'), detail: e.response?.data?.detail || t('common.error') });
   }
 };
 
@@ -813,11 +813,11 @@ const confirmDeleteEquipment = (eq) => {
 const deleteEquipment = async () => {
   try {
     await api.delete(`/inventory/equipment/${deletingEquipment.value.id}`);
-    toast.add({ severity: 'success', summary: t('deleted'), detail: t('equipmentDeleted') });
+    toast.add({ severity: 'success', summary: t('common.deleted'), detail: t('messages.equipmentDeleted') });
     showDeleteEquipmentDialog.value = false;
     loadData();
   } catch (e) {
-    toast.add({ severity: 'error', summary: t('error'), detail: e.response?.data?.detail || t('error') });
+    toast.add({ severity: 'error', summary: t('common.error'), detail: e.response?.data?.detail || t('common.error') });
   }
 };
 
@@ -833,34 +833,34 @@ const linkIp = async () => {
   if (!selectedIpToLink.value) return;
   try {
     await api.post(`/inventory/equipment/${linkingEquipment.value.id}/link-ip`, { ip_address_id: selectedIpToLink.value });
-    toast.add({ severity: 'success', summary: t('success'), detail: t('ipLinked') });
+    toast.add({ severity: 'success', summary: t('common.success'), detail: t('messages.ipLinked') });
     showLinkIpDialog.value = false;
     loadData();
   } catch (e) {
-    toast.add({ severity: 'error', summary: t('error'), detail: e.response?.data?.detail || t('error') });
+    toast.add({ severity: 'error', summary: t('common.error'), detail: e.response?.data?.detail || t('common.error') });
   }
 };
 
 const unlinkIp = async (ipId) => {
   try {
     await api.delete(`/inventory/equipment/${linkingEquipment.value.id}/unlink-ip/${ipId}`);
-    toast.add({ severity: 'success', summary: t('success'), detail: t('ipUnlinked') });
+    toast.add({ severity: 'success', summary: t('common.success'), detail: t('messages.ipUnlinked') });
     const res = await api.get(`/inventory/equipment/${linkingEquipment.value.id}`);
     linkingEquipment.value = res.data;
     await loadAvailableIps();
     loadData();
   } catch (e) {
-    toast.add({ severity: 'error', summary: t('error'), detail: e.response?.data?.detail || t('error') });
+    toast.add({ severity: 'error', summary: t('common.error'), detail: e.response?.data?.detail || t('common.error') });
   }
 };
 
 const unlinkIpFromExpansion = async (equipmentId, ipId) => {
   try {
     await api.delete(`/inventory/equipment/${equipmentId}/unlink-ip/${ipId}`);
-    toast.add({ severity: 'success', summary: t('success'), detail: t('ipUnlinked') });
+    toast.add({ severity: 'success', summary: t('common.success'), detail: t('messages.ipUnlinked') });
     loadData();
   } catch (e) {
-    toast.add({ severity: 'error', summary: t('error'), detail: e.response?.data?.detail || t('error') });
+    toast.add({ severity: 'error', summary: t('common.error'), detail: e.response?.data?.detail || t('common.error') });
   }
 };
 
@@ -873,7 +873,7 @@ const openManufacturerDialog = (mf = null) => {
 
 const saveManufacturer = async () => {
   if (!manufacturerForm.value.name) {
-    toast.add({ severity: 'warn', summary: t('validationError'), detail: t('fillRequiredFields') });
+    toast.add({ severity: 'warn', summary: t('validation.error'), detail: t('validation.fillRequiredFields') });
     return;
   }
   try {
@@ -882,22 +882,22 @@ const saveManufacturer = async () => {
     } else {
       await api.post('/inventory/manufacturers/', manufacturerForm.value);
     }
-    toast.add({ severity: 'success', summary: t('success'), detail: t('manufacturerCreated') });
+    toast.add({ severity: 'success', summary: t('common.success'), detail: t('messages.saved') });
     showManufacturerDialog.value = false;
     loadData();
   } catch (e) {
-    toast.add({ severity: 'error', summary: t('error'), detail: e.response?.data?.detail || t('error') });
+    toast.add({ severity: 'error', summary: t('common.error'), detail: e.response?.data?.detail || t('common.error') });
   }
 };
 
 const deleteManufacturer = async (id) => {
-  if (!confirm(t('confirmDeleteItem'))) return;
+  if (!confirm(t('common.confirmDeleteItem'))) return;
   try {
     await api.delete(`/inventory/manufacturers/${id}`);
-    toast.add({ severity: 'success', summary: t('deleted'), detail: t('manufacturerDeleted') });
+    toast.add({ severity: 'success', summary: t('common.deleted'), detail: t('messages.deleted') });
     loadData();
   } catch (e) {
-    toast.add({ severity: 'error', summary: t('error'), detail: e.response?.data?.detail || t('cannotDeleteHasItems') });
+    toast.add({ severity: 'error', summary: t('common.error'), detail: e.response?.data?.detail || t('messages.cannotDeleteHasItems') });
   }
 };
 
@@ -910,7 +910,7 @@ const openModelDialog = (md = null) => {
 
 const saveModel = async () => {
   if (!modelForm.value.name || !modelForm.value.manufacturer_id || !modelForm.value.equipment_type_id) {
-    toast.add({ severity: 'warn', summary: t('validationError'), detail: t('fillRequiredFields') });
+    toast.add({ severity: 'warn', summary: t('validation.error'), detail: t('validation.fillRequiredFields') });
     return;
   }
   try {
@@ -919,22 +919,22 @@ const saveModel = async () => {
     } else {
       await api.post('/inventory/models/', modelForm.value);
     }
-    toast.add({ severity: 'success', summary: t('success'), detail: t('modelCreated') });
+    toast.add({ severity: 'success', summary: t('common.success'), detail: t('messages.saved') });
     showModelDialog.value = false;
     loadData();
   } catch (e) {
-    toast.add({ severity: 'error', summary: t('error'), detail: e.response?.data?.detail || t('error') });
+    toast.add({ severity: 'error', summary: t('common.error'), detail: e.response?.data?.detail || t('common.error') });
   }
 };
 
 const deleteModel = async (id) => {
-  if (!confirm(t('confirmDeleteItem'))) return;
+  if (!confirm(t('common.confirmDeleteItem'))) return;
   try {
     await api.delete(`/inventory/models/${id}`);
-    toast.add({ severity: 'success', summary: t('deleted'), detail: t('modelDeleted') });
+    toast.add({ severity: 'success', summary: t('common.deleted'), detail: t('messages.deleted') });
     loadData();
   } catch (e) {
-    toast.add({ severity: 'error', summary: t('error'), detail: e.response?.data?.detail || t('cannotDeleteHasItems') });
+    toast.add({ severity: 'error', summary: t('common.error'), detail: e.response?.data?.detail || t('messages.cannotDeleteHasItems') });
   }
 };
 
@@ -947,7 +947,7 @@ const openTypeDialog = (tp = null) => {
 
 const saveType = async () => {
   if (!typeForm.value.name) {
-    toast.add({ severity: 'warn', summary: t('validationError'), detail: t('fillRequiredFields') });
+    toast.add({ severity: 'warn', summary: t('validation.error'), detail: t('validation.fillRequiredFields') });
     return;
   }
   try {
@@ -956,22 +956,22 @@ const saveType = async () => {
     } else {
       await api.post('/inventory/types/', typeForm.value);
     }
-    toast.add({ severity: 'success', summary: t('success'), detail: t('typeCreated') });
+    toast.add({ severity: 'success', summary: t('common.success'), detail: t('messages.saved') });
     showTypeDialog.value = false;
     loadData();
   } catch (e) {
-    toast.add({ severity: 'error', summary: t('error'), detail: e.response?.data?.detail || t('error') });
+    toast.add({ severity: 'error', summary: t('common.error'), detail: e.response?.data?.detail || t('common.error') });
   }
 };
 
 const deleteType = async (id) => {
-  if (!confirm(t('confirmDeleteItem'))) return;
+  if (!confirm(t('common.confirmDeleteItem'))) return;
   try {
     await api.delete(`/inventory/types/${id}`);
-    toast.add({ severity: 'success', summary: t('deleted'), detail: t('typeDeleted') });
+    toast.add({ severity: 'success', summary: t('common.deleted'), detail: t('messages.deleted') });
     loadData();
   } catch (e) {
-    toast.add({ severity: 'error', summary: t('error'), detail: e.response?.data?.detail || t('cannotDeleteHasItems') });
+    toast.add({ severity: 'error', summary: t('common.error'), detail: e.response?.data?.detail || t('messages.cannotDeleteHasItems') });
   }
 };
 
@@ -984,7 +984,7 @@ const openLocationDialog = (lc = null) => {
 
 const saveLocation = async () => {
   if (!locationForm.value.site) {
-    toast.add({ severity: 'warn', summary: t('validationError'), detail: t('fillRequiredFields') });
+    toast.add({ severity: 'warn', summary: t('validation.error'), detail: t('validation.fillRequiredFields') });
     return;
   }
   try {
@@ -993,22 +993,22 @@ const saveLocation = async () => {
     } else {
       await api.post('/inventory/locations/', locationForm.value);
     }
-    toast.add({ severity: 'success', summary: t('success'), detail: t('locationCreated') });
+    toast.add({ severity: 'success', summary: t('common.success'), detail: t('messages.saved') });
     showLocationDialog.value = false;
     loadData();
   } catch (e) {
-    toast.add({ severity: 'error', summary: t('error'), detail: e.response?.data?.detail || t('error') });
+    toast.add({ severity: 'error', summary: t('common.error'), detail: e.response?.data?.detail || t('common.error') });
   }
 };
 
 const deleteLocation = async (id) => {
-  if (!confirm(t('confirmDeleteItem'))) return;
+  if (!confirm(t('common.confirmDeleteItem'))) return;
   try {
     await api.delete(`/inventory/locations/${id}`);
-    toast.add({ severity: 'success', summary: t('deleted'), detail: t('locationDeleted') });
+    toast.add({ severity: 'success', summary: t('common.deleted'), detail: t('messages.deleted') });
     loadData();
   } catch (e) {
-    toast.add({ severity: 'error', summary: t('error'), detail: e.response?.data?.detail || t('cannotDeleteHasItems') });
+    toast.add({ severity: 'error', summary: t('common.error'), detail: e.response?.data?.detail || t('messages.cannotDeleteHasItems') });
   }
 };
 
@@ -1021,7 +1021,7 @@ const openSupplierDialog = (sp = null) => {
 
 const saveSupplier = async () => {
   if (!supplierForm.value.name) {
-    toast.add({ severity: 'warn', summary: t('validationError'), detail: t('fillRequiredFields') });
+    toast.add({ severity: 'warn', summary: t('validation.error'), detail: t('validation.fillRequiredFields') });
     return;
   }
   try {
@@ -1030,22 +1030,22 @@ const saveSupplier = async () => {
     } else {
       await api.post('/inventory/suppliers/', supplierForm.value);
     }
-    toast.add({ severity: 'success', summary: t('success'), detail: t('supplierCreated') });
+    toast.add({ severity: 'success', summary: t('common.success'), detail: t('messages.saved') });
     showSupplierDialog.value = false;
     loadData();
   } catch (e) {
-    toast.add({ severity: 'error', summary: t('error'), detail: e.response?.data?.detail || t('error') });
+    toast.add({ severity: 'error', summary: t('common.error'), detail: e.response?.data?.detail || t('common.error') });
   }
 };
 
 const deleteSupplier = async (id) => {
-  if (!confirm(t('confirmDeleteItem'))) return;
+  if (!confirm(t('common.confirmDeleteItem'))) return;
   try {
     await api.delete(`/inventory/suppliers/${id}`);
-    toast.add({ severity: 'success', summary: t('deleted'), detail: t('supplierDeleted') });
+    toast.add({ severity: 'success', summary: t('common.deleted'), detail: t('messages.deleted') });
     loadData();
   } catch (e) {
-    toast.add({ severity: 'error', summary: t('error'), detail: e.response?.data?.detail || t('cannotDeleteHasItems') });
+    toast.add({ severity: 'error', summary: t('common.error'), detail: e.response?.data?.detail || t('messages.cannotDeleteHasItems') });
   }
 };
 

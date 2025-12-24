@@ -193,6 +193,8 @@
     "linkedEquipment": "Linked Equipment"
   },
   "messages": {
+    "saved": "Saved successfully",
+    "deleted": "Deleted successfully",
     "equipmentCreated": "Equipment created successfully",
     "equipmentUpdated": "Equipment updated successfully",
     "equipmentDeleted": "Equipment deleted successfully",
@@ -206,7 +208,9 @@
     "locationDeleted": "Location deleted successfully",
     "supplierCreated": "Supplier created successfully",
     "supplierDeleted": "Supplier deleted successfully",
-    "cannotDeleteHasItems": "Cannot delete: has associated items"
+    "cannotDeleteHasItems": "Cannot delete: has associated items",
+    "ipLinked": "IP linked successfully",
+    "ipUnlinked": "IP unlinked successfully"
   },
   "filters": {
     "filterByType": "Filter by type",
