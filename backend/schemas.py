@@ -7,9 +7,35 @@ from decimal import Decimal
 class Token(BaseModel):
     access_token: str
     token_type: str
+    user: Optional[Dict[str, Any]] = None
 
 class TokenData(BaseModel):
     username: Optional[str] = None
+
+class MFAResponse(BaseModel):
+    """Response when MFA is required after password validation."""
+    mfa_required: bool = True
+    user_id: int
+    message: str = "MFA verification required"
+
+class MFAVerifyRequest(BaseModel):
+    """Request to verify MFA code."""
+    user_id: int
+    code: str
+
+class MFASetupResponse(BaseModel):
+    """Response for MFA setup with QR code URI."""
+    secret: str
+    qr_uri: str
+    message: str = "Scan QR code with authenticator app"
+
+class MFAEnableRequest(BaseModel):
+    """Request to enable MFA with verification code."""
+    code: str
+
+class MFADisableRequest(BaseModel):
+    """Request to disable MFA with password verification."""
+    password: str
 
 class UserBase(BaseModel):
     username: str

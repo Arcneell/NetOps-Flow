@@ -14,7 +14,15 @@
     "accountDisabled": "User account is disabled",
     "rateLimited": "Too many login attempts. Please try again later.",
     "showPassword": "Show password",
-    "hidePassword": "Hide password"
+    "hidePassword": "Hide password",
+    "mfaRequired": "Two-Factor Authentication Required",
+    "mfaCode": "Verification Code",
+    "mfaCodePlaceholder": "Enter 6-digit code",
+    "mfaHint": "Enter the 6-digit code from your authenticator app",
+    "verify": "Verify",
+    "verifying": "Verifying...",
+    "invalidMfaCode": "Invalid verification code",
+    "mfaFailed": "MFA verification failed"
   },
   "nav": {
     "dashboard": "Dashboard",
@@ -159,7 +167,21 @@
     "runScripts": "Run Scripts",
     "accessSettings": "Access Settings",
     "accessIpam": "Access IPAM",
-    "accessInventory": "Access Inventory"
+    "accessInventory": "Access Inventory",
+    "security": "Security",
+    "twoFactorAuth": "Two-Factor Authentication (2FA)",
+    "mfaEnabled": "2FA is enabled",
+    "mfaDisabled": "2FA is disabled",
+    "enableMfa": "Enable 2FA",
+    "disableMfa": "Disable 2FA",
+    "scanQrCode": "Scan QR Code",
+    "qrCodeInstructions": "Scan this QR code with your authenticator app (Google Authenticator, Authy, etc.)",
+    "enterCodeToEnable": "Enter the 6-digit code from your app to confirm",
+    "confirmDisableMfa": "Enter your password to disable 2FA",
+    "mfaEnabledSuccess": "2FA enabled successfully",
+    "mfaDisabledSuccess": "2FA disabled successfully",
+    "mfaSetupFailed": "Failed to setup 2FA",
+    "currentPassword": "Current Password"
   },
   "users": {
     "deleteUser": "Delete User",

@@ -25,6 +25,7 @@ passlib==1.7.4
 bcrypt==4.0.1
 python-jose[cryptography]==3.3.0
 cryptography==41.0.7
+pyotp==2.9.0
 
 # Remote Execution
 paramiko==3.4.0

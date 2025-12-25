@@ -14,7 +14,15 @@
     "accountDisabled": "Compte utilisateur désactivé",
     "rateLimited": "Trop de tentatives de connexion. Veuillez réessayer plus tard.",
     "showPassword": "Afficher le mot de passe",
-    "hidePassword": "Masquer le mot de passe"
+    "hidePassword": "Masquer le mot de passe",
+    "mfaRequired": "Authentification à Deux Facteurs Requise",
+    "mfaCode": "Code de Vérification",
+    "mfaCodePlaceholder": "Entrez le code à 6 chiffres",
+    "mfaHint": "Entrez le code à 6 chiffres depuis votre application d'authentification",
+    "verify": "Vérifier",
+    "verifying": "Vérification...",
+    "invalidMfaCode": "Code de vérification invalide",
+    "mfaFailed": "Échec de la vérification MFA"
   },
   "nav": {
     "dashboard": "Tableau de bord",
@@ -159,7 +167,21 @@
     "runScripts": "Lancer Scripts",
     "accessSettings": "Accès Paramètres",
     "accessIpam": "Accès IPAM",
-    "accessInventory": "Accès Inventaire"
+    "accessInventory": "Accès Inventaire",
+    "security": "Sécurité",
+    "twoFactorAuth": "Authentification à Deux Facteurs (2FA)",
+    "mfaEnabled": "2FA activée",
+    "mfaDisabled": "2FA désactivée",
+    "enableMfa": "Activer 2FA",
+    "disableMfa": "Désactiver 2FA",
+    "scanQrCode": "Scanner le QR Code",
+    "qrCodeInstructions": "Scannez ce QR code avec votre application d'authentification (Google Authenticator, Authy, etc.)",
+    "enterCodeToEnable": "Entrez le code à 6 chiffres de votre application pour confirmer",
+    "confirmDisableMfa": "Entrez votre mot de passe pour désactiver la 2FA",
+    "mfaEnabledSuccess": "2FA activée avec succès",
+    "mfaDisabledSuccess": "2FA désactivée avec succès",
+    "mfaSetupFailed": "Échec de configuration de la 2FA",
+    "currentPassword": "Mot de passe actuel"
   },
   "users": {
     "deleteUser": "Supprimer l'utilisateur",

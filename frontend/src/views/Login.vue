@@ -43,7 +43,8 @@
                 <p class="text-blue-200/70 mt-2 text-sm">{{ t('auth.loginSubtitle') }}</p>
             </div>
 
-            <form @submit.prevent="handleLogin" class="space-y-6">
+            <!-- Login Form -->
+            <form v-if="!showMfaScreen" @submit.prevent="handleLogin" class="space-y-6">
                 <!-- Error Alert -->
                 <div v-if="errorMessage" class="bg-red-500/10 border border-red-500/30 rounded-lg p-4 backdrop-blur-sm">
                     <div class="flex items-start gap-3">
@@ -91,7 +92,6 @@
                     </div>
                 </div>
 
-                <!-- Custom Button with centered spinner -->
                 <button
                     type="submit"
                     :disabled="loading"
@@ -100,6 +100,65 @@
                     <i v-if="loading" class="pi pi-spinner pi-spin text-xl"></i>
                     <span>{{ t('auth.signIn') }}</span>
                 </button>
+            </form>
+
+            <!-- MFA Verification Form -->
+            <form v-else @submit.prevent="handleMfaVerify" class="space-y-6">
+                <!-- Error Alert -->
+                <div v-if="errorMessage" class="bg-red-500/10 border border-red-500/30 rounded-lg p-4 backdrop-blur-sm">
+                    <div class="flex items-start gap-3">
+                        <i class="pi pi-exclamation-circle text-red-400 text-xl mt-0.5"></i>
+                        <div class="flex-1">
+                            <p class="text-red-200 text-sm font-medium">{{ errorMessage }}</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- MFA Info -->
+                <div class="bg-blue-500/10 border border-blue-500/30 rounded-lg p-4 backdrop-blur-sm">
+                    <div class="flex items-start gap-3">
+                        <i class="pi pi-shield text-blue-400 text-xl mt-0.5"></i>
+                        <div class="flex-1">
+                            <p class="text-blue-200 text-sm font-medium">{{ t('auth.mfaHint') }}</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="space-y-1">
+                    <label class="text-xs font-bold text-blue-100 uppercase tracking-wider ml-1">{{ t('auth.mfaCode') }} <span class="text-red-500">*</span></label>
+                    <div class="relative group">
+                        <i class="pi pi-key absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-400 transition-colors z-20"></i>
+                        <InputText
+                            v-model="mfaCode"
+                            type="text"
+                            maxlength="6"
+                            :placeholder="t('auth.mfaCodePlaceholder')"
+                            class="block w-full !pl-12 !py-3 !bg-slate-950/80 !border-slate-700 !text-white placeholder:!text-slate-500 focus:!border-blue-500 focus:!ring-1 focus:!ring-blue-500 transition-all text-center tracking-widest text-2xl font-mono"
+                            style="padding-left: 3rem !important; background-color: #020617 !important; color: white !important;"
+                            @input="errorMessage = ''"
+                            autofocus
+                        />
+                    </div>
+                </div>
+
+                <div class="flex gap-3">
+                    <button
+                        type="button"
+                        @click="backToLogin"
+                        class="flex-1 bg-slate-700 hover:bg-slate-600 border-0 text-white font-bold py-3 rounded-lg transform active:scale-[0.98] transition-all flex items-center justify-center gap-2 h-12"
+                    >
+                        <i class="pi pi-arrow-left"></i>
+                        <span>{{ t('common.cancel') }}</span>
+                    </button>
+                    <button
+                        type="submit"
+                        :disabled="loading"
+                        class="flex-1 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 disabled:from-slate-700 disabled:to-slate-700 disabled:cursor-not-allowed border-0 text-white font-bold py-3 rounded-lg shadow-lg shadow-blue-600/20 transform active:scale-[0.98] transition-all flex items-center justify-center gap-2 h-12"
+                    >
+                        <i v-if="loading" class="pi pi-spinner pi-spin text-xl"></i>
+                        <span>{{ loading ? t('auth.verifying') : t('auth.verify') }}</span>
+                    </button>
+                </div>
             </form>
 
             <div class="mt-8 text-center">
@@ -125,6 +184,8 @@ const password = ref('')
 const loading = ref(false)
 const errorMessage = ref('')
 const showPassword = ref(false)
+const mfaCode = ref('')
+const showMfaScreen = ref(false)
 
 const setLang = (lang) => {
     locale.value = lang
@@ -163,6 +224,10 @@ const handleLogin = async () => {
         if (result.success) {
             // Redirect to dashboard
             router.push('/')
+        } else if (result.mfaRequired) {
+            // Show MFA screen
+            showMfaScreen.value = true
+            errorMessage.value = ''
         } else {
             // Display translated error message
             const errorKey = result.errorType || 'loginFailed'
@@ -174,5 +239,42 @@ const handleLogin = async () => {
     } finally {
         loading.value = false
     }
+}
+
+const handleMfaVerify = async () => {
+    // Reset error message
+    errorMessage.value = ''
+
+    // Validate MFA code
+    if (!mfaCode.value || mfaCode.value.length !== 6) {
+        errorMessage.value = t('auth.invalidMfaCode')
+        return
+    }
+
+    loading.value = true
+
+    try {
+        const result = await authStore.verifyMfa(mfaCode.value)
+
+        if (result.success) {
+            // Redirect to dashboard
+            router.push('/')
+        } else {
+            // Display translated error message
+            const errorKey = result.errorType || 'mfaFailed'
+            errorMessage.value = t(`auth.${errorKey}`)
+        }
+    } catch (error) {
+        // Fallback error handling
+        errorMessage.value = t('auth.mfaFailed')
+    } finally {
+        loading.value = false
+    }
+}
+
+const backToLogin = () => {
+    showMfaScreen.value = false
+    mfaCode.value = ''
+    errorMessage.value = ''
 }
 </script>

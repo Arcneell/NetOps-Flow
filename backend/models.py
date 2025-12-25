@@ -45,6 +45,10 @@ class User(Base):
     permissions = Column(JSON, default={})  # ex: {"ipam": true, "scripts": false}
     entity_id = Column(Integer, ForeignKey("entities.id"), nullable=True)
 
+    # MFA/TOTP fields
+    mfa_enabled = Column(Boolean, default=False)
+    totp_secret = Column(String, nullable=True)  # Encrypted TOTP secret
+
     entity = relationship("Entity", back_populates="users")
 
 

@@ -10,6 +10,7 @@ from fastapi.security import OAuth2PasswordBearer
 from fastapi import Depends, HTTPException, status
 from sqlalchemy.orm import Session
 import logging
+import pyotp
 
 from backend.core.config import get_settings
 from backend.core.database import get_db
@@ -155,3 +156,45 @@ def get_current_admin_user(
     if current_user.role != "admin":
         raise HTTPException(status_code=403, detail="Not enough privileges")
     return current_user
+
+
+# ==================== TOTP/MFA FUNCTIONS ====================
+
+def generate_totp_secret() -> str:
+    """Generate a random TOTP secret key."""
+    return pyotp.random_base32()
+
+
+def get_totp_uri(username: str, secret: str, issuer: str = "NetOps-Flow") -> str:
+    """
+    Generate a TOTP provisioning URI for QR code generation.
+
+    Args:
+        username: User's username
+        secret: TOTP secret key
+        issuer: Application name (default: "NetOps-Flow")
+
+    Returns:
+        Provisioning URI string for QR code
+    """
+    totp = pyotp.TOTP(secret)
+    return totp.provisioning_uri(name=username, issuer_name=issuer)
+
+
+def verify_totp_code(secret: str, code: str) -> bool:
+    """
+    Verify a TOTP code against a secret.
+
+    Args:
+        secret: TOTP secret key
+        code: 6-digit TOTP code to verify
+
+    Returns:
+        True if code is valid, False otherwise
+    """
+    try:
+        totp = pyotp.TOTP(secret)
+        return totp.verify(code, valid_window=1)  # Allow 30s time drift
+    except Exception as e:
+        logger.error(f"TOTP verification error: {e}")
+        return False

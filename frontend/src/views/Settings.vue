@@ -7,9 +7,37 @@
           <div class="flex items-end gap-4">
               <div class="flex-grow max-w-md">
                   <label class="block text-sm font-medium mb-1 opacity-70">{{ t('settings.newPassword') }}</label>
-                  <InputText v-model="newPassword" type="password" class="w-full" :placeholder="t('settings.newPassword')" />
+                  <InputText v-model="newPassword" type="password" class="w-full" :placeholder="t('settings.newPassword') }}" />
               </div>
               <Button :label="t('settings.updatePassword')" icon="pi pi-check" @click="updateMyPassword" :loading="updatingPwd" />
+          </div>
+      </div>
+
+      <!-- Security - MFA Section -->
+      <div class="card border-l-4 border-green-500">
+          <h3 class="text-lg font-bold mb-4">{{ t('settings.security') }}</h3>
+          <div class="flex items-center justify-between p-4 bg-slate-800/50 rounded-lg">
+              <div>
+                  <h4 class="font-bold text-white">{{ t('settings.twoFactorAuth') }}</h4>
+                  <p class="text-sm opacity-70 mt-1" :class="currentUser.mfa_enabled ? 'text-green-400' : 'text-slate-400'">
+                      {{ currentUser.mfa_enabled ? t('settings.mfaEnabled') : t('settings.mfaDisabled') }}
+                  </p>
+              </div>
+              <Button
+                  v-if="!currentUser.mfa_enabled"
+                  :label="t('settings.enableMfa')"
+                  icon="pi pi-shield"
+                  @click="startMfaSetup"
+                  severity="success"
+              />
+              <Button
+                  v-else
+                  :label="t('settings.disableMfa')"
+                  icon="pi pi-times"
+                  @click="showDisableMfaDialog = true"
+                  severity="danger"
+                  outlined
+              />
           </div>
       </div>
 
@@ -106,24 +134,80 @@
           </template>
       </Dialog>
 
+      <!-- MFA Setup Dialog -->
+      <Dialog v-model:visible="showMfaSetupDialog" modal :header="t('settings.enableMfa')" :style="{ width: '500px' }" @hide="resetMfaSetup">
+          <div class="flex flex-col gap-4 mt-2">
+              <!-- QR Code Display -->
+              <div v-if="mfaQrCode" class="flex flex-col items-center gap-3 p-4 bg-white rounded-lg">
+                  <p class="text-sm text-slate-700 text-center">{{ t('settings.qrCodeInstructions') }}</p>
+                  <canvas ref="qrCanvas" class="border-2 border-slate-300 rounded"></canvas>
+                  <p class="text-xs text-slate-500 text-center break-all font-mono">{{ mfaSecret }}</p>
+              </div>
+
+              <!-- Verification Code Input -->
+              <div class="mt-4">
+                  <label class="text-sm font-medium block mb-2">{{ t('settings.enterCodeToEnable') }}</label>
+                  <InputText v-model="mfaVerificationCode" type="text" maxlength="6" class="w-full text-center text-2xl tracking-widest font-mono" placeholder="000000" />
+              </div>
+          </div>
+          <template #footer>
+              <div class="flex justify-end gap-3">
+                  <Button :label="t('common.cancel')" severity="secondary" outlined @click="showMfaSetupDialog = false" />
+                  <Button :label="t('settings.enableMfa')" icon="pi pi-check" @click="enableMfa" :loading="enablingMfa" />
+              </div>
+          </template>
+      </Dialog>
+
+      <!-- MFA Disable Dialog -->
+      <Dialog v-model:visible="showDisableMfaDialog" modal :header="t('settings.disableMfa')" :style="{ width: '400px' }">
+          <div class="flex flex-col gap-4">
+              <div class="flex items-center gap-3">
+                  <i class="pi pi-exclamation-triangle text-orange-500 text-2xl"></i>
+                  <span>{{ t('settings.confirmDisableMfa') }}</span>
+              </div>
+              <div>
+                  <label class="text-sm font-medium block mb-2">{{ t('settings.currentPassword') }}</label>
+                  <InputText v-model="mfaDisablePassword" type="password" class="w-full" :placeholder="t('auth.password')" />
+              </div>
+          </div>
+          <template #footer>
+              <div class="flex justify-end gap-3">
+                  <Button :label="t('common.cancel')" severity="secondary" outlined @click="showDisableMfaDialog = false" />
+                  <Button :label="t('settings.disableMfa')" icon="pi pi-times" @click="disableMfa" severity="danger" :loading="disablingMfa" />
+              </div>
+          </template>
+      </Dialog>
+
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, nextTick } from 'vue';
 import { useToast } from 'primevue/usetoast';
 import { useI18n } from 'vue-i18n';
+import QRCode from 'qrcode';
 import api from '../api';
 
 const { t } = useI18n();
 const toast = useToast();
 const users = ref([]);
-const currentUser = ref({ role: 'user' });
+const currentUser = ref({ role: 'user', mfa_enabled: false });
 const showUserDialog = ref(false);
 const showDeleteUserDialog = ref(false);
 const userToDelete = ref(null);
 const updatingPwd = ref(false);
 const newPassword = ref('');
+
+// MFA state
+const showMfaSetupDialog = ref(false);
+const showDisableMfaDialog = ref(false);
+const mfaSecret = ref('');
+const mfaQrCode = ref('');
+const mfaVerificationCode = ref('');
+const mfaDisablePassword = ref('');
+const enablingMfa = ref(false);
+const disablingMfa = ref(false);
+const qrCanvas = ref(null);
 
 const newUser = ref({
     username: '',
@@ -211,6 +295,88 @@ const deleteUser = async () => {
         const detail = e.response?.data?.detail || t('common.error');
         toast.add({ severity: 'error', summary: t('common.error'), detail: detail });
     }
+};
+
+// MFA Functions
+const startMfaSetup = async () => {
+    try {
+        const response = await api.post('/mfa/setup');
+        mfaSecret.value = response.data.secret;
+        mfaQrCode.value = response.data.qr_uri;
+        showMfaSetupDialog.value = true;
+
+        // Generate QR code on canvas after dialog is shown
+        await nextTick();
+        if (qrCanvas.value && mfaQrCode.value) {
+            QRCode.toCanvas(qrCanvas.value, mfaQrCode.value, {
+                width: 256,
+                margin: 2,
+                color: {
+                    dark: '#000000',
+                    light: '#FFFFFF'
+                }
+            });
+        }
+    } catch (e) {
+        const detail = e.response?.data?.detail || t('settings.mfaSetupFailed');
+        toast.add({ severity: 'error', summary: t('common.error'), detail: detail });
+    }
+};
+
+const enableMfa = async () => {
+    if (!mfaVerificationCode.value || mfaVerificationCode.value.length !== 6) {
+        toast.add({ severity: 'warn', summary: t('validation.error'), detail: t('auth.invalidMfaCode') });
+        return;
+    }
+
+    enablingMfa.value = true;
+    try {
+        await api.post('/mfa/enable-with-secret', null, {
+            params: {
+                secret: mfaSecret.value,
+                code: mfaVerificationCode.value
+            }
+        });
+
+        showMfaSetupDialog.value = false;
+        await loadData();
+        toast.add({ severity: 'success', summary: t('common.success'), detail: t('settings.mfaEnabledSuccess') });
+    } catch (e) {
+        const detail = e.response?.data?.detail || t('common.error');
+        toast.add({ severity: 'error', summary: t('common.error'), detail: detail });
+    } finally {
+        enablingMfa.value = false;
+    }
+};
+
+const disableMfa = async () => {
+    if (!mfaDisablePassword.value) {
+        toast.add({ severity: 'warn', summary: t('validation.error'), detail: t('validation.fillRequiredFields') });
+        return;
+    }
+
+    disablingMfa.value = true;
+    try {
+        await api.post('/mfa/disable', {
+            password: mfaDisablePassword.value
+        });
+
+        showDisableMfaDialog.value = false;
+        mfaDisablePassword.value = '';
+        await loadData();
+        toast.add({ severity: 'success', summary: t('common.success'), detail: t('settings.mfaDisabledSuccess') });
+    } catch (e) {
+        const detail = e.response?.data?.detail || t('common.error');
+        toast.add({ severity: 'error', summary: t('common.error'), detail: detail });
+    } finally {
+        disablingMfa.value = false;
+    }
+};
+
+const resetMfaSetup = () => {
+    mfaSecret.value = '';
+    mfaQrCode.value = '';
+    mfaVerificationCode.value = '';
 };
 
 onMounted(loadData);
