@@ -61,9 +61,20 @@ export const useAuthStore = defineStore('auth', () => {
 
       return { success: true }
     } catch (err) {
-      const message = err.response?.data?.detail || 'Login failed'
-      error.value = message
-      return { success: false, error: message }
+      // Return error type for i18n translation in component
+      const detail = err.response?.data?.detail || ''
+
+      let errorType = 'loginFailed'
+      if (detail.includes('Incorrect username or password')) {
+        errorType = 'incorrectCredentials'
+      } else if (detail.includes('disabled')) {
+        errorType = 'accountDisabled'
+      } else if (detail.includes('Too many')) {
+        errorType = 'rateLimited'
+      }
+
+      error.value = errorType
+      return { success: false, errorType, errorDetail: detail }
     } finally {
       isLoading.value = false
     }

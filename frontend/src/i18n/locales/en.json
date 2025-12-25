@@ -12,6 +12,7 @@
     "incorrectCredentials": "Incorrect username or password",
     "loginFailed": "Login failed",
     "accountDisabled": "User account is disabled",
+    "rateLimited": "Too many login attempts. Please try again later.",
     "showPassword": "Show password",
     "hidePassword": "Hide password"
   },

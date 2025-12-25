@@ -12,6 +12,7 @@
     "incorrectCredentials": "Nom d'utilisateur ou mot de passe incorrect",
     "loginFailed": "Échec de connexion",
     "accountDisabled": "Compte utilisateur désactivé",
+    "rateLimited": "Trop de tentatives de connexion. Veuillez réessayer plus tard.",
     "showPassword": "Afficher le mot de passe",
     "hidePassword": "Masquer le mot de passe"
   },

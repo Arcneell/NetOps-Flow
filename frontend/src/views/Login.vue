@@ -164,8 +164,9 @@ const handleLogin = async () => {
             // Redirect to dashboard
             router.push('/')
         } else {
-            // Display error message
-            errorMessage.value = result.error || t('auth.loginFailed')
+            // Display translated error message
+            const errorKey = result.errorType || 'loginFailed'
+            errorMessage.value = t(`auth.${errorKey}`)
         }
     } catch (error) {
         // Fallback error handling
