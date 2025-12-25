@@ -1,0 +1,239 @@
+# =============================================================================
+# NetOps-Flow Docker Compose - Production Configuration
+# =============================================================================
+# This file extends docker-compose.yml for production deployments.
+# Uses Docker secrets for sensitive data protection.
+#
+# Usage:
+#   docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#
+# Required secrets (create before deploying):
+#   echo "your-jwt-secret" | docker secret create jwt_secret_key -
+#   echo "your-encryption-key" | docker secret create encryption_key -
+#   echo "your-admin-password" | docker secret create initial_admin_password -
+#   echo "your-db-password" | docker secret create postgres_password -
+# =============================================================================
+
+services:
+  # ---------------------------------------------------------------------------
+  # PostgreSQL Database - Production
+  # ---------------------------------------------------------------------------
+  db:
+    image: postgres:15-alpine
+    container_name: netops-db
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-netops}
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+      POSTGRES_DB: ${POSTGRES_DB:-netops_flow}
+    secrets:
+      - postgres_password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-netops} -d ${POSTGRES_DB:-netops_flow}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - netops-network
+    # No port exposure in production - accessed only via internal network
+
+  # ---------------------------------------------------------------------------
+  # Redis Cache & Message Broker - Production
+  # ---------------------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    container_name: netops-redis
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru --requirepass ${REDIS_PASSWORD:-}
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - netops-network
+    # No port exposure in production
+
+  # ---------------------------------------------------------------------------
+  # Backend API - Production
+  # ---------------------------------------------------------------------------
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+      args:
+        - BUILD_ENV=production
+    container_name: netops-backend
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+    entrypoint: ["/bin/bash", "/app/backend/entrypoint.sh"]
+    command: uvicorn backend.app:app --host 0.0.0.0 --port 8000 --workers 4
+    # No volume mounts in production - use built image
+    volumes:
+      - scripts_storage:/scripts_storage
+    secrets:
+      - jwt_secret_key
+      - encryption_key
+      - initial_admin_password
+      - postgres_password
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:$(cat /run/secrets/postgres_password)@db/${POSTGRES_DB}
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - JWT_SECRET_KEY_FILE=/run/secrets/jwt_secret_key
+      - ENCRYPTION_KEY_FILE=/run/secrets/encryption_key
+      - INITIAL_ADMIN_PASSWORD_FILE=/run/secrets/initial_admin_password
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS}
+      - LOG_LEVEL=${LOG_LEVEL:-WARNING}
+      - LOG_FORMAT=json
+      - DOCKER_SANDBOX_ENABLED=true
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c 'import urllib.request; urllib.request.urlopen(\"http://localhost:8000/health\"); exit(0)' 2>/dev/null || python -c 'import socket; s=socket.socket(); s.connect((\"localhost\", 8000)); s.close()'"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    networks:
+      - netops-network
+
+  # ---------------------------------------------------------------------------
+  # Celery Worker - Production
+  # ---------------------------------------------------------------------------
+  worker:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+      args:
+        - BUILD_ENV=production
+    container_name: netops-worker
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 1G
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+    command: celery -A worker.tasks.celery_app worker --loglevel=warning --concurrency=4
+    volumes:
+      - scripts_storage:/scripts_storage
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    secrets:
+      - encryption_key
+      - postgres_password
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:$(cat /run/secrets/postgres_password)@db/${POSTGRES_DB}
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - ENCRYPTION_KEY_FILE=/run/secrets/encryption_key
+      - LOG_LEVEL=${LOG_LEVEL:-WARNING}
+      - DOCKER_SANDBOX_ENABLED=true
+      - SCRIPTS_DIR=/scripts_storage
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "celery -A worker.tasks.celery_app inspect ping || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    networks:
+      - netops-network
+
+  # ---------------------------------------------------------------------------
+  # Frontend - Production (served by nginx)
+  # ---------------------------------------------------------------------------
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.prod
+    container_name: netops-frontend
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.1'
+          memory: 64M
+    ports:
+      - "${FRONTEND_PORT:-3000}:80"
+    environment:
+      - VITE_API_URL=${VITE_API_URL:-http://localhost:8000}
+    networks:
+      - netops-network
+
+# =============================================================================
+# Secrets - Defined externally for security
+# =============================================================================
+secrets:
+  jwt_secret_key:
+    external: true
+  encryption_key:
+    external: true
+  initial_admin_password:
+    external: true
+  postgres_password:
+    external: true
+
+# =============================================================================
+# Networks
+# =============================================================================
+networks:
+  netops-network:
+    driver: bridge
+
+# =============================================================================
+# Volumes
+# =============================================================================
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  scripts_storage:
+    driver: local

@@ -65,10 +65,26 @@ class User(Base):
 
     # MFA/TOTP fields
     mfa_enabled = Column(Boolean, default=False)
-    totp_secret = Column(String, nullable=True)  # Encrypted TOTP secret
+    totp_secret = Column(String, nullable=True)  # Encrypted TOTP secret (auto-encrypted via hooks)
 
     entity = relationship("Entity", back_populates="users")
     refresh_tokens = relationship("UserToken", back_populates="user", cascade="all, delete-orphan")
+
+
+# ==================== USER TOTP SECRET ENCRYPTION HOOKS ====================
+
+@event.listens_for(User, 'before_insert')
+def encrypt_user_totp_on_insert(mapper, connection, target):
+    """Automatically encrypt totp_secret before inserting User."""
+    if target.totp_secret and not _is_encrypted(target.totp_secret):
+        target.totp_secret = _encrypt_sensitive_field(target.totp_secret)
+
+
+@event.listens_for(User, 'before_update')
+def encrypt_user_totp_on_update(mapper, connection, target):
+    """Automatically encrypt totp_secret before updating User."""
+    if target.totp_secret and not _is_encrypted(target.totp_secret):
+        target.totp_secret = _encrypt_sensitive_field(target.totp_secret)
 
 
 class UserToken(Base):

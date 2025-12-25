@@ -19,7 +19,7 @@ class RedisRateLimiter:
     """
 
     def __init__(self, redis_url: Optional[str] = None):
-        self.redis_url = redis_url or settings.redis_url
+        self.redis_url = redis_url or settings.redis_url_str
         self._client: Optional[redis.Redis] = None
         self.window_size = settings.rate_limit_window
         self.max_requests = settings.rate_limit_max_requests

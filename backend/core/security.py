@@ -1,8 +1,8 @@
 """
 Security utilities: JWT, password hashing, encryption, and refresh tokens.
 """
-from datetime import datetime, timedelta
-from typing import Optional, Tuple
+from datetime import datetime, timedelta, timezone
+from typing import Optional
 import secrets
 import hashlib
 from jose import JWTError, jwt
@@ -59,10 +59,11 @@ def validate_password_strength(password: str) -> bool:
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
     """Create a JWT access token."""
     to_encode = data.copy()
+    now = datetime.now(timezone.utc)
     if expires_delta:
-        expire = datetime.utcnow() + expires_delta
+        expire = now + expires_delta
     else:
-        expire = datetime.utcnow() + timedelta(minutes=settings.access_token_expire_minutes)
+        expire = now + timedelta(minutes=settings.access_token_expire_minutes)
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(
         to_encode,
@@ -235,7 +236,7 @@ def create_refresh_token_record(
         The created UserToken model instance
     """
     token_hash = hash_refresh_token(token)
-    expires_at = datetime.utcnow() + timedelta(days=settings.refresh_token_expire_days)
+    expires_at = datetime.now(timezone.utc) + timedelta(days=settings.refresh_token_expire_days)
 
     user_token = models.UserToken(
         user_id=user_id,
@@ -267,7 +268,7 @@ def validate_refresh_token(db: Session, token: str) -> Optional["models.UserToke
     user_token = db.query(models.UserToken).filter(
         models.UserToken.token_hash == token_hash,
         models.UserToken.revoked == False,
-        models.UserToken.expires_at > datetime.utcnow()
+        models.UserToken.expires_at > datetime.now(timezone.utc)
     ).first()
 
     return user_token
@@ -328,7 +329,7 @@ def cleanup_expired_tokens(db: Session) -> int:
         Number of tokens deleted
     """
     result = db.query(models.UserToken).filter(
-        (models.UserToken.expires_at < datetime.utcnow()) |
+        (models.UserToken.expires_at < datetime.now(timezone.utc)) |
         (models.UserToken.revoked == True)
     ).delete()
     db.commit()

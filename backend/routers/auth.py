@@ -17,7 +17,6 @@ from backend.core.security import (
     generate_totp_secret,
     get_totp_uri,
     verify_totp_code,
-    encrypt_value,
     decrypt_value,
     generate_refresh_token,
     create_refresh_token_record,
@@ -334,9 +333,8 @@ async def enable_mfa_with_secret(
             detail="Invalid TOTP code. Please verify the code from your authenticator app."
         )
 
-    # Encrypt and store the secret
-    encrypted_secret = encrypt_value(secret)
-    current_user.totp_secret = encrypted_secret
+    # Store the secret (auto-encrypted by SQLAlchemy hook)
+    current_user.totp_secret = secret
     current_user.mfa_enabled = True
     db.commit()
 

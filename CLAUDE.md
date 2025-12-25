@@ -22,10 +22,10 @@ Plateforme de gestion des opérations réseau auto-hébergée, entièrement gén
 
 ## Stack Technique
 
-- **Backend**: FastAPI 0.109 + Python 3.11 + SQLAlchemy 2.0 + Celery 5.3
+- **Backend**: FastAPI 0.109+ (lifespan context manager) + Python 3.11+ + SQLAlchemy 2.0 + Celery 5.3
 - **Frontend**: Vue.js 3 + Pinia + PrimeVue 3.46 + TailwindCSS 3.4
 - **Base de données**: PostgreSQL 15 + Redis 7
-- **Containerisation**: Docker + Docker Compose
+- **Containerisation**: Docker + Docker Compose (dev) / Docker Compose + Secrets (prod)
 
 ## Architecture
 
@@ -42,9 +42,9 @@ frontend/          # Vue.js 3 SPA
 
 backend/           # FastAPI API
 ├── core/
-│   ├── config.py           # Configuration Pydantic Settings
+│   ├── config.py           # Configuration Pydantic Settings (PostgresDsn/RedisDsn, Docker secrets support)
 │   ├── database.py         # SQLAlchemy engine + sessions
-│   ├── security.py         # JWT, bcrypt, Fernet encryption, TOTP (pyotp), refresh tokens
+│   ├── security.py         # JWT, bcrypt, Fernet encryption, TOTP (pyotp), refresh tokens (timezone-aware)
 │   ├── rate_limiter.py     # Rate limiting Redis
 │   ├── logging.py          # Logging structuré JSON/Text
 │   ├── cache.py            # Cache Redis pour dashboard/topology (TTL 5min)
@@ -63,9 +63,9 @@ backend/           # FastAPI API
 │   ├── network_ports.py    # Ports réseau et connexions physiques
 │   ├── attachments.py      # Pièces jointes (documents)
 │   └── entities.py         # Entités multi-tenant
-├── models.py               # Modèles SQLAlchemy (+ UserToken pour refresh tokens)
+├── models.py               # Modèles SQLAlchemy (+ UserToken, auto-encryption hooks pour TOTP/passwords)
 ├── schemas.py              # Schémas Pydantic (+ TokenWithRefresh, RefreshTokenRequest)
-└── app.py                  # Application FastAPI (+ audit middleware)
+└── app.py                  # Application FastAPI (lifespan context manager, optimized health check)
 
 worker/            # Celery worker
 └── tasks.py       # Tâches async (exécution scripts, scan subnet, alertes expirations, collecte logiciels)
@@ -152,9 +152,14 @@ worker/            # Celery worker
 
 - **Auth**: JWT (30min access token) + Refresh tokens (7 jours) + bcrypt pour mots de passe
 - **Refresh Tokens**: Rotation automatique, révocation individuelle ou globale, stockage haché (SHA256)
-- **MFA/TOTP**: Authentification à deux facteurs optionnelle avec pyotp (secrets chiffrés en base avec Fernet)
+- **MFA/TOTP**: Authentification à deux facteurs optionnelle avec pyotp (secrets auto-chiffrés via hooks SQLAlchemy)
 - **Encryption**: Fernet pour données sensibles (remote passwords, TOTP secrets)
-- **Auto-Encryption**: Hooks SQLAlchemy pour chiffrer automatiquement Equipment.remote_password
+- **Auto-Encryption**: Hooks SQLAlchemy pour chiffrer automatiquement Equipment.remote_password et User.totp_secret
+- **Configuration Sécurisée**:
+  - JWT_SECRET_KEY et ENCRYPTION_KEY obligatoires (validation Pydantic)
+  - Support Docker secrets via *_FILE environment variables
+  - Validation PostgresDsn/RedisDsn pour les URLs de connexion
+- **Timezone-Aware**: Utilisation de `datetime.now(timezone.utc)` (Python 3.12+ compatible)
 - **Rate Limiting**: Redis-backed, 5 req/60s sur login
 - **RBAC**: Rôles admin/user + permissions granulaires (ipam, scripts, inventory, topology, settings)
 - **Sandbox Docker**: Mémoire 256MB, CPU 0.5, network disabled, read-only filesystem
@@ -166,8 +171,11 @@ worker/            # Celery worker
 ## Commandes
 
 ```bash
-# Démarrage
+# Démarrage (développement)
 docker-compose up --build
+
+# Démarrage (production avec Docker secrets)
+docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 
 # Logs
 docker-compose logs -f backend
@@ -179,6 +187,12 @@ docker-compose exec backend alembic revision --autogenerate -m "description"
 
 # Base de données
 docker-compose exec db psql -U netops netops_flow
+
+# Création des secrets Docker (production)
+echo "your-jwt-secret" | docker secret create jwt_secret_key -
+echo "your-encryption-key" | docker secret create encryption_key -
+echo "your-admin-password" | docker secret create initial_admin_password -
+echo "your-db-password" | docker secret create postgres_password -
 ```
 
 ## URLs
@@ -192,16 +206,24 @@ docker-compose exec db psql -U netops netops_flow
 | Variable | Défaut | Description |
 |----------|--------|-------------|
 | POSTGRES_PASSWORD | netopspassword | Mot de passe PostgreSQL |
-| JWT_SECRET_KEY | (généré) | Clé secrète JWT |
-| ENCRYPTION_KEY | (généré) | Clé Fernet |
+| JWT_SECRET_KEY | **(REQUIS)** | Clé secrète JWT (ou JWT_SECRET_KEY_FILE pour Docker secrets) |
+| ENCRYPTION_KEY | **(REQUIS)** | Clé Fernet (ou ENCRYPTION_KEY_FILE pour Docker secrets) |
+| INITIAL_ADMIN_PASSWORD | - | Mot de passe admin initial (ou INITIAL_ADMIN_PASSWORD_FILE) |
 | ALLOWED_ORIGINS | http://localhost:3000 | CORS origins |
 | LOG_LEVEL | INFO | Niveau de log |
 | DOCKER_SANDBOX_MEMORY | 256m | Limite mémoire sandbox |
 | SCRIPT_EXECUTION_TIMEOUT | 300 | Timeout scripts (sec) |
 
+### Support Docker Secrets (Production)
+
+En production, les secrets peuvent être lus depuis des fichiers via les variables `*_FILE`:
+- `JWT_SECRET_KEY_FILE=/run/secrets/jwt_secret_key`
+- `ENCRYPTION_KEY_FILE=/run/secrets/encryption_key`
+- `INITIAL_ADMIN_PASSWORD_FILE=/run/secrets/initial_admin_password`
+
 ## Credentials par Défaut
 
-- **Admin**: admin / admin (MFA désactivé par défaut)
+- **Admin**: admin / (défini par INITIAL_ADMIN_PASSWORD, MFA désactivé par défaut)
 - **Database**: netops / netopspassword / netops_flow
 
 ## Activation MFA (TOTP)
@@ -253,19 +275,23 @@ docker-compose exec db psql -U netops netops_flow
 ## Structure Base de Données
 
 **Tables principales:**
-- `users` - Utilisateurs avec rôles, permissions et MFA (colonnes: mfa_enabled, totp_secret chiffré)
+- `users` - Utilisateurs avec rôles, permissions et MFA (colonnes: mfa_enabled, totp_secret auto-chiffré via hook)
 - `user_tokens` - Refresh tokens (token_hash SHA256, expires_at, revoked, device_info, ip_address)
 - `entities` - Entités multi-tenant
 - `subnets` / `ip_addresses` - IPAM
 - `scripts` / `script_executions` - Automatisation
 - `manufacturers` / `equipment_types` / `equipment_models` - Catalogue
-- `locations` / `suppliers` / `equipment` - Inventaire (remote_password auto-chiffré)
+- `locations` / `suppliers` / `equipment` - Inventaire (remote_password auto-chiffré via hook)
 - `racks` / `pdus` - DCIM
 - `contracts` / `contract_equipment` - Contrats
 - `software` / `software_licenses` / `software_installations` - Logiciels
 - `network_ports` - Ports réseau et connexions
 - `attachments` - Pièces jointes
 - `audit_logs` - Logs de modifications (remplis automatiquement par middleware)
+
+**Hooks SQLAlchemy (before_insert/before_update):**
+- `Equipment.remote_password` → chiffré automatiquement avec Fernet
+- `User.totp_secret` → chiffré automatiquement avec Fernet
 
 ## API Endpoints Principaux
 

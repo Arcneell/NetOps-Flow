@@ -1,11 +1,32 @@
 """
 Centralized Configuration using Pydantic Settings.
 All environment variables are validated at startup.
+Supports Docker secrets via *_FILE environment variables.
 """
 from functools import lru_cache
-from typing import List
+from pathlib import Path
+from typing import List, Annotated
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, PostgresDsn, RedisDsn, BeforeValidator, model_validator
+import os
+
+
+def _coerce_to_str(v):
+    """Coerce Pydantic URL types to string for compatibility."""
+    return str(v) if v else v
+
+
+def _read_secret_file(file_path: str) -> str:
+    """Read a secret from a Docker secrets file."""
+    try:
+        return Path(file_path).read_text().strip()
+    except Exception:
+        return ""
+
+
+# Type aliases for URL fields that validate but store as string
+PostgresUrlStr = Annotated[PostgresDsn, BeforeValidator(lambda x: x)]
+RedisUrlStr = Annotated[RedisDsn, BeforeValidator(lambda x: x)]
 
 
 class Settings(BaseSettings):
@@ -18,32 +39,38 @@ class Settings(BaseSettings):
         extra="ignore"
     )
 
-    # Database
-    database_url: str = Field(
+    # Database - validated as PostgresDsn
+    database_url: PostgresDsn = Field(
         default="postgresql://netops:netopspassword@localhost:5432/netops_flow",
         description="PostgreSQL connection URL"
     )
     db_pool_size: int = Field(default=5, ge=1, le=20)
     db_max_overflow: int = Field(default=10, ge=0, le=50)
 
-    # Redis
-    redis_url: str = Field(
+    # Redis - validated as RedisDsn
+    redis_url: RedisDsn = Field(
         default="redis://localhost:6379/0",
         description="Redis connection URL"
     )
-    celery_broker_url: str = Field(
+    celery_broker_url: RedisDsn = Field(
         default="redis://localhost:6379/0",
         description="Celery broker URL"
     )
-    celery_result_backend: str = Field(
+    celery_result_backend: RedisDsn = Field(
         default="redis://localhost:6379/0",
         description="Celery result backend URL"
     )
 
+    # Initial admin password (required for first setup)
+    initial_admin_password: str | None = Field(
+        default=None,
+        description="Initial admin password for first setup"
+    )
+
     # JWT & Security
     jwt_secret_key: str = Field(
-        ...,
-        description="JWT secret key (REQUIRED - must be set in environment)"
+        default="",
+        description="JWT secret key (REQUIRED - must be set in environment or via JWT_SECRET_KEY_FILE)"
     )
     jwt_algorithm: str = Field(default="HS256")
     access_token_expire_minutes: int = Field(default=30, ge=5, le=1440)  # 30 minutes for access tokens
@@ -52,8 +79,8 @@ class Settings(BaseSettings):
 
     # Encryption (Fernet key for encrypting sensitive data)
     encryption_key: str = Field(
-        ...,
-        description="Fernet encryption key for sensitive data (REQUIRED - must be set in environment)"
+        default="",
+        description="Fernet encryption key for sensitive data (REQUIRED - must be set in environment or via ENCRYPTION_KEY_FILE)"
     )
 
     # Rate Limiting
@@ -89,6 +116,46 @@ class Settings(BaseSettings):
     log_level: str = Field(default="INFO")
     log_format: str = Field(default="json")  # json or text
 
+    @model_validator(mode='before')
+    @classmethod
+    def load_secrets_from_files(cls, values: dict) -> dict:
+        """
+        Load secrets from Docker secrets files if *_FILE env vars are set.
+        This allows secure secret management in production deployments.
+        """
+        secret_mappings = [
+            ('jwt_secret_key', 'JWT_SECRET_KEY_FILE'),
+            ('encryption_key', 'ENCRYPTION_KEY_FILE'),
+            ('initial_admin_password', 'INITIAL_ADMIN_PASSWORD_FILE'),
+        ]
+
+        for field_name, env_file_var in secret_mappings:
+            file_path = os.environ.get(env_file_var)
+            if file_path and Path(file_path).exists():
+                secret_value = _read_secret_file(file_path)
+                if secret_value:
+                    values[field_name] = secret_value
+
+        return values
+
+    @model_validator(mode='after')
+    def validate_required_secrets(self) -> 'Settings':
+        """
+        Validate that required secrets are present.
+        JWT_SECRET_KEY and ENCRYPTION_KEY are mandatory.
+        """
+        if not self.jwt_secret_key:
+            raise ValueError(
+                "JWT_SECRET_KEY is required. Set it via environment variable "
+                "or JWT_SECRET_KEY_FILE for Docker secrets."
+            )
+        if not self.encryption_key:
+            raise ValueError(
+                "ENCRYPTION_KEY is required. Set it via environment variable "
+                "or ENCRYPTION_KEY_FILE for Docker secrets."
+            )
+        return self
+
     @field_validator("allowed_origins")
     @classmethod
     def parse_origins(cls, v: str) -> str:
@@ -102,6 +169,26 @@ class Settings(BaseSettings):
     def origins_list(self) -> List[str]:
         """Get origins as a list."""
         return [o.strip() for o in self.allowed_origins.split(",") if o.strip()]
+
+    @property
+    def database_url_str(self) -> str:
+        """Get database URL as string for SQLAlchemy compatibility."""
+        return str(self.database_url)
+
+    @property
+    def redis_url_str(self) -> str:
+        """Get Redis URL as string."""
+        return str(self.redis_url)
+
+    @property
+    def celery_broker_url_str(self) -> str:
+        """Get Celery broker URL as string."""
+        return str(self.celery_broker_url)
+
+    @property
+    def celery_result_backend_str(self) -> str:
+        """Get Celery result backend URL as string."""
+        return str(self.celery_result_backend)
 
     def get_jwt_secret(self) -> str:
         """Get JWT secret key (always available since it's required)."""
