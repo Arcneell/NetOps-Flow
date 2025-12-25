@@ -44,11 +44,11 @@ backend/           # FastAPI API
 ├── core/
 │   ├── config.py           # Configuration Pydantic Settings
 │   ├── database.py         # SQLAlchemy engine + sessions
-│   ├── security.py         # JWT, bcrypt, Fernet encryption
+│   ├── security.py         # JWT, bcrypt, Fernet encryption, TOTP (pyotp)
 │   ├── rate_limiter.py     # Rate limiting Redis
 │   └── logging.py          # Logging structuré JSON/Text
 ├── routers/
-│   ├── auth.py             # POST /token, GET /me
+│   ├── auth.py             # POST /token, GET /me, MFA endpoints (/verify-mfa, /mfa/setup, /mfa/enable-with-secret, /mfa/disable)
 │   ├── users.py            # CRUD utilisateurs (admin)
 │   ├── ipam.py             # Subnets, IPs, scan nmap
 │   ├── topology.py         # Données visualisation réseau + topologie physique
@@ -138,13 +138,23 @@ worker/            # Celery worker
 - Filtrage automatique des résultats API
 - Gestion des entités (admin)
 
+### Authentification à Deux Facteurs (MFA/TOTP)
+- Activation optionnelle par utilisateur via Settings
+- Secrets TOTP générés avec pyotp et chiffrés en base (Fernet)
+- QR code pour scan avec Google Authenticator, Authy, etc.
+- Flux de connexion en 2 étapes : mot de passe puis code à 6 chiffres
+- Désactivation sécurisée avec vérification du mot de passe
+- Audit complet des événements MFA dans AuditLog
+
 ## Sécurité
 
 - **Auth**: JWT (8h expiration) + bcrypt pour mots de passe
-- **Encryption**: Fernet pour données sensibles (remote passwords)
+- **MFA/TOTP**: Authentification à deux facteurs optionnelle avec pyotp (secrets chiffrés en base avec Fernet)
+- **Encryption**: Fernet pour données sensibles (remote passwords, TOTP secrets)
 - **Rate Limiting**: Redis-backed, 5 req/60s sur login
 - **RBAC**: Rôles admin/user + permissions granulaires (ipam, scripts, inventory, topology, settings)
 - **Sandbox Docker**: Mémoire 256MB, CPU 0.5, network disabled, read-only filesystem
+- **Audit Log**: Traçabilité complète des événements MFA (LOGIN_FAILED, MFA_CHALLENGE, MFA_SUCCESS, MFA_FAILED, MFA_ENABLED, MFA_DISABLED)
 
 ## Commandes
 
@@ -184,8 +194,17 @@ docker-compose exec db psql -U netops netops_flow
 
 ## Credentials par Défaut
 
-- **Admin**: admin / admin
+- **Admin**: admin / admin (MFA désactivé par défaut)
 - **Database**: netops / netopspassword / netops_flow
+
+## Activation MFA (TOTP)
+
+1. Se connecter avec admin/admin
+2. Aller dans Settings → Security
+3. Cliquer sur "Enable 2FA"
+4. Scanner le QR code avec Google Authenticator, Authy, etc.
+5. Entrer le code à 6 chiffres pour confirmer
+6. À la prochaine connexion, le code TOTP sera demandé après le mot de passe
 
 ## Conventions de Code
 
@@ -227,7 +246,7 @@ docker-compose exec db psql -U netops netops_flow
 ## Structure Base de Données
 
 **Tables principales:**
-- `users` - Utilisateurs avec rôles et permissions
+- `users` - Utilisateurs avec rôles, permissions et MFA (colonnes: mfa_enabled, totp_secret chiffré)
 - `entities` - Entités multi-tenant
 - `subnets` / `ip_addresses` - IPAM
 - `scripts` / `script_executions` - Automatisation
@@ -243,7 +262,11 @@ docker-compose exec db psql -U netops netops_flow
 
 | Endpoint | Méthode | Description |
 |----------|---------|-------------|
-| /api/v1/auth/token | POST | Login, obtenir JWT |
+| /api/v1/auth/token | POST | Login, obtenir JWT ou challenge MFA |
+| /api/v1/auth/verify-mfa | POST | Vérifier code TOTP et obtenir JWT |
+| /api/v1/auth/mfa/setup | POST | Générer secret TOTP et URI QR code |
+| /api/v1/auth/mfa/enable-with-secret | POST | Activer MFA après vérification code |
+| /api/v1/auth/mfa/disable | POST | Désactiver MFA (requiert mot de passe) |
 | /api/v1/auth/me | GET | Info utilisateur courant |
 | /api/v1/subnets/ | GET/POST | Liste/Créer subnets |
 | /api/v1/subnets/{id}/scan | POST | Scanner subnet (nmap) |
