@@ -8,7 +8,12 @@
     "accessGranted": "Access Granted",
     "accessDenied": "Access Denied",
     "welcomeBack": "Welcome back.",
-    "authOnly": "Authorized Access Only"
+    "authOnly": "Authorized Access Only",
+    "incorrectCredentials": "Incorrect username or password",
+    "loginFailed": "Login failed",
+    "accountDisabled": "User account is disabled",
+    "showPassword": "Show password",
+    "hidePassword": "Hide password"
   },
   "nav": {
     "dashboard": "Dashboard",

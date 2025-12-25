@@ -8,7 +8,12 @@
     "accessGranted": "Accès Autorisé",
     "accessDenied": "Accès Refusé",
     "welcomeBack": "Bon retour.",
-    "authOnly": "Accès Autorisé Uniquement"
+    "authOnly": "Accès Autorisé Uniquement",
+    "incorrectCredentials": "Nom d'utilisateur ou mot de passe incorrect",
+    "loginFailed": "Échec de connexion",
+    "accountDisabled": "Compte utilisateur désactivé",
+    "showPassword": "Afficher le mot de passe",
+    "hidePassword": "Masquer le mot de passe"
   },
   "nav": {
     "dashboard": "Tableau de bord",

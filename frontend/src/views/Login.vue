@@ -44,6 +44,16 @@
             </div>
 
             <form @submit.prevent="handleLogin" class="space-y-6">
+                <!-- Error Alert -->
+                <div v-if="errorMessage" class="bg-red-500/10 border border-red-500/30 rounded-lg p-4 backdrop-blur-sm">
+                    <div class="flex items-start gap-3">
+                        <i class="pi pi-exclamation-circle text-red-400 text-xl mt-0.5"></i>
+                        <div class="flex-1">
+                            <p class="text-red-200 text-sm font-medium">{{ errorMessage }}</p>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="space-y-1">
                     <label class="text-xs font-bold text-blue-100 uppercase tracking-wider ml-1">{{ t('auth.username') }} <span class="text-red-500">*</span></label>
                     <div class="relative group">
@@ -53,6 +63,7 @@
                             :placeholder="t('auth.username')"
                             class="block w-full !pl-12 !py-3 !bg-slate-950/80 !border-slate-700 !text-white placeholder:!text-slate-500 focus:!border-blue-500 focus:!ring-1 focus:!ring-blue-500 transition-all"
                             style="padding-left: 3rem !important; background-color: #020617 !important; color: white !important;"
+                            @input="errorMessage = ''"
                         />
                     </div>
                 </div>
@@ -63,11 +74,20 @@
                         <i class="pi pi-lock absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-400 transition-colors z-20"></i>
                         <InputText
                             v-model="password"
-                            type="password"
+                            :type="showPassword ? 'text' : 'password'"
                             :placeholder="t('auth.password')"
-                            class="block w-full !pl-12 !py-3 !bg-slate-950/80 !border-slate-700 !text-white placeholder:!text-slate-500 focus:!border-blue-500 focus:!ring-1 focus:!ring-blue-500 transition-all"
-                            style="padding-left: 3rem !important; background-color: #020617 !important; color: white !important;"
+                            class="block w-full !pl-12 !pr-12 !py-3 !bg-slate-950/80 !border-slate-700 !text-white placeholder:!text-slate-500 focus:!border-blue-500 focus:!ring-1 focus:!ring-blue-500 transition-all"
+                            style="padding-left: 3rem !important; padding-right: 3rem !important; background-color: #020617 !important; color: white !important;"
+                            @input="errorMessage = ''"
                         />
+                        <button
+                            type="button"
+                            @click="togglePasswordVisibility"
+                            class="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-blue-400 transition-colors z-20 focus:outline-none"
+                            :title="showPassword ? t('auth.hidePassword') : t('auth.showPassword')"
+                        >
+                            <i :class="showPassword ? 'pi pi-eye-slash' : 'pi pi-eye'"></i>
+                        </button>
                     </div>
                 </div>
 
@@ -75,7 +95,7 @@
                 <button
                     type="submit"
                     :disabled="loading"
-                    class="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 border-0 text-white font-bold py-3 rounded-lg shadow-lg shadow-blue-600/20 mt-2 transform active:scale-[0.98] transition-all flex items-center justify-center gap-2 h-12"
+                    class="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 disabled:from-slate-700 disabled:to-slate-700 disabled:cursor-not-allowed border-0 text-white font-bold py-3 rounded-lg shadow-lg shadow-blue-600/20 mt-2 transform active:scale-[0.98] transition-all flex items-center justify-center gap-2 h-12"
                 >
                     <i v-if="loading" class="pi pi-spinner pi-spin text-xl"></i>
                     <span>{{ t('auth.signIn') }}</span>
@@ -91,71 +111,67 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
-import { useRouter } from 'vue-router';
-import { useToast } from 'primevue/usetoast';
-import { useI18n } from 'vue-i18n';
-import axios from 'axios';
-import api from '../api';
+import { ref, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
+import { useAuthStore } from '../stores/auth'
 
-const { t, locale } = useI18n();
-const router = useRouter();
-const toast = useToast();
+const { t, locale } = useI18n()
+const router = useRouter()
+const authStore = useAuthStore()
 
-const username = ref('');
-const password = ref('');
-const loading = ref(false);
+const username = ref('')
+const password = ref('')
+const loading = ref(false)
+const errorMessage = ref('')
+const showPassword = ref(false)
 
 const setLang = (lang) => {
-    locale.value = lang;
-    localStorage.setItem('lang', lang);
-};
+    locale.value = lang
+    localStorage.setItem('lang', lang)
+}
+
+const togglePasswordVisibility = () => {
+    showPassword.value = !showPassword.value
+}
 
 onMounted(() => {
-    const savedLang = localStorage.getItem('lang') || 'en';
-    locale.value = savedLang;
-    localStorage.removeItem('token');
-    localStorage.removeItem('username');
-    localStorage.removeItem('user');
-});
+    const savedLang = localStorage.getItem('lang') || 'en'
+    locale.value = savedLang
+
+    // Clear any existing auth data
+    localStorage.removeItem('token')
+    localStorage.removeItem('username')
+    localStorage.removeItem('user')
+})
 
 const handleLogin = async () => {
-    if (!username.value || !password.value) {
-        toast.add({ severity: 'warn', summary: t('auth.accessDenied'), detail: t('validation.fillRequiredFields'), life: 3000 });
-        return;
-    }
-    loading.value = true;
-    const formData = new FormData();
-    formData.append('username', username.value);
-    formData.append('password', password.value);
+    // Reset error message
+    errorMessage.value = ''
 
-    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+    // Validate inputs
+    if (!username.value || !password.value) {
+        errorMessage.value = t('validation.fillRequiredFields')
+        return
+    }
+
+    loading.value = true
 
     try {
-        // Login to get token
-        const res = await axios.post(`${apiUrl}/api/v1/token`, formData);
-        const token = res.data.access_token;
-        localStorage.setItem('token', token);
-        localStorage.setItem('username', username.value);
+        const result = await authStore.login(username.value, password.value)
 
-        // Fetch user data and store it for permission checks
-        const userRes = await axios.get(`${apiUrl}/api/v1/me`, {
-            headers: { Authorization: `Bearer ${token}` }
-        });
-        localStorage.setItem('user', JSON.stringify(userRes.data));
-
-        toast.add({ severity: 'success', summary: t('auth.accessGranted'), detail: t('auth.welcomeBack'), life: 2000 });
-
-        setTimeout(() => {
-            window.location.href = '/';
-        }, 500);
-
-    } catch (e) {
-        let msg = "Invalid credentials";
-        if (e.response?.data?.detail) msg = e.response.data.detail;
-        toast.add({ severity: 'error', summary: t('auth.accessDenied'), detail: msg, life: 3000 });
+        if (result.success) {
+            // Redirect to dashboard
+            router.push('/')
+        } else {
+            // Display error message
+            errorMessage.value = result.error || t('auth.loginFailed')
+        }
+    } catch (error) {
+        // Fallback error handling
+        errorMessage.value = t('auth.loginFailed')
     } finally {
-        loading.value = false;
+        loading.value = false
     }
-};
+}
 </script>
