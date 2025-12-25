@@ -192,6 +192,12 @@ body {
     border-top: 1px solid var(--border-color) !important;
     background-color: var(--bg-app) !important;
     border-radius: 0 0 0.75rem 0.75rem !important;
+    display: flex !important;
+}
+
+/* Ensure footer content takes full width for justify-between */
+.p-dialog-footer > div {
+    width: 100%;
 }
 
 /* --- Terminal --- */
