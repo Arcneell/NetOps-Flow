@@ -92,21 +92,25 @@ A self-hosted NetDevOps platform for network operations management, featuring IP
 - System status monitoring
 - Quick action buttons for common tasks
 
-### User Management
+### User Management & Security
 - User authentication with JWT tokens
+- **Two-Factor Authentication (TOTP)**: Optional MFA with Google Authenticator, Authy, etc.
 - Role-based access control (admin/user)
 - Granular permissions (IPAM, Topology, Scripts, Settings, Inventory)
 - Admin can create and delete users
 - Password validation (minimum 8 characters)
+- Secure MFA secret storage with Fernet encryption
 
 ### Security
 - JWT-based authentication with configurable secret
-- Fernet symmetric encryption for sensitive data (passwords)
+- **Two-Factor Authentication (MFA/TOTP)** using pyotp with encrypted secrets
+- Fernet symmetric encryption for sensitive data (passwords, TOTP secrets)
 - CORS protection with configurable origins
-- Redis-based distributed rate limiting
+- Redis-based distributed rate limiting (5 requests per 60s on login)
 - Path traversal protection for file uploads
-- Docker sandboxing for script execution
+- Docker sandboxing for script execution (256MB RAM, 0.5 CPU, network disabled)
 - Input validation and sanitization
+- Comprehensive audit logging for all MFA events
 
 ### Internationalization
 - Full support for English and French using vue-i18n (Composition API mode)
@@ -144,11 +148,11 @@ backend/
 ├── core/
 │   ├── config.py       # Pydantic Settings configuration
 │   ├── database.py     # SQLAlchemy engine & session
-│   ├── security.py     # JWT, hashing, Fernet encryption
+│   ├── security.py     # JWT, hashing, Fernet encryption, TOTP
 │   ├── rate_limiter.py # Redis-based rate limiting
 │   └── logging.py      # Structured JSON logging
 ├── routers/
-│   ├── auth.py         # Authentication endpoints
+│   ├── auth.py         # Authentication & MFA endpoints
 │   ├── users.py        # User management (admin)
 │   ├── ipam.py         # IP Address Management
 │   ├── inventory.py    # Equipment management
@@ -250,6 +254,7 @@ frontend/src/
 ### Application Login
 - **Username**: `admin`
 - **Password**: `admin`
+- **MFA**: Disabled by default
 
 ### Database
 - **Username**: `netops`
@@ -257,6 +262,21 @@ frontend/src/
 - **Database**: `netops_flow`
 
 > **Important**: Change the default credentials immediately after installation for security purposes.
+
+## Enabling Two-Factor Authentication (MFA)
+
+For enhanced security, you can enable TOTP-based two-factor authentication:
+
+1. Log in with your credentials (`admin` / `admin` by default)
+2. Navigate to **Settings** → **Security**
+3. Click **Enable 2FA**
+4. Scan the displayed QR code with your authenticator app (Google Authenticator, Authy, Microsoft Authenticator, etc.)
+5. Enter the 6-digit verification code to confirm
+6. On your next login, you'll be prompted for the TOTP code after entering your password
+
+To disable MFA later, go to Settings → Security → Disable 2FA and enter your current password for confirmation.
+
+**Note**: MFA secrets are encrypted at rest using Fernet encryption for maximum security.
 
 ## Development
 
