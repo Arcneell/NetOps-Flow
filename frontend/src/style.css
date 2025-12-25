@@ -209,24 +209,31 @@ body {
 }
 
 /* Style for submit/confirm button (right side) - more prominent with ring */
-.p-dialog-footer .submit-btn,
-.p-dialog-footer .confirm-btn {
+.p-dialog-footer .submit-btn.p-button,
+.p-dialog-footer .confirm-btn.p-button,
+.p-dialog-footer button.submit-btn,
+.p-dialog-footer button.confirm-btn {
     font-weight: 600 !important;
     min-width: 120px !important;
-    box-shadow: 0 0 0 2px var(--primary), 0 2px 4px 0 rgba(0, 0, 0, 0.1) !important;
+    box-shadow: 0 0 0 3px var(--primary) !important;
     transition: all 0.15s ease !important;
+    border: none !important;
 }
 
-.p-dialog-footer .submit-btn:hover:not(:disabled),
-.p-dialog-footer .confirm-btn:hover:not(:disabled) {
+.p-dialog-footer .submit-btn.p-button:hover:not(:disabled),
+.p-dialog-footer .confirm-btn.p-button:hover:not(:disabled),
+.p-dialog-footer button.submit-btn:hover:not(:disabled),
+.p-dialog-footer button.confirm-btn:hover:not(:disabled) {
     transform: translateY(-1px) !important;
-    box-shadow: 0 0 0 2px var(--primary-hover), 0 4px 8px 0 rgba(0, 0, 0, 0.15) !important;
+    box-shadow: 0 0 0 3px var(--primary-hover), 0 4px 12px 0 rgba(14, 165, 233, 0.3) !important;
 }
 
-.p-dialog-footer .submit-btn:active:not(:disabled),
-.p-dialog-footer .confirm-btn:active:not(:disabled) {
+.p-dialog-footer .submit-btn.p-button:active:not(:disabled),
+.p-dialog-footer .confirm-btn.p-button:active:not(:disabled),
+.p-dialog-footer button.submit-btn:active:not(:disabled),
+.p-dialog-footer button.confirm-btn:active:not(:disabled) {
     transform: translateY(0) !important;
-    box-shadow: 0 0 0 2px var(--primary), 0 1px 2px 0 rgba(0, 0, 0, 0.1) !important;
+    box-shadow: 0 0 0 3px var(--primary) !important;
 }
 
 /* --- Terminal --- */

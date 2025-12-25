@@ -21,14 +21,16 @@
           :disabled="loading"
           class="cancel-btn"
         />
-        <Button
-          :label="computedSubmitLabel"
-          :severity="submitSeverity"
-          @click="handleSubmit"
-          :loading="loading"
-          :disabled="disabled"
-          class="submit-btn min-w-[120px]"
-        />
+        <span class="submit-btn-wrapper">
+          <Button
+            :label="computedSubmitLabel"
+            :severity="submitSeverity"
+            @click="handleSubmit"
+            :loading="loading"
+            :disabled="disabled"
+            class="submit-btn"
+          />
+        </span>
       </div>
     </template>
   </Dialog>
@@ -97,4 +99,14 @@ function handleCancel() {
 }
 </script>
 
-<!-- Styles moved to global style.css for proper dialog footer targeting -->
+<style scoped>
+.submit-btn-wrapper {
+  display: inline-block;
+  border-radius: 6px;
+  box-shadow: 0 0 0 3px #0ea5e9;
+}
+.submit-btn-wrapper :deep(.p-button) {
+  font-weight: 600;
+  min-width: 120px;
+}
+</style>

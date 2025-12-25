@@ -27,13 +27,15 @@
           @click="handleCancel"
           class="cancel-btn"
         />
-        <Button
-          :label="computedConfirmLabel"
-          :severity="severity"
-          @click="handleConfirm"
-          :loading="loading"
-          class="confirm-btn min-w-[120px]"
-        />
+        <span class="confirm-btn-wrapper">
+          <Button
+            :label="computedConfirmLabel"
+            :severity="severity"
+            @click="handleConfirm"
+            :loading="loading"
+            class="confirm-btn"
+          />
+        </span>
       </div>
     </template>
   </Dialog>
@@ -126,4 +128,14 @@ function handleCancel() {
 }
 </script>
 
-<!-- Styles moved to global style.css for proper dialog footer targeting -->
+<style scoped>
+.confirm-btn-wrapper {
+  display: inline-block;
+  border-radius: 6px;
+  box-shadow: 0 0 0 3px #0ea5e9;
+}
+.confirm-btn-wrapper :deep(.p-button) {
+  font-weight: 600;
+  min-width: 120px;
+}
+</style>
