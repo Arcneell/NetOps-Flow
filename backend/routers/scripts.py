@@ -1,5 +1,6 @@
 """
-Scripts Router - Script upload and execution.
+Scripts Router - Script upload and execution with security enhancements.
+Includes MIME type validation and Docker sandbox enforcement.
 """
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from sqlalchemy.orm import Session
@@ -24,6 +25,59 @@ router = APIRouter(prefix="/scripts", tags=["Scripts"])
 # Constants
 ALLOWED_SCRIPT_TYPES = {"python", "bash", "powershell"}
 ALLOWED_SCRIPT_EXTENSIONS = {".py", ".sh", ".ps1"}
+
+# MIME type mapping for script validation
+ALLOWED_MIME_TYPES = {
+    "text/plain": ["python", "bash", "powershell"],
+    "text/x-python": ["python"],
+    "text/x-script.python": ["python"],
+    "application/x-python-code": ["python"],
+    "text/x-sh": ["bash"],
+    "text/x-shellscript": ["bash"],
+    "application/x-sh": ["bash"],
+    "application/x-powershell": ["powershell"],
+    "text/x-powershell": ["powershell"],
+    # Fallback for scripts that may be detected as generic text
+    "application/octet-stream": ["python", "bash", "powershell"],
+}
+
+
+def validate_mime_type(content: bytes, script_type: str) -> bool:
+    """
+    Validate file content using MIME type detection.
+
+    Args:
+        content: File content bytes
+        script_type: Expected script type (python, bash, powershell)
+
+    Returns:
+        True if MIME type is valid for the script type
+    """
+    try:
+        import magic
+        detected_mime = magic.from_buffer(content, mime=True)
+        logger.debug(f"Detected MIME type: {detected_mime} for script type: {script_type}")
+
+        # Check if detected MIME type is allowed for this script type
+        if detected_mime in ALLOWED_MIME_TYPES:
+            allowed_types = ALLOWED_MIME_TYPES[detected_mime]
+            return script_type in allowed_types
+
+        # Be lenient with text files - check if it looks like text
+        if detected_mime.startswith("text/"):
+            return True
+
+        logger.warning(f"Unrecognized MIME type {detected_mime} for script upload")
+        return False
+
+    except ImportError:
+        # python-magic not installed - fall back to basic validation
+        logger.warning("python-magic not installed, skipping MIME validation")
+        return True
+    except Exception as e:
+        logger.error(f"MIME type detection error: {e}")
+        # On error, allow upload but log the issue
+        return True
 
 
 def check_scripts_permission(current_user: models.User):
@@ -125,6 +179,18 @@ def upload_script(
             detail=f"Invalid file extension. Allowed: {', '.join(ALLOWED_SCRIPT_EXTENSIONS)}"
         )
 
+    # Read file content for MIME validation
+    file_content = file.file.read()
+    file.file.seek(0)  # Reset file pointer for later use
+
+    # Validate MIME type
+    if not validate_mime_type(file_content, script_type.lower()):
+        raise HTTPException(
+            status_code=400,
+            detail="File content does not match expected script type. "
+                   "Please ensure the file is a valid text/script file."
+        )
+
     # Check for duplicate
     existing = db.query(models.Script).filter(models.Script.name == name).first()
     if existing:
@@ -143,7 +209,7 @@ def upload_script(
         raise HTTPException(status_code=400, detail="Invalid file path")
 
     with open(file_location, "wb+") as buffer:
-        shutil.copyfileobj(file.file, buffer)
+        buffer.write(file_content)
 
     db_script = models.Script(
         name=name,
@@ -161,12 +227,14 @@ def upload_script(
 
 @router.get("/", response_model=List[schemas.Script])
 def list_scripts(
+    skip: int = 0,
+    limit: int = 100,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_active_user)
 ):
     """List all scripts."""
     check_scripts_permission(current_user)
-    return db.query(models.Script).all()
+    return db.query(models.Script).order_by(models.Script.name).offset(skip).limit(limit).all()
 
 
 @router.post("/{script_id}/run", response_model=schemas.ScriptExecution)

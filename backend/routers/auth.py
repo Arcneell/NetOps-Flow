@@ -1,5 +1,5 @@
 """
-Authentication Router - Login, token management.
+Authentication Router - Login, token management, and refresh tokens.
 """
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from fastapi.security import OAuth2PasswordRequestForm
@@ -19,6 +19,11 @@ from backend.core.security import (
     verify_totp_code,
     encrypt_value,
     decrypt_value,
+    generate_refresh_token,
+    create_refresh_token_record,
+    validate_refresh_token,
+    revoke_refresh_token,
+    revoke_all_user_tokens,
 )
 from backend.core.rate_limiter import get_rate_limiter
 from backend.core.config import get_settings
@@ -108,8 +113,20 @@ async def login_for_access_token(
             "message": "MFA verification required"
         }
 
-    # No MFA - generate token directly
+    # No MFA - generate tokens directly
     access_token = create_access_token(data={"sub": user.username})
+    refresh_token = generate_refresh_token()
+    user_agent = request.headers.get("User-Agent", "Unknown")
+
+    # Store refresh token
+    create_refresh_token_record(
+        db=db,
+        user_id=user.id,
+        token=refresh_token,
+        device_info=user_agent[:255] if user_agent else None,
+        ip_address=client_ip
+    )
+
     logger.info(f"Successful login for user: {user.username} from IP: {client_ip}")
 
     # Log successful login
@@ -125,7 +142,9 @@ async def login_for_access_token(
 
     return {
         "access_token": access_token,
+        "refresh_token": refresh_token,
         "token_type": "bearer",
+        "expires_in": settings.access_token_expire_minutes * 60,
         "user": {
             "id": user.id,
             "username": user.username,
@@ -225,8 +244,20 @@ async def verify_mfa(
             detail="Invalid MFA code"
         )
 
-    # MFA successful - generate token
+    # MFA successful - generate tokens
     access_token = create_access_token(data={"sub": user.username})
+    refresh_token = generate_refresh_token()
+    user_agent = request.headers.get("User-Agent", "Unknown")
+
+    # Store refresh token
+    create_refresh_token_record(
+        db=db,
+        user_id=user.id,
+        token=refresh_token,
+        device_info=user_agent[:255] if user_agent else None,
+        ip_address=client_ip
+    )
+
     logger.info(f"Successful MFA login for user: {user.username} from IP: {client_ip}")
 
     # Log successful MFA login
@@ -242,7 +273,9 @@ async def verify_mfa(
 
     return {
         "access_token": access_token,
+        "refresh_token": refresh_token,
         "token_type": "bearer",
+        "expires_in": settings.access_token_expire_minutes * 60,
         "user": {
             "id": user.id,
             "username": user.username,
@@ -272,34 +305,6 @@ async def setup_mfa(
         "qr_uri": qr_uri,
         "message": "Scan QR code with authenticator app"
     }
-
-
-@router.post("/mfa/enable")
-async def enable_mfa(
-    mfa_request: schemas.MFAEnableRequest,
-    db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_active_user)
-):
-    """
-    Enable MFA by verifying the TOTP code from the setup.
-
-    User must have called /mfa/setup first to get the secret.
-    """
-    if current_user.mfa_enabled:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="MFA is already enabled"
-        )
-
-    # The secret should be passed in the request or stored temporarily
-    # For security, we'll require the user to provide the secret from /mfa/setup
-    # In a production app, you might store this in a temporary session
-    # For now, we'll require re-setup if needed
-
-    raise HTTPException(
-        status_code=status.HTTP_400_BAD_REQUEST,
-        detail="Please provide the secret from /mfa/setup call"
-    )
 
 
 @router.post("/mfa/enable-with-secret")
@@ -395,3 +400,136 @@ async def disable_mfa(
     db.commit()
 
     return {"message": "MFA disabled successfully"}
+
+
+# ==================== REFRESH TOKEN ENDPOINTS ====================
+
+@router.post("/refresh", response_model=schemas.TokenWithRefresh)
+async def refresh_access_token(
+    request: Request,
+    token_request: schemas.RefreshTokenRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Refresh an access token using a valid refresh token.
+
+    This endpoint allows clients to obtain a new access token without
+    requiring the user to re-authenticate. The old refresh token is
+    revoked and a new one is issued (token rotation).
+    """
+    client_ip = request.client.host if request.client else "unknown"
+
+    # Validate the refresh token
+    user_token = validate_refresh_token(db, token_request.refresh_token)
+    if not user_token:
+        logger.warning(f"Invalid refresh token attempt from IP: {client_ip}")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired refresh token"
+        )
+
+    # Get the user
+    user = db.query(models.User).filter(models.User.id == user_token.user_id).first()
+    if not user or not user.is_active:
+        # Revoke the token if user is inactive or doesn't exist
+        revoke_refresh_token(db, token_request.refresh_token)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User account is not available"
+        )
+
+    # Revoke the old refresh token (token rotation)
+    revoke_refresh_token(db, token_request.refresh_token)
+
+    # Generate new tokens
+    access_token = create_access_token(data={"sub": user.username})
+    new_refresh_token = generate_refresh_token()
+    user_agent = request.headers.get("User-Agent", "Unknown")
+
+    # Store new refresh token
+    create_refresh_token_record(
+        db=db,
+        user_id=user.id,
+        token=new_refresh_token,
+        device_info=user_agent[:255] if user_agent else None,
+        ip_address=client_ip
+    )
+
+    logger.info(f"Token refreshed for user: {user.username} from IP: {client_ip}")
+
+    return {
+        "access_token": access_token,
+        "refresh_token": new_refresh_token,
+        "token_type": "bearer",
+        "expires_in": settings.access_token_expire_minutes * 60,
+        "user": {
+            "id": user.id,
+            "username": user.username,
+            "role": user.role,
+            "permissions": user.permissions or {}
+        }
+    }
+
+
+@router.post("/logout")
+async def logout(
+    request: Request,
+    token_request: schemas.RefreshTokenRequest,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user)
+):
+    """
+    Logout by revoking the refresh token.
+
+    The client should also discard the access token on their side.
+    """
+    client_ip = request.client.host if request.client else "unknown"
+
+    # Revoke the refresh token
+    revoked = revoke_refresh_token(db, token_request.refresh_token)
+
+    # Log logout
+    audit_log = models.AuditLog(
+        user_id=current_user.id,
+        username=current_user.username,
+        action="LOGOUT",
+        resource_type="auth",
+        ip_address=client_ip
+    )
+    db.add(audit_log)
+    db.commit()
+
+    logger.info(f"User logged out: {current_user.username} from IP: {client_ip}")
+
+    return {"message": "Logged out successfully"}
+
+
+@router.post("/logout-all")
+async def logout_all_devices(
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user)
+):
+    """
+    Logout from all devices by revoking all refresh tokens for the user.
+    """
+    client_ip = request.client.host if request.client else "unknown"
+
+    # Revoke all refresh tokens
+    count = revoke_all_user_tokens(db, current_user.id)
+
+    # Log logout all
+    audit_log = models.AuditLog(
+        user_id=current_user.id,
+        username=current_user.username,
+        action="LOGOUT_ALL",
+        resource_type="auth",
+        ip_address=client_ip,
+        extra_data={"tokens_revoked": count}
+    )
+    db.add(audit_log)
+    db.commit()
+
+    logger.info(f"User logged out from all devices: {current_user.username}, {count} tokens revoked")
+
+    return {"message": f"Logged out from all devices. {count} sessions terminated."}

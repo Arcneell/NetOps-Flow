@@ -578,7 +578,7 @@ def execute_script_task(
                     stderr = f"Unknown connection type: {equipment.connection_type}"
                     return_code = -1
         else:
-            # Local execution - use Docker sandbox if available
+            # Local execution - use Docker sandbox if required
             log_event("local_execution_start", filename=filename, sandboxed=DOCKER_SANDBOX_ENABLED)
 
             if DOCKER_SANDBOX_ENABLED:
@@ -589,17 +589,41 @@ def execute_script_task(
                             file_path, script_type, script_args
                         )
                     else:
-                        log_event("sandbox_unavailable", fallback="direct_execution")
-                        # Fallback to direct execution
-                        return_code, stdout, stderr = _execute_directly(
-                            file_path, script_type, script_args
+                        # SECURITY: Do not fall back to direct execution when sandbox is required
+                        log_event(
+                            "sandbox_required_unavailable",
+                            filename=filename,
+                            message="Docker sandbox is required but unavailable"
+                        )
+                        return_code = -1
+                        stdout = ""
+                        stderr = (
+                            "Security error: Docker sandbox is required for local script execution "
+                            "but is not available. Please ensure Docker is running and the sandbox "
+                            "image is built. Contact your administrator for assistance."
                         )
                 except Exception as e:
-                    log_event("sandbox_error", error=str(e), fallback="direct_execution")
-                    return_code, stdout, stderr = _execute_directly(
-                        file_path, script_type, script_args
+                    # SECURITY: Do not fall back to direct execution on sandbox errors
+                    log_event(
+                        "sandbox_required_error",
+                        filename=filename,
+                        error=str(e),
+                        message="Docker sandbox error - execution blocked"
+                    )
+                    return_code = -1
+                    stdout = ""
+                    stderr = (
+                        f"Security error: Docker sandbox execution failed. "
+                        f"Local script execution is blocked when DOCKER_SANDBOX_ENABLED=true. "
+                        f"Error: {str(e)}"
                     )
             else:
+                # Sandbox disabled - allow direct execution (development mode only)
+                log_event(
+                    "direct_execution_warning",
+                    filename=filename,
+                    message="Running script without sandbox - not recommended for production"
+                )
                 return_code, stdout, stderr = _execute_directly(
                     file_path, script_type, script_args
                 )

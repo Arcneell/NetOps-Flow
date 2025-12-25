@@ -46,7 +46,8 @@ class Settings(BaseSettings):
         description="JWT secret key (REQUIRED - must be set in environment)"
     )
     jwt_algorithm: str = Field(default="HS256")
-    access_token_expire_minutes: int = Field(default=480, ge=5, le=1440)
+    access_token_expire_minutes: int = Field(default=30, ge=5, le=1440)  # 30 minutes for access tokens
+    refresh_token_expire_days: int = Field(default=7, ge=1, le=30)  # 7 days for refresh tokens
     min_password_length: int = Field(default=8, ge=6, le=128)
 
     # Encryption (Fernet key for encrypting sensitive data)

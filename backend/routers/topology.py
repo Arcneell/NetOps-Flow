@@ -1,5 +1,6 @@
 """
 Topology Router - Network topology visualization with physical connectivity.
+With Redis caching for performance optimization.
 """
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
@@ -8,10 +9,14 @@ import logging
 
 from backend.core.database import get_db
 from backend.core.security import get_current_active_user
+from backend.core.cache import cache_get, cache_set, build_cache_key
 from backend import models
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/topology", tags=["Topology"])
+
+# Cache expiration in seconds (5 minutes)
+TOPOLOGY_CACHE_TTL = 300
 
 
 @router.get("")
@@ -20,9 +25,15 @@ def get_topology(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_active_user)
 ):
-    """Get network topology data for visualization."""
+    """Get network topology data for visualization with caching."""
     if current_user.role != "admin" and not current_user.permissions.get("topology"):
         raise HTTPException(status_code=403, detail="Permission denied")
+
+    # Try to get from cache first
+    cache_key = build_cache_key("topology", "network", include_physical=include_physical)
+    cached_data = cache_get(cache_key)
+    if cached_data:
+        return cached_data
 
     subnets = db.query(models.Subnet).all()
 
@@ -77,7 +88,12 @@ def get_topology(
         nodes.extend(physical_data["nodes"])
         edges.extend(physical_data["edges"])
 
-    return {"nodes": nodes, "edges": edges}
+    result = {"nodes": nodes, "edges": edges}
+
+    # Cache the result
+    cache_set(cache_key, result, TOPOLOGY_CACHE_TTL)
+
+    return result
 
 
 @router.get("/physical")
@@ -85,11 +101,22 @@ def get_physical_topology(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_active_user)
 ):
-    """Get physical network topology (equipment and port connections)."""
+    """Get physical network topology (equipment and port connections) with caching."""
     if current_user.role != "admin" and not current_user.permissions.get("topology"):
         raise HTTPException(status_code=403, detail="Permission denied")
 
-    return _get_physical_topology(db)
+    # Try to get from cache first
+    cache_key = build_cache_key("topology", "physical")
+    cached_data = cache_get(cache_key)
+    if cached_data:
+        return cached_data
+
+    result = _get_physical_topology(db)
+
+    # Cache the result
+    cache_set(cache_key, result, TOPOLOGY_CACHE_TTL)
+
+    return result
 
 
 def _get_physical_topology(db: Session):

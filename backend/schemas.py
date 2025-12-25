@@ -9,6 +9,18 @@ class Token(BaseModel):
     token_type: str
     user: Optional[Dict[str, Any]] = None
 
+class TokenWithRefresh(BaseModel):
+    """Token response including refresh token."""
+    access_token: str
+    refresh_token: str
+    token_type: str = "bearer"
+    expires_in: int  # Access token expiration in seconds
+    user: Optional[Dict[str, Any]] = None
+
+class RefreshTokenRequest(BaseModel):
+    """Request to refresh access token."""
+    refresh_token: str
+
 class TokenData(BaseModel):
     username: Optional[str] = None
 

@@ -33,6 +33,8 @@ def get_user_entity_filter(current_user: models.User):
 
 @router.get("/", response_model=List[schemas.SoftwareWithCompliance])
 def list_software(
+    skip: int = 0,
+    limit: int = 100,
     category: str = None,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_active_user)
@@ -49,7 +51,7 @@ def list_software(
     if category:
         query = query.filter(models.Software.category == category)
 
-    software_list = query.order_by(models.Software.name).all()
+    software_list = query.order_by(models.Software.name).offset(skip).limit(limit).all()
 
     result = []
     for sw in software_list:

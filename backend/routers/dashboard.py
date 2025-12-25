@@ -1,5 +1,6 @@
 """
 Dashboard Router - Statistics, alerts and overview.
+With Redis caching for performance optimization.
 """
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
@@ -8,9 +9,13 @@ from datetime import datetime, timedelta, date
 
 from backend.core.database import get_db
 from backend.core.security import get_current_active_user
+from backend.core.cache import cache_get, cache_set, build_cache_key
 from backend import models
 
 router = APIRouter(prefix="/dashboard", tags=["Dashboard"])
+
+# Cache expiration in seconds (5 minutes)
+DASHBOARD_CACHE_TTL = 300
 
 
 @router.get("/stats")
@@ -18,7 +23,13 @@ def get_stats(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_active_user)
 ):
-    """Get comprehensive dashboard statistics."""
+    """Get comprehensive dashboard statistics with caching."""
+
+    # Try to get from cache first
+    cache_key = build_cache_key("dashboard", "stats")
+    cached_data = cache_get(cache_key)
+    if cached_data:
+        return cached_data
 
     # Basic counts
     subnets_count = db.query(models.Subnet).count()
@@ -128,7 +139,7 @@ def get_stats(
         )
     ).count()
 
-    return {
+    stats = {
         # Network
         "subnets": subnets_count,
         "ips_total": ips_total,
@@ -177,6 +188,11 @@ def get_stats(
         # Users
         "users": users_count
     }
+
+    # Cache the result
+    cache_set(cache_key, stats, DASHBOARD_CACHE_TTL)
+
+    return stats
 
 
 @router.get("/alerts")

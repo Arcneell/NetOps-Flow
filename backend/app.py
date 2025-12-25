@@ -10,6 +10,7 @@ from backend.core.config import get_settings
 from backend.core.logging import setup_logging
 from backend.core.database import init_db, SessionLocal
 from backend.core.security import get_password_hash
+from backend.core.middleware import add_audit_middleware
 from backend import models
 from backend.routers import (
     auth_router,
@@ -99,6 +100,9 @@ def create_app() -> FastAPI:
         allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
         allow_headers=["Authorization", "Content-Type"],
     )
+
+    # Audit Logging Middleware for POST/PUT/DELETE actions
+    add_audit_middleware(app)
 
     # Register routers with API prefix
     api_prefix = "/api/v1"

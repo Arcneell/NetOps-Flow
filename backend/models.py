@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, Text, Float, Date, Numeric, UniqueConstraint
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, Text, Float, Date, Numeric, UniqueConstraint, event
 from sqlalchemy.dialects.postgresql import INET, JSON
 from sqlalchemy.orm import relationship
 from datetime import datetime, timezone
@@ -8,6 +8,24 @@ from backend.core.database import Base
 def utc_now():
     """Get current UTC time with timezone awareness."""
     return datetime.now(timezone.utc)
+
+
+def _encrypt_sensitive_field(value: str) -> str:
+    """Encrypt a sensitive field value if not already encrypted."""
+    if not value:
+        return value
+    # Check if already encrypted (Fernet tokens start with 'gAAAA')
+    if value.startswith('gAAAA'):
+        return value
+    from backend.core.security import encrypt_value
+    return encrypt_value(value)
+
+
+def _is_encrypted(value: str) -> bool:
+    """Check if a value appears to be Fernet-encrypted."""
+    if not value:
+        return False
+    return value.startswith('gAAAA')
 
 
 # ==================== MULTI-ENTITY MODEL ====================
@@ -50,6 +68,26 @@ class User(Base):
     totp_secret = Column(String, nullable=True)  # Encrypted TOTP secret
 
     entity = relationship("Entity", back_populates="users")
+    refresh_tokens = relationship("UserToken", back_populates="user", cascade="all, delete-orphan")
+
+
+class UserToken(Base):
+    """
+    Stores refresh tokens for secure token renewal.
+    Each refresh token is tied to a user and has an expiration.
+    """
+    __tablename__ = "user_tokens"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    token_hash = Column(String, unique=True, nullable=False, index=True)  # SHA256 hash of the token
+    expires_at = Column(DateTime, nullable=False)
+    created_at = Column(DateTime, default=utc_now)
+    revoked = Column(Boolean, default=False)
+    device_info = Column(String, nullable=True)  # User agent or device identifier
+    ip_address = Column(String, nullable=True)  # IP address of the client
+
+    user = relationship("User", back_populates="refresh_tokens")
 
 
 class Subnet(Base):
@@ -238,6 +276,22 @@ class Equipment(Base):
     software_installations = relationship("SoftwareInstallation", back_populates="equipment", cascade="all, delete-orphan")
     attachments = relationship("Attachment", back_populates="equipment", cascade="all, delete-orphan")
     contracts = relationship("ContractEquipment", back_populates="equipment")
+
+
+# ==================== EQUIPMENT ENCRYPTION HOOKS ====================
+
+@event.listens_for(Equipment, 'before_insert')
+def encrypt_equipment_password_on_insert(mapper, connection, target):
+    """Automatically encrypt remote_password before inserting Equipment."""
+    if target.remote_password and not _is_encrypted(target.remote_password):
+        target.remote_password = _encrypt_sensitive_field(target.remote_password)
+
+
+@event.listens_for(Equipment, 'before_update')
+def encrypt_equipment_password_on_update(mapper, connection, target):
+    """Automatically encrypt remote_password before updating Equipment."""
+    if target.remote_password and not _is_encrypted(target.remote_password):
+        target.remote_password = _encrypt_sensitive_field(target.remote_password)
 
 
 # ==================== DCIM MODELS ====================

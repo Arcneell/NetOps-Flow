@@ -1,8 +1,10 @@
 """
-Security utilities: JWT, password hashing, and encryption.
+Security utilities: JWT, password hashing, encryption, and refresh tokens.
 """
 from datetime import datetime, timedelta
-from typing import Optional
+from typing import Optional, Tuple
+import secrets
+import hashlib
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 from cryptography.fernet import Fernet, InvalidToken
@@ -198,3 +200,137 @@ def verify_totp_code(secret: str, code: str) -> bool:
     except Exception as e:
         logger.error(f"TOTP verification error: {e}")
         return False
+
+
+# ==================== REFRESH TOKEN FUNCTIONS ====================
+
+def generate_refresh_token() -> str:
+    """Generate a cryptographically secure refresh token."""
+    return secrets.token_urlsafe(64)
+
+
+def hash_refresh_token(token: str) -> str:
+    """Hash a refresh token for secure storage."""
+    return hashlib.sha256(token.encode()).hexdigest()
+
+
+def create_refresh_token_record(
+    db: Session,
+    user_id: int,
+    token: str,
+    device_info: Optional[str] = None,
+    ip_address: Optional[str] = None
+) -> "models.UserToken":
+    """
+    Create and store a new refresh token for a user.
+
+    Args:
+        db: Database session
+        user_id: ID of the user
+        token: The raw refresh token (will be hashed before storage)
+        device_info: Optional device information (User-Agent)
+        ip_address: Optional client IP address
+
+    Returns:
+        The created UserToken model instance
+    """
+    token_hash = hash_refresh_token(token)
+    expires_at = datetime.utcnow() + timedelta(days=settings.refresh_token_expire_days)
+
+    user_token = models.UserToken(
+        user_id=user_id,
+        token_hash=token_hash,
+        expires_at=expires_at,
+        device_info=device_info,
+        ip_address=ip_address
+    )
+    db.add(user_token)
+    db.commit()
+    db.refresh(user_token)
+
+    logger.info(f"Refresh token created for user_id={user_id}")
+    return user_token
+
+
+def validate_refresh_token(db: Session, token: str) -> Optional["models.UserToken"]:
+    """
+    Validate a refresh token and return the token record if valid.
+
+    Args:
+        db: Database session
+        token: The raw refresh token to validate
+
+    Returns:
+        The UserToken record if valid, None otherwise
+    """
+    token_hash = hash_refresh_token(token)
+    user_token = db.query(models.UserToken).filter(
+        models.UserToken.token_hash == token_hash,
+        models.UserToken.revoked == False,
+        models.UserToken.expires_at > datetime.utcnow()
+    ).first()
+
+    return user_token
+
+
+def revoke_refresh_token(db: Session, token: str) -> bool:
+    """
+    Revoke a refresh token.
+
+    Args:
+        db: Database session
+        token: The raw refresh token to revoke
+
+    Returns:
+        True if token was found and revoked, False otherwise
+    """
+    token_hash = hash_refresh_token(token)
+    user_token = db.query(models.UserToken).filter(
+        models.UserToken.token_hash == token_hash
+    ).first()
+
+    if user_token:
+        user_token.revoked = True
+        db.commit()
+        logger.info(f"Refresh token revoked for user_id={user_token.user_id}")
+        return True
+    return False
+
+
+def revoke_all_user_tokens(db: Session, user_id: int) -> int:
+    """
+    Revoke all refresh tokens for a user (e.g., on password change or logout all).
+
+    Args:
+        db: Database session
+        user_id: ID of the user
+
+    Returns:
+        Number of tokens revoked
+    """
+    result = db.query(models.UserToken).filter(
+        models.UserToken.user_id == user_id,
+        models.UserToken.revoked == False
+    ).update({"revoked": True})
+    db.commit()
+    logger.info(f"Revoked {result} refresh tokens for user_id={user_id}")
+    return result
+
+
+def cleanup_expired_tokens(db: Session) -> int:
+    """
+    Remove expired and revoked tokens from the database.
+
+    Args:
+        db: Database session
+
+    Returns:
+        Number of tokens deleted
+    """
+    result = db.query(models.UserToken).filter(
+        (models.UserToken.expires_at < datetime.utcnow()) |
+        (models.UserToken.revoked == True)
+    ).delete()
+    db.commit()
+    logger.info(f"Cleaned up {result} expired/revoked tokens")
+    return result

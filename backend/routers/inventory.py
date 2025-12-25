@@ -10,7 +10,6 @@ from backend.core.database import get_db
 from backend.core.security import (
     get_current_active_user,
     get_current_admin_user,
-    encrypt_value,
 )
 from backend import models, schemas
 
@@ -528,10 +527,8 @@ def create_equipment(
         if existing:
             raise HTTPException(status_code=400, detail="Asset tag already exists")
 
-    # Encrypt password if provided
+    # Password encryption is handled by SQLAlchemy event hooks in models.py
     equipment_data = equipment.model_dump()
-    if equipment_data.get("remote_password"):
-        equipment_data["remote_password"] = encrypt_value(equipment_data["remote_password"])
 
     # Set entity_id if not provided
     if not equipment_data.get("entity_id") and current_user.entity_id:
@@ -566,10 +563,7 @@ def update_equipment(
         raise HTTPException(status_code=403, detail="Access denied to this equipment")
 
     update_data = equipment.model_dump(exclude_unset=True)
-
-    # Encrypt password if being updated
-    if "remote_password" in update_data and update_data["remote_password"]:
-        update_data["remote_password"] = encrypt_value(update_data["remote_password"])
+    # Password encryption is handled by SQLAlchemy event hooks in models.py
 
     for key, value in update_data.items():
         setattr(db_equipment, key, value)

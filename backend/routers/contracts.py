@@ -33,6 +33,8 @@ def get_user_entity_filter(current_user: models.User):
 
 @router.get("/", response_model=List[schemas.ContractFull])
 def list_contracts(
+    skip: int = 0,
+    limit: int = 100,
     contract_type: str = None,
     supplier_id: int = None,
     active_only: bool = True,
@@ -61,7 +63,7 @@ def list_contracts(
             models.Contract.end_date >= today
         )
 
-    return query.order_by(models.Contract.end_date).all()
+    return query.order_by(models.Contract.end_date).offset(skip).limit(limit).all()
 
 
 @router.get("/expiring", response_model=List[schemas.ExpirationAlert])
