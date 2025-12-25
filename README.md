@@ -104,9 +104,12 @@ A self-hosted NetDevOps platform for network operations management, featuring IP
 
 ### Security
 - JWT-based authentication with short-lived access tokens (30 min) and refresh tokens (7 days)
-- **Two-Factor Authentication (MFA/TOTP)** using pyotp with encrypted secrets
-- **Automatic password encryption** via SQLAlchemy hooks for Equipment remote credentials
+- **Two-Factor Authentication (MFA/TOTP)** using pyotp with auto-encrypted secrets via SQLAlchemy hooks
+- **Automatic encryption** via SQLAlchemy hooks for Equipment passwords and User TOTP secrets
 - Fernet symmetric encryption for sensitive data (passwords, TOTP secrets)
+- **Mandatory secrets**: JWT_SECRET_KEY and ENCRYPTION_KEY required at startup (no fallback)
+- **Docker Secrets support**: Production-ready secret management via *_FILE environment variables
+- **Timezone-aware datetimes**: Using `datetime.now(timezone.utc)` for Python 3.12+ compatibility
 - CORS protection with configurable origins
 - Redis-based distributed rate limiting (5 requests per 60s on login)
 - Path traversal protection for file uploads
@@ -142,22 +145,22 @@ A self-hosted NetDevOps platform for network operations management, featuring IP
 
 | Component | Technology |
 |-----------|------------|
-| **Backend API** | FastAPI (Python 3.11) with modular routers |
+| **Backend API** | FastAPI (Python 3.11+) with lifespan context manager |
 | **Task Queue** | Celery + Redis |
 | **Database** | PostgreSQL 15 with SQLAlchemy ORM |
 | **Migrations** | Alembic |
 | **Frontend** | Vue.js 3 + Pinia + TailwindCSS + PrimeVue |
 | **i18n** | vue-i18n |
-| **Containerization** | Docker with multi-stage builds |
+| **Containerization** | Docker + Docker Compose (dev) / Docker Secrets (prod) |
 
 ### Backend Structure
 
 ```
 backend/
 ├── core/
-│   ├── config.py       # Pydantic Settings configuration
+│   ├── config.py       # Pydantic Settings (Docker secrets, URL validation)
 │   ├── database.py     # SQLAlchemy engine & session
-│   ├── security.py     # JWT, hashing, Fernet encryption, TOTP, refresh tokens
+│   ├── security.py     # JWT, hashing, Fernet encryption, TOTP (timezone-aware)
 │   ├── rate_limiter.py # Redis-based rate limiting
 │   ├── logging.py      # Structured JSON logging
 │   ├── cache.py        # Redis caching utilities
@@ -176,9 +179,9 @@ backend/
 │   ├── network_ports.py # Physical connectivity
 │   ├── attachments.py  # File attachments
 │   └── entities.py     # Multi-tenant entities
-├── models.py           # SQLAlchemy models
+├── models.py           # SQLAlchemy models (auto-encryption hooks)
 ├── schemas.py          # Pydantic schemas
-└── app.py              # FastAPI application factory
+└── app.py              # FastAPI app (lifespan context manager)
 ```
 
 ### Frontend Structure
@@ -249,8 +252,9 @@ frontend/src/
 | `POSTGRES_USER` | Database username | `netops` |
 | `POSTGRES_PASSWORD` | Database password | `netopspassword` |
 | `POSTGRES_DB` | Database name | `netops_flow` |
-| `JWT_SECRET_KEY` | Secret key for JWT tokens | (generated if not set) |
-| `ENCRYPTION_KEY` | Fernet key for password encryption | (optional) |
+| `JWT_SECRET_KEY` | Secret key for JWT tokens | **(REQUIRED)** |
+| `ENCRYPTION_KEY` | Fernet key for password encryption | **(REQUIRED)** |
+| `INITIAL_ADMIN_PASSWORD` | Initial admin password | (optional) |
 | `ALLOWED_ORIGINS` | CORS allowed origins | `http://localhost:3000` |
 | `VITE_API_URL` | Frontend API URL | `http://localhost:8000` |
 | `LOG_LEVEL` | Logging level | `INFO` |
@@ -260,11 +264,31 @@ frontend/src/
 | `DOCKER_SANDBOX_MEMORY` | Sandbox memory limit | `256m` |
 | `DOCKER_SANDBOX_CPU` | Sandbox CPU limit | `0.5` |
 
+### Docker Secrets (Production)
+
+For production deployments, secrets can be loaded from files using `*_FILE` environment variables:
+
+| Variable | Description |
+|----------|-------------|
+| `JWT_SECRET_KEY_FILE` | Path to file containing JWT secret |
+| `ENCRYPTION_KEY_FILE` | Path to file containing Fernet key |
+| `INITIAL_ADMIN_PASSWORD_FILE` | Path to file containing admin password |
+
+Example production deployment:
+```bash
+# Create secrets
+echo "your-jwt-secret" | docker secret create jwt_secret_key -
+echo "your-encryption-key" | docker secret create encryption_key -
+
+# Deploy with production compose file
+docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+```
+
 ## Default Credentials
 
 ### Application Login
 - **Username**: `admin`
-- **Password**: `admin`
+- **Password**: Set via `INITIAL_ADMIN_PASSWORD` environment variable
 - **MFA**: Disabled by default
 
 ### Database
