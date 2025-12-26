@@ -6,6 +6,7 @@
     :closable="true"
     :style="{ width: '450px' }"
     :breakpoints="{ '640px': '90vw' }"
+    @keydown.enter="onEnterKey"
   >
     <div class="flex items-start gap-4">
       <i
@@ -119,12 +120,19 @@ const computedConfirmLabel = computed(() => props.confirmLabel || t('common.conf
 const computedCancelLabel = computed(() => props.cancelLabel || t('common.cancel'))
 
 function handleConfirm() {
-  emit('confirm')
+  if (!props.loading) {
+    emit('confirm')
+  }
 }
 
 function handleCancel() {
   visible.value = false
   emit('cancel')
+}
+
+function onEnterKey(event) {
+  event.preventDefault()
+  handleConfirm()
 }
 </script>
 

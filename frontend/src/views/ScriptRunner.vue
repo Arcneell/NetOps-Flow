@@ -106,7 +106,7 @@
     </div>
 
     <!-- Run Script Dialog -->
-    <Dialog v-model:visible="showRunDialog" modal :header="t('scripts.runNow')" :style="{ width: '450px' }">
+    <Dialog v-model:visible="showRunDialog" modal :header="t('scripts.runNow')" :style="{ width: '450px' }" @keydown.enter="onRunDialogEnter">
         <div class="flex flex-col gap-4 mt-2" v-if="selectedScript">
             <p class="font-bold text-lg text-blue-500">{{ selectedScript.name }}</p>
 
@@ -135,7 +135,7 @@
     </Dialog>
 
     <!-- Delete Script Confirmation Dialog -->
-    <Dialog v-model:visible="showDeleteDialog" modal :header="t('common.confirmDelete')" :style="{ width: '350px' }">
+    <Dialog v-model:visible="showDeleteDialog" modal :header="t('common.confirmDelete')" :style="{ width: '350px' }" @keydown.enter="deleteScript">
         <div class="flex items-center gap-3">
             <i class="pi pi-exclamation-triangle text-red-500 text-2xl"></i>
             <span>{{ t('scripts.confirmDeleteScript') }} <b>{{ scriptToDelete?.name }}</b>?</span>
@@ -149,7 +149,7 @@
     </Dialog>
 
     <!-- Clear History Confirmation Dialog -->
-    <Dialog v-model:visible="showClearHistoryDialog" modal :header="t('common.confirmDelete')" :style="{ width: '350px' }">
+    <Dialog v-model:visible="showClearHistoryDialog" modal :header="t('common.confirmDelete')" :style="{ width: '350px' }" @keydown.enter="clearHistory">
         <div class="flex items-center gap-3">
             <i class="pi pi-exclamation-triangle text-red-500 text-2xl"></i>
             <span>{{ t('scripts.confirmDeleteHistory') }}</span>
@@ -163,7 +163,7 @@
     </Dialog>
 
     <!-- Access Denied Dialog -->
-    <Dialog v-model:visible="showAccessDeniedDialog" modal :header="t('auth.accessDenied')" :style="{ width: '350px' }">
+    <Dialog v-model:visible="showAccessDeniedDialog" modal :header="t('auth.accessDenied')" :style="{ width: '350px' }" @keydown.enter="showAccessDeniedDialog = false">
         <div class="flex flex-col items-center gap-3 text-center p-4">
             <div class="w-16 h-16 rounded-full bg-red-100 flex items-center justify-center mb-2">
                 <i class="pi pi-lock text-red-500 text-3xl"></i>
@@ -397,6 +397,14 @@ const getStatusSeverity = (status) => {
         case 'cancelled': return 'warning';
         case 'running': return 'info';
         default: return 'warning';
+    }
+};
+
+// Enter key handler for Run dialog
+const onRunDialogEnter = (event) => {
+    if (event.target.tagName !== 'TEXTAREA') {
+        event.preventDefault();
+        runScript();
     }
 };
 

@@ -59,7 +59,7 @@
     </div>
 
     <!-- Create Subnet Dialog -->
-    <Dialog v-model:visible="showSubnetDialog" modal :header="t('dashboard.newSubnet')" :style="{ width: '400px' }">
+    <Dialog v-model:visible="showSubnetDialog" modal :header="t('dashboard.newSubnet')" :style="{ width: '400px' }" @keydown.enter="onSubnetDialogEnter">
       <div class="flex flex-col gap-4 mt-2">
         <div class="flex flex-col gap-2">
           <label for="cidr" class="text-sm font-medium">{{ t('ipam.cidr') }} <span class="text-red-500">*</span></label>
@@ -83,7 +83,7 @@
     </Dialog>
 
     <!-- Create IP Dialog -->
-    <Dialog v-model:visible="showIpDialog" modal :header="t('ipam.manualIpAllocation')" :style="{ width: '400px' }">
+    <Dialog v-model:visible="showIpDialog" modal :header="t('ipam.manualIpAllocation')" :style="{ width: '400px' }" @keydown.enter="onIpDialogEnter">
       <div class="flex flex-col gap-4 mt-2" v-if="selectedSubnet">
         <div class="flex flex-col gap-2">
           <label for="ipaddr" class="text-sm font-medium">{{ t('ipam.ipAddress') }} <span class="text-red-500">*</span></label>
@@ -187,6 +187,21 @@ const getStatusSeverity = (status) => {
         case 'reserved': return 'warning';
         case 'available': return 'info';
         default: return null;
+    }
+};
+
+// Enter key handlers for dialogs
+const onSubnetDialogEnter = (event) => {
+    if (event.target.tagName !== 'TEXTAREA') {
+        event.preventDefault();
+        createSubnet();
+    }
+};
+
+const onIpDialogEnter = (event) => {
+    if (event.target.tagName !== 'TEXTAREA') {
+        event.preventDefault();
+        createIp();
     }
 };
 

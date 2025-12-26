@@ -74,7 +74,7 @@
       </div>
 
       <!-- Create User Dialog -->
-      <Dialog v-model:visible="showUserDialog" modal :header="t('settings.newUser')" :style="{ width: '500px' }">
+      <Dialog v-model:visible="showUserDialog" modal :header="t('settings.newUser')" :style="{ width: '500px' }" @keydown.enter="onUserDialogEnter">
           <div class="flex flex-col gap-4 mt-2">
               <div class="grid grid-cols-2 gap-4">
                   <div><label class="text-sm font-medium">{{ t('auth.username') }}</label><InputText v-model="newUser.username" class="w-full" /></div>
@@ -121,7 +121,7 @@
       </Dialog>
 
       <!-- Delete User Confirmation Dialog -->
-      <Dialog v-model:visible="showDeleteUserDialog" modal :header="t('users.deleteUser')" :style="{ width: '400px' }">
+      <Dialog v-model:visible="showDeleteUserDialog" modal :header="t('users.deleteUser')" :style="{ width: '400px' }" @keydown.enter="deleteUser">
           <div class="flex items-center gap-3">
               <i class="pi pi-exclamation-triangle text-red-500 text-2xl"></i>
               <span>{{ t('users.confirmDeleteUser') }} <b>{{ userToDelete?.username }}</b>?</span>
@@ -135,7 +135,7 @@
       </Dialog>
 
       <!-- MFA Setup Dialog -->
-      <Dialog v-model:visible="showMfaSetupDialog" modal :header="t('settings.enableMfa')" :style="{ width: '500px' }" @hide="resetMfaSetup">
+      <Dialog v-model:visible="showMfaSetupDialog" modal :header="t('settings.enableMfa')" :style="{ width: '500px' }" @hide="resetMfaSetup" @keydown.enter="onMfaSetupEnter">
           <div class="flex flex-col gap-4 mt-2">
               <!-- QR Code Display -->
               <div v-if="mfaQrCode" class="flex flex-col items-center gap-3 p-4 bg-white rounded-lg">
@@ -159,7 +159,7 @@
       </Dialog>
 
       <!-- MFA Disable Dialog -->
-      <Dialog v-model:visible="showDisableMfaDialog" modal :header="t('settings.disableMfa')" :style="{ width: '400px' }">
+      <Dialog v-model:visible="showDisableMfaDialog" modal :header="t('settings.disableMfa')" :style="{ width: '400px' }" @keydown.enter="onMfaDisableEnter">
           <div class="flex flex-col gap-4">
               <div class="flex items-center gap-3">
                   <i class="pi pi-exclamation-triangle text-orange-500 text-2xl"></i>
@@ -377,6 +377,28 @@ const resetMfaSetup = () => {
     mfaSecret.value = '';
     mfaQrCode.value = '';
     mfaVerificationCode.value = '';
+};
+
+// Enter key handlers for dialogs
+const onUserDialogEnter = (event) => {
+    if (event.target.tagName !== 'TEXTAREA') {
+        event.preventDefault();
+        createUser();
+    }
+};
+
+const onMfaSetupEnter = (event) => {
+    if (event.target.tagName !== 'TEXTAREA' && !enablingMfa.value) {
+        event.preventDefault();
+        enableMfa();
+    }
+};
+
+const onMfaDisableEnter = (event) => {
+    if (event.target.tagName !== 'TEXTAREA' && !disablingMfa.value) {
+        event.preventDefault();
+        disableMfa();
+    }
 };
 
 onMounted(loadData);

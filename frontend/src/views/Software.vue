@@ -118,7 +118,7 @@
     </div>
 
     <!-- Software Dialog -->
-    <Dialog v-model:visible="showSoftwareDialog" modal :header="editingSoftware ? t('software.editSoftware') : t('software.newSoftware')" :style="{ width: '500px' }">
+    <Dialog v-model:visible="showSoftwareDialog" modal :header="editingSoftware ? t('software.editSoftware') : t('software.newSoftware')" :style="{ width: '500px' }" @keydown.enter="onSoftwareDialogEnter">
       <div class="flex flex-col gap-4">
         <div>
           <label class="block text-sm font-medium mb-1">{{ t('common.name') }} <span class="text-red-500">*</span></label>
@@ -152,7 +152,7 @@
     </Dialog>
 
     <!-- Licenses Dialog -->
-    <Dialog v-model:visible="showLicensesDialog" modal :header="t('software.manageLicenses')" :style="{ width: '700px' }">
+    <Dialog v-model:visible="showLicensesDialog" modal :header="t('software.manageLicenses')" :style="{ width: '700px' }" @keydown.enter="onLicenseDialogEnter">
       <div v-if="selectedSoftware">
         <div class="p-3 rounded-lg mb-4 flex justify-between items-center" style="background-color: var(--bg-app);">
           <div>
@@ -226,7 +226,7 @@
     </Dialog>
 
     <!-- Installations Dialog -->
-    <Dialog v-model:visible="showInstallationsDialog" modal :header="t('software.installations')" :style="{ width: '700px' }">
+    <Dialog v-model:visible="showInstallationsDialog" modal :header="t('software.installations')" :style="{ width: '700px' }" @keydown.enter="onInstallationDialogEnter">
       <div v-if="selectedSoftware">
         <div class="p-3 rounded-lg mb-4 flex justify-between items-center" style="background-color: var(--bg-app);">
           <div>
@@ -501,6 +501,28 @@ const deleteInstallation = async (installationId) => {
     toast.add({ severity: 'success', summary: t('common.deleted'), detail: t('software.installationDeleted') });
   } catch (e) {
     toast.add({ severity: 'error', summary: t('common.error'), detail: e.response?.data?.detail || t('common.error') });
+  }
+};
+
+// Enter key handlers for dialogs
+const onSoftwareDialogEnter = (event) => {
+  if (event.target.tagName !== 'TEXTAREA') {
+    event.preventDefault();
+    saveSoftware();
+  }
+};
+
+const onLicenseDialogEnter = (event) => {
+  if (event.target.tagName !== 'TEXTAREA' && showLicenseForm.value) {
+    event.preventDefault();
+    addLicense();
+  }
+};
+
+const onInstallationDialogEnter = (event) => {
+  if (event.target.tagName !== 'TEXTAREA' && showInstallationForm.value) {
+    event.preventDefault();
+    addInstallation();
   }
 };
 

@@ -297,7 +297,7 @@
     </div>
 
     <!-- Equipment Dialog -->
-    <Dialog v-model:visible="showEquipmentDialog" modal :header="editingEquipment ? t('inventory.editEquipment') : t('inventory.newEquipment')" :style="{ width: '650px' }">
+    <Dialog v-model:visible="showEquipmentDialog" modal :header="editingEquipment ? t('inventory.editEquipment') : t('inventory.newEquipment')" :style="{ width: '650px' }" @keydown.enter="onEquipmentDialogEnter">
       <div class="grid grid-cols-2 gap-x-4 gap-y-4">
         <div class="col-span-2">
           <label class="block text-sm font-medium mb-1">{{ t('common.name') }} <span class="text-red-500">*</span></label>
@@ -407,7 +407,7 @@
     </Dialog>
 
     <!-- Manufacturer Dialog -->
-    <Dialog v-model:visible="showManufacturerDialog" modal :header="editingManufacturer ? t('common.edit') + ' ' + t('inventory.manufacturer') : t('inventory.newManufacturer')" :style="{ width: '450px' }">
+    <Dialog v-model:visible="showManufacturerDialog" modal :header="editingManufacturer ? t('common.edit') + ' ' + t('inventory.manufacturer') : t('inventory.newManufacturer')" :style="{ width: '450px' }" @keydown.enter="onManufacturerDialogEnter">
       <div class="flex flex-col gap-4">
         <div>
           <label class="block text-sm font-medium mb-1">{{ t('common.name') }} <span class="text-red-500">*</span></label>
@@ -431,7 +431,7 @@
     </Dialog>
 
     <!-- Model Dialog -->
-    <Dialog v-model:visible="showModelDialog" modal :header="editingModel ? t('common.edit') + ' ' + t('inventory.model') : t('inventory.newModel')" :style="{ width: '450px' }">
+    <Dialog v-model:visible="showModelDialog" modal :header="editingModel ? t('common.edit') + ' ' + t('inventory.model') : t('inventory.newModel')" :style="{ width: '450px' }" @keydown.enter="onModelDialogEnter">
       <div class="flex flex-col gap-4">
         <div>
           <label class="block text-sm font-medium mb-1">{{ t('common.name') }} <span class="text-red-500">*</span></label>
@@ -460,7 +460,7 @@
     </Dialog>
 
     <!-- Type Dialog -->
-    <Dialog v-model:visible="showTypeDialog" modal :header="editingType ? t('common.edit') + ' ' + t('inventory.type') : t('inventory.newType')" :style="{ width: '450px' }">
+    <Dialog v-model:visible="showTypeDialog" modal :header="editingType ? t('common.edit') + ' ' + t('inventory.type') : t('inventory.newType')" :style="{ width: '450px' }" @keydown.enter="onTypeDialogEnter">
       <div class="flex flex-col gap-4">
         <div>
           <label class="block text-sm font-medium mb-1">{{ t('common.name') }} <span class="text-red-500">*</span></label>
@@ -492,7 +492,7 @@
     </Dialog>
 
     <!-- Location Dialog -->
-    <Dialog v-model:visible="showLocationDialog" modal :header="editingLocation ? t('common.edit') + ' ' + t('inventory.location') : t('inventory.newLocation')" :style="{ width: '450px' }">
+    <Dialog v-model:visible="showLocationDialog" modal :header="editingLocation ? t('common.edit') + ' ' + t('inventory.location') : t('inventory.newLocation')" :style="{ width: '450px' }" @keydown.enter="onLocationDialogEnter">
       <div class="flex flex-col gap-4">
         <div>
           <label class="block text-sm font-medium mb-1">{{ t('inventory.site') }} <span class="text-red-500">*</span></label>
@@ -516,7 +516,7 @@
     </Dialog>
 
     <!-- Supplier Dialog -->
-    <Dialog v-model:visible="showSupplierDialog" modal :header="editingSupplier ? t('common.edit') + ' ' + t('inventory.supplier') : t('inventory.newSupplier')" :style="{ width: '500px' }">
+    <Dialog v-model:visible="showSupplierDialog" modal :header="editingSupplier ? t('common.edit') + ' ' + t('inventory.supplier') : t('inventory.newSupplier')" :style="{ width: '500px' }" @keydown.enter="onSupplierDialogEnter">
       <div class="flex flex-col gap-4">
         <div>
           <label class="block text-sm font-medium mb-1">{{ t('common.name') }} <span class="text-red-500">*</span></label>
@@ -550,7 +550,7 @@
     </Dialog>
 
     <!-- Link IP Dialog -->
-    <Dialog v-model:visible="showLinkIpDialog" modal :header="t('ip.linkIp')" :style="{ width: '450px' }">
+    <Dialog v-model:visible="showLinkIpDialog" modal :header="t('ip.linkIp')" :style="{ width: '450px' }" @keydown.enter="onLinkIpDialogEnter">
       <div v-if="linkingEquipment" class="flex flex-col gap-4">
         <div class="p-3 rounded-lg" style="background-color: var(--bg-app);">
           <span class="opacity-60">{{ t('inventory.equipment') }}:</span>
@@ -585,7 +585,7 @@
     </Dialog>
 
     <!-- Delete Equipment Confirmation -->
-    <Dialog v-model:visible="showDeleteEquipmentDialog" modal :header="t('common.confirmDelete')" :style="{ width: '400px' }">
+    <Dialog v-model:visible="showDeleteEquipmentDialog" modal :header="t('common.confirmDelete')" :style="{ width: '400px' }" @keydown.enter="deleteEquipment">
       <div class="flex items-start gap-4">
         <i class="pi pi-exclamation-triangle text-orange-500 text-3xl"></i>
         <div>
@@ -1079,6 +1079,56 @@ const deleteSupplier = async (id) => {
     loadData();
   } catch (e) {
     toast.add({ severity: 'error', summary: t('common.error'), detail: e.response?.data?.detail || t('messages.cannotDeleteHasItems') });
+  }
+};
+
+// Enter key handlers for dialogs
+const onEquipmentDialogEnter = (event) => {
+  if (event.target.tagName !== 'TEXTAREA') {
+    event.preventDefault();
+    saveEquipment();
+  }
+};
+
+const onManufacturerDialogEnter = (event) => {
+  if (event.target.tagName !== 'TEXTAREA') {
+    event.preventDefault();
+    saveManufacturer();
+  }
+};
+
+const onModelDialogEnter = (event) => {
+  if (event.target.tagName !== 'TEXTAREA') {
+    event.preventDefault();
+    saveModel();
+  }
+};
+
+const onTypeDialogEnter = (event) => {
+  if (event.target.tagName !== 'TEXTAREA') {
+    event.preventDefault();
+    saveType();
+  }
+};
+
+const onLocationDialogEnter = (event) => {
+  if (event.target.tagName !== 'TEXTAREA') {
+    event.preventDefault();
+    saveLocation();
+  }
+};
+
+const onSupplierDialogEnter = (event) => {
+  if (event.target.tagName !== 'TEXTAREA') {
+    event.preventDefault();
+    saveSupplier();
+  }
+};
+
+const onLinkIpDialogEnter = (event) => {
+  if (event.target.tagName !== 'TEXTAREA' && selectedIpToLink.value) {
+    event.preventDefault();
+    linkIp();
   }
 };
 

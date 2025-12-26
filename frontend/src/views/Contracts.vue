@@ -112,7 +112,7 @@
     </div>
 
     <!-- Contract Dialog -->
-    <Dialog v-model:visible="showContractDialog" modal :header="editingContract ? t('contracts.editContract') : t('contracts.newContract')" :style="{ width: '600px' }">
+    <Dialog v-model:visible="showContractDialog" modal :header="editingContract ? t('contracts.editContract') : t('contracts.newContract')" :style="{ width: '600px' }" @keydown.enter="onContractDialogEnter">
       <div class="grid grid-cols-2 gap-4">
         <div class="col-span-2">
           <label class="block text-sm font-medium mb-1">{{ t('common.name') }} <span class="text-red-500">*</span></label>
@@ -164,7 +164,7 @@
     </Dialog>
 
     <!-- Equipment Linking Dialog -->
-    <Dialog v-model:visible="showEquipmentDialog" modal :header="t('contracts.manageEquipment')" :style="{ width: '600px' }">
+    <Dialog v-model:visible="showEquipmentDialog" modal :header="t('contracts.manageEquipment')" :style="{ width: '600px' }" @keydown.enter="onEquipmentLinkDialogEnter">
       <div v-if="selectedContract">
         <div class="p-3 rounded-lg mb-4" style="background-color: var(--bg-app);">
           <span class="opacity-60">{{ t('contracts.title') }}:</span>
@@ -403,6 +403,21 @@ const unlinkEquipment = async (equipmentId) => {
     toast.add({ severity: 'success', summary: t('common.success'), detail: t('contracts.equipmentUnlinked') });
   } catch (e) {
     toast.add({ severity: 'error', summary: t('common.error'), detail: e.response?.data?.detail || t('common.error') });
+  }
+};
+
+// Enter key handlers for dialogs
+const onContractDialogEnter = (event) => {
+  if (event.target.tagName !== 'TEXTAREA') {
+    event.preventDefault();
+    saveContract();
+  }
+};
+
+const onEquipmentLinkDialogEnter = (event) => {
+  if (event.target.tagName !== 'TEXTAREA' && selectedEquipmentToLink.value) {
+    event.preventDefault();
+    linkEquipment();
   }
 };
 

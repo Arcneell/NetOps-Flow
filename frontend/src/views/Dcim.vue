@@ -228,7 +228,7 @@
     </div>
 
     <!-- Rack Dialog -->
-    <Dialog v-model:visible="showRackDialog" modal :header="editingRack ? t('dcim.editRack') : t('dcim.newRack')" :style="{ width: '500px' }">
+    <Dialog v-model:visible="showRackDialog" modal :header="editingRack ? t('dcim.editRack') : t('dcim.newRack')" :style="{ width: '500px' }" @keydown.enter="onRackDialogEnter">
       <div class="flex flex-col gap-4">
         <div>
           <label class="block text-sm font-medium mb-1">{{ t('common.name') }} <span class="text-red-500">*</span></label>
@@ -270,7 +270,7 @@
     </Dialog>
 
     <!-- PDU Dialog -->
-    <Dialog v-model:visible="showPduDialog" modal :header="editingPdu ? t('dcim.editPdu') : t('dcim.newPdu')" :style="{ width: '500px' }">
+    <Dialog v-model:visible="showPduDialog" modal :header="editingPdu ? t('dcim.editPdu') : t('dcim.newPdu')" :style="{ width: '500px' }" @keydown.enter="onPduDialogEnter">
       <div class="flex flex-col gap-4">
         <div>
           <label class="block text-sm font-medium mb-1">{{ t('common.name') }} <span class="text-red-500">*</span></label>
@@ -318,7 +318,7 @@
     </Dialog>
 
     <!-- Equipment Placement Dialog -->
-    <Dialog v-model:visible="showPlacementDialog" modal :header="t('dcim.placeEquipment')" :style="{ width: '400px' }">
+    <Dialog v-model:visible="showPlacementDialog" modal :header="t('dcim.placeEquipment')" :style="{ width: '400px' }" @keydown.enter="onPlacementDialogEnter">
       <div v-if="equipmentToPlace" class="flex flex-col gap-4">
         <div class="p-3 border rounded-lg" style="border-color: var(--border-color); background: var(--surface-100);">
           <div class="font-semibold">{{ equipmentToPlace.name }}</div>
@@ -340,7 +340,7 @@
     </Dialog>
 
     <!-- Equipment Edit Position Dialog -->
-    <Dialog v-model:visible="showEditPositionDialog" modal :header="t('dcim.editPosition')" :style="{ width: '400px' }">
+    <Dialog v-model:visible="showEditPositionDialog" modal :header="t('dcim.editPosition')" :style="{ width: '400px' }" @keydown.enter="onEditPositionDialogEnter">
       <div v-if="equipmentToEdit" class="flex flex-col gap-4">
         <div class="p-3 border rounded-lg" style="border-color: var(--border-color); background: var(--surface-100);">
           <div class="font-semibold">{{ equipmentToEdit.name }}</div>
@@ -708,6 +708,35 @@ const placeEquipment = async () => {
     loadRackLayout();
   } catch (e) {
     toast.add({ severity: 'error', summary: t('common.error'), detail: e.response?.data?.detail || t('common.error') });
+  }
+};
+
+// Enter key handlers for dialogs
+const onRackDialogEnter = (event) => {
+  if (event.target.tagName !== 'TEXTAREA') {
+    event.preventDefault();
+    saveRack();
+  }
+};
+
+const onPduDialogEnter = (event) => {
+  if (event.target.tagName !== 'TEXTAREA') {
+    event.preventDefault();
+    savePdu();
+  }
+};
+
+const onPlacementDialogEnter = (event) => {
+  if (event.target.tagName !== 'TEXTAREA') {
+    event.preventDefault();
+    placeEquipment();
+  }
+};
+
+const onEditPositionDialogEnter = (event) => {
+  if (event.target.tagName !== 'TEXTAREA') {
+    event.preventDefault();
+    updateEquipmentPosition();
   }
 };
 

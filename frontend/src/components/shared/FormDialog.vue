@@ -6,10 +6,9 @@
     :closable="true"
     :style="{ width: width }"
     :breakpoints="{ '960px': '75vw', '640px': '95vw' }"
+    @keydown.enter.prevent="onEnterKey"
   >
-    <form @submit.prevent="handleSubmit">
-      <slot />
-    </form>
+    <slot />
 
     <template #footer>
       <div class="flex justify-between items-center w-full">
@@ -90,7 +89,17 @@ const computedSubmitLabel = computed(() => props.submitLabel || t('common.save')
 const computedCancelLabel = computed(() => props.cancelLabel || t('common.cancel'))
 
 function handleSubmit() {
-  emit('submit')
+  if (!props.disabled && !props.loading) {
+    emit('submit')
+  }
+}
+
+function onEnterKey(event) {
+  // Don't submit if focus is on a textarea (allow multiline input)
+  if (event.target.tagName === 'TEXTAREA') {
+    return
+  }
+  handleSubmit()
 }
 
 function handleCancel() {
