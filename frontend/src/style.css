@@ -193,7 +193,8 @@ html {
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     scroll-behavior: smooth;
-    overflow-x: hidden;
+    overflow: hidden;
+    height: 100%;
 }
 
 body {
@@ -204,8 +205,13 @@ body {
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
     line-height: 1.5;
-    min-height: 100vh;
-    overflow-x: hidden;
+    height: 100%;
+    overflow: hidden;
+}
+
+#app {
+    height: 100%;
+    overflow: hidden;
 }
 
 /* Selection */
@@ -714,17 +720,17 @@ a:hover {
     background: var(--bg-secondary) !important;
     padding: 1.25rem 1.75rem !important;
     border-top: 1px solid var(--border-default) !important;
-    display: flex !important;
+}
+
+/* Target the flex container inside footer and make cancel button go left, save button go right */
+.p-dialog-footer > .flex {
+    width: 100% !important;
     justify-content: space-between !important;
-    align-items: center !important;
 }
 
-.p-dialog-footer > *:first-child {
-    margin-right: auto !important;
-}
-
-.p-dialog-footer > *:last-child {
-    margin-left: auto !important;
+/* Remove gap when using space-between layout */
+.p-dialog-footer > .flex.gap-3 {
+    gap: 0 !important;
 }
 
 /* Dialog Mask */
@@ -889,6 +895,15 @@ a:hover {
 /* =========================================
    9. SCROLLBAR
    ========================================= */
+
+/* Prevent overscroll bounce/white space */
+.custom-scrollbar,
+.overflow-auto,
+.overflow-y-auto,
+.overflow-x-auto {
+    overscroll-behavior: contain;
+}
+
 .custom-scrollbar::-webkit-scrollbar {
     width: 6px;
     height: 6px;
