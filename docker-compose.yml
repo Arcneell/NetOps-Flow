@@ -1,5 +1,6 @@
 # =============================================================================
-# NetOps-Flow Docker Compose
+# Inframate - Your Infrastructure Companion
+# Docker Compose Configuration
 # =============================================================================
 
 services:
@@ -8,31 +9,31 @@ services:
   # ---------------------------------------------------------------------------
   db:
     image: postgres:15-alpine
-    container_name: netops-db
+    container_name: inframate-db
     restart: unless-stopped
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-netops}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-netopspassword}
-      POSTGRES_DB: ${POSTGRES_DB:-netops_flow}
+      POSTGRES_USER: ${POSTGRES_USER:-inframate}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-inframatepassword}
+      POSTGRES_DB: ${POSTGRES_DB:-inframate}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
       - "${DB_PORT:-5432}:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-netops} -d ${POSTGRES_DB:-netops_flow}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-inframate} -d ${POSTGRES_DB:-inframate}"]
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 30s
     networks:
-      - netops-network
+      - inframate-network
 
   # ---------------------------------------------------------------------------
   # Redis Cache & Message Broker
   # ---------------------------------------------------------------------------
   redis:
     image: redis:7-alpine
-    container_name: netops-redis
+    container_name: inframate-redis
     restart: unless-stopped
     command: redis-server --appendonly yes --maxmemory 128mb --maxmemory-policy allkeys-lru
     volumes:
@@ -43,7 +44,7 @@ services:
       timeout: 5s
       retries: 5
     networks:
-      - netops-network
+      - inframate-network
 
   # ---------------------------------------------------------------------------
   # Backend API
@@ -52,7 +53,7 @@ services:
     build:
       context: .
       dockerfile: backend/Dockerfile
-    container_name: netops-backend
+    container_name: inframate-backend
     restart: unless-stopped
     entrypoint: ["/bin/bash", "/app/backend/entrypoint.sh"]
     command: uvicorn backend.app:app --host 0.0.0.0 --port 8000 --reload
@@ -85,7 +86,7 @@ services:
     ports:
       - "${BACKEND_PORT:-8000}:8000"
     networks:
-      - netops-network
+      - inframate-network
 
   # ---------------------------------------------------------------------------
   # Celery Worker
@@ -94,7 +95,7 @@ services:
     build:
       context: .
       dockerfile: backend/Dockerfile
-    container_name: netops-worker
+    container_name: inframate-worker
     restart: unless-stopped
     command: celery -A worker.tasks.celery_app worker --loglevel=info
     volumes:
@@ -124,7 +125,7 @@ services:
       retries: 3
       start_period: 30s
     networks:
-      - netops-network
+      - inframate-network
 
   # ---------------------------------------------------------------------------
   # Frontend
@@ -133,7 +134,7 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    container_name: netops-frontend
+    container_name: inframate-frontend
     restart: unless-stopped
     volumes:
       - ./frontend:/app
@@ -143,13 +144,13 @@ services:
     environment:
       - VITE_API_URL=${VITE_API_URL:-http://localhost:8000}
     networks:
-      - netops-network
+      - inframate-network
 
 # =============================================================================
 # Networks
 # =============================================================================
 networks:
-  netops-network:
+  inframate-network:
     driver: bridge
 
 # =============================================================================
