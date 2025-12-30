@@ -71,7 +71,7 @@
         <Column style="width: 60px">
           <template #body="slotProps">
             <div class="w-10 h-10 rounded-full overflow-hidden bg-slate-700 flex items-center justify-center">
-              <img v-if="slotProps.data.avatar" :src="`/api/v1/avatars/${slotProps.data.avatar}`"
+              <img v-if="slotProps.data.avatar" :src="getAvatarUrl(slotProps.data.avatar)"
                    class="w-full h-full object-cover" alt="">
               <div v-else class="w-full h-full flex items-center justify-center bg-gradient-to-br from-sky-500 to-blue-600">
                 <span class="text-sm font-bold text-white">{{ getUserInitials(slotProps.data.username) }}</span>
@@ -151,8 +151,19 @@
             <span v-if="!editingUser" class="text-red-500">*</span>
             <span v-else class="text-xs opacity-50 ml-1">({{ t('users.leaveBlankToKeep') }})</span>
           </label>
-          <Password v-model="userForm.password" toggleMask class="w-full" inputClass="w-full" :feedback="false" />
-          <small class="text-xs opacity-50">{{ t('validation.passwordMinLength', { min: 8 }) }}</small>
+          <Password v-model="userForm.password" toggleMask class="w-full" inputClass="w-full" :feedback="false"
+                    :class="{ 'p-invalid': userForm.password && userForm.password.length > 0 && userForm.password.length < 8 }" />
+          <small v-if="userForm.password && userForm.password.length > 0 && userForm.password.length < 8"
+                 class="text-xs text-red-500 flex items-center gap-1 mt-1">
+            <i class="pi pi-exclamation-circle"></i>
+            {{ t('validation.passwordTooShort') }}
+          </small>
+          <small v-else-if="userForm.password && userForm.password.length >= 8"
+                 class="text-xs text-green-500 flex items-center gap-1 mt-1">
+            <i class="pi pi-check-circle"></i>
+            {{ t('validation.passwordMinLength', { min: 8 }) }}
+          </small>
+          <small v-else class="text-xs opacity-50">{{ t('validation.passwordMinLength', { min: 8 }) }}</small>
         </div>
 
         <div>
@@ -244,9 +255,16 @@ const adminCount = computed(() => users.value.filter(u => u.role === 'admin').le
 const userCount = computed(() => users.value.filter(u => u.role === 'user').length);
 const mfaEnabledCount = computed(() => users.value.filter(u => u.mfa_enabled).length);
 
+const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+
 const getUserInitials = (username) => {
   if (!username) return '??';
   return username.substring(0, 2).toUpperCase();
+};
+
+const getAvatarUrl = (avatar) => {
+  if (!avatar) return null;
+  return `${apiUrl}/api/v1/avatars/${avatar}`;
 };
 
 const formatDate = (dateStr) => {

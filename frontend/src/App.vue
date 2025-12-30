@@ -103,7 +103,7 @@
       <div class="sidebar-footer">
         <router-link to="/settings" class="flex items-center gap-3 flex-1 min-w-0 hover:opacity-80 transition-opacity">
           <div class="user-avatar-container">
-            <img v-if="user.avatar" :src="`/api/v1/avatars/${user.avatar}`" class="user-avatar-img" alt="">
+            <img v-if="user.avatar" :src="`${apiUrl}/api/v1/avatars/${user.avatar}`" class="user-avatar-img" alt="">
             <div v-else class="user-avatar">
               {{ userInitials }}
             </div>
@@ -201,6 +201,7 @@ const route = useRoute();
 const router = useRouter();
 const user = ref({ username: '', role: '', permissions: {} });
 const isDark = ref(false);
+const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 const isLoginPage = computed(() => route.path === '/login' || route.path === '/unauthorized');
 const isAdmin = computed(() => user.value.role === 'admin');

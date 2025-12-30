@@ -74,13 +74,35 @@
         <div>
           <label class="block text-sm font-medium mb-1 opacity-70">{{ t('settings.newPassword') }}</label>
           <Password v-model="newPassword" toggleMask class="w-full" inputClass="w-full" :feedback="false"
-                    :placeholder="t('settings.newPasswordPlaceholder')" />
-          <small class="text-xs opacity-50">{{ t('validation.passwordMinLength', { min: 8 }) }}</small>
+                    :placeholder="t('settings.newPasswordPlaceholder')"
+                    :class="{ 'p-invalid': newPassword && newPassword.length > 0 && newPassword.length < 8 }" />
+          <small v-if="newPassword && newPassword.length > 0 && newPassword.length < 8"
+                 class="text-xs text-red-500 flex items-center gap-1 mt-1">
+            <i class="pi pi-exclamation-circle"></i>
+            {{ t('validation.passwordTooShort') }}
+          </small>
+          <small v-else-if="newPassword && newPassword.length >= 8"
+                 class="text-xs text-green-500 flex items-center gap-1 mt-1">
+            <i class="pi pi-check-circle"></i>
+            {{ t('validation.passwordMinLength', { min: 8 }) }}
+          </small>
+          <small v-else class="text-xs opacity-50">{{ t('validation.passwordMinLength', { min: 8 }) }}</small>
         </div>
         <div>
           <label class="block text-sm font-medium mb-1 opacity-70">{{ t('settings.confirmPassword') }}</label>
           <Password v-model="confirmPassword" toggleMask class="w-full" inputClass="w-full" :feedback="false"
-                    :placeholder="t('settings.confirmPasswordPlaceholder')" />
+                    :placeholder="t('settings.confirmPasswordPlaceholder')"
+                    :class="{ 'p-invalid': confirmPassword && newPassword && confirmPassword !== newPassword }" />
+          <small v-if="confirmPassword && newPassword && confirmPassword !== newPassword"
+                 class="text-xs text-red-500 flex items-center gap-1 mt-1">
+            <i class="pi pi-exclamation-circle"></i>
+            {{ t('settings.passwordMismatch') }}
+          </small>
+          <small v-else-if="confirmPassword && newPassword && confirmPassword === newPassword && newPassword.length >= 8"
+                 class="text-xs text-green-500 flex items-center gap-1 mt-1">
+            <i class="pi pi-check-circle"></i>
+            {{ t('common.success') }}
+          </small>
         </div>
       </div>
 
@@ -211,9 +233,11 @@ const userInitials = computed(() => {
   return currentUser.value.username.substring(0, 2).toUpperCase();
 });
 
+const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+
 const avatarUrl = computed(() => {
   if (!currentUser.value?.avatar) return null;
-  return `/api/v1/avatars/${currentUser.value.avatar}`;
+  return `${apiUrl}/api/v1/avatars/${currentUser.value.avatar}`;
 });
 
 const formatDate = (dateStr) => {
