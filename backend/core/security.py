@@ -168,14 +168,14 @@ def generate_totp_secret() -> str:
     return pyotp.random_base32()
 
 
-def get_totp_uri(username: str, secret: str, issuer: str = "NetOps-Flow") -> str:
+def get_totp_uri(username: str, secret: str, issuer: str = "Inframate") -> str:
     """
     Generate a TOTP provisioning URI for QR code generation.
 
     Args:
         username: User's username
         secret: TOTP secret key
-        issuer: Application name (default: "NetOps-Flow")
+        issuer: Application name (default: "Inframate")
 
     Returns:
         Provisioning URI string for QR code
