@@ -32,7 +32,7 @@ class Settings(BaseSettings):
     # Database - stored as string to support special characters in passwords
     # Format validation is done via field_validator
     database_url: str = Field(
-        default="postgresql://netops:netopspassword@localhost:5432/netops_flow",
+        default="postgresql://inframate:inframatepassword@localhost:5432/inframate",
         description="PostgreSQL connection URL"
     )
     db_pool_size: int = Field(default=5, ge=1, le=20)
@@ -99,7 +99,7 @@ class Settings(BaseSettings):
 
     # Docker Sandboxing
     docker_sandbox_enabled: bool = Field(default=True)
-    docker_sandbox_image: str = Field(default="netops-sandbox:latest")
+    docker_sandbox_image: str = Field(default="inframate-sandbox:latest")
     docker_sandbox_memory_limit: str = Field(default="256m")
     docker_sandbox_cpu_limit: float = Field(default=0.5, ge=0.1, le=4.0)
     docker_sandbox_timeout: int = Field(default=300, ge=30, le=3600)

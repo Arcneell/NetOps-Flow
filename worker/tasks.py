@@ -31,7 +31,7 @@ def get_json_logger():
 CELERY_BROKER_URL = os.environ.get("CELERY_BROKER_URL", "redis://localhost:6379/0")
 CELERY_RESULT_BACKEND = os.environ.get("CELERY_RESULT_BACKEND", "redis://localhost:6379/0")
 
-celery_app = Celery("netops_worker", broker=CELERY_BROKER_URL, backend=CELERY_RESULT_BACKEND)
+celery_app = Celery("inframate_worker", broker=CELERY_BROKER_URL, backend=CELERY_RESULT_BACKEND)
 
 # Configuration
 SCRIPTS_DIR = os.environ.get("SCRIPTS_DIR", "/scripts_storage")
@@ -43,7 +43,7 @@ MAX_OUTPUT_SIZE = int(os.environ.get("MAX_OUTPUT_SIZE", str(1024 * 1024)))
 
 # Docker Sandboxing Configuration
 DOCKER_SANDBOX_ENABLED = os.environ.get("DOCKER_SANDBOX_ENABLED", "true").lower() == "true"
-DOCKER_SANDBOX_IMAGE = os.environ.get("DOCKER_SANDBOX_IMAGE", "netops-sandbox:latest")
+DOCKER_SANDBOX_IMAGE = os.environ.get("DOCKER_SANDBOX_IMAGE", "inframate-sandbox:latest")
 DOCKER_SANDBOX_MEMORY = os.environ.get("DOCKER_SANDBOX_MEMORY", "256m")
 DOCKER_SANDBOX_CPU = float(os.environ.get("DOCKER_SANDBOX_CPU", "0.5"))
 DOCKER_SANDBOX_NETWORK = os.environ.get("DOCKER_SANDBOX_NETWORK", "none")

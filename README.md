@@ -251,9 +251,9 @@ frontend/src/
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `POSTGRES_USER` | Database username | `netops` |
-| `POSTGRES_PASSWORD` | Database password | `netopspassword` |
-| `POSTGRES_DB` | Database name | `netops_flow` |
+| `POSTGRES_USER` | Database username | `inframate` |
+| `POSTGRES_PASSWORD` | Database password | `inframatepassword` |
+| `POSTGRES_DB` | Database name | `inframate` |
 | `JWT_SECRET_KEY` | Secret key for JWT tokens | **(REQUIRED)** |
 | `ENCRYPTION_KEY` | Fernet key for password encryption | **(REQUIRED)** |
 | `INITIAL_ADMIN_PASSWORD` | Initial admin password | (optional) |
@@ -262,7 +262,7 @@ frontend/src/
 | `LOG_LEVEL` | Logging level | `INFO` |
 | `LOG_FORMAT` | Log format (text/json) | `text` |
 | `DOCKER_SANDBOX_ENABLED` | Enable Docker sandboxing | `true` |
-| `DOCKER_SANDBOX_IMAGE` | Sandbox Docker image | `netops-sandbox:latest` |
+| `DOCKER_SANDBOX_IMAGE` | Sandbox Docker image | `inframate-sandbox:latest` |
 | `DOCKER_SANDBOX_MEMORY` | Sandbox memory limit | `256m` |
 | `DOCKER_SANDBOX_CPU` | Sandbox CPU limit | `0.5` |
 
@@ -294,9 +294,9 @@ docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 - **MFA**: Disabled by default
 
 ### Database
-- **Username**: `netops`
-- **Password**: `netopspassword`
-- **Database**: `netops_flow`
+- **Username**: `inframate`
+- **Password**: `inframatepassword`
+- **Database**: `inframate`
 
 > **Important**: Change the default credentials immediately after installation for security purposes.
 
@@ -335,7 +335,7 @@ docker-compose exec backend alembic downgrade -1
 If Docker sandboxing is enabled, the sandbox image will be built automatically on first script execution. To build it manually:
 
 ```bash
-docker build -t netops-sandbox:latest -f docker/sandbox.Dockerfile .
+docker build -t inframate-sandbox:latest -f docker/sandbox.Dockerfile .
 ```
 
 ## Contributing

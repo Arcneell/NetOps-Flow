@@ -227,7 +227,7 @@ docker-compose exec backend alembic upgrade head
 docker-compose exec backend alembic revision --autogenerate -m "description"
 
 # Base de données
-docker-compose exec db psql -U netops netops_flow
+docker-compose exec db psql -U inframate inframate
 
 # Création des secrets Docker (production)
 echo "your-jwt-secret" | docker secret create jwt_secret_key -
@@ -246,7 +246,7 @@ echo "your-db-password" | docker secret create postgres_password -
 
 | Variable | Défaut | Description |
 |----------|--------|-------------|
-| POSTGRES_PASSWORD | netopspassword | Mot de passe PostgreSQL |
+| POSTGRES_PASSWORD | inframatepassword | Mot de passe PostgreSQL |
 | JWT_SECRET_KEY | **(REQUIS)** | Clé secrète JWT (ou JWT_SECRET_KEY_FILE pour Docker secrets) |
 | ENCRYPTION_KEY | **(REQUIS)** | Clé Fernet (ou ENCRYPTION_KEY_FILE pour Docker secrets) |
 | INITIAL_ADMIN_PASSWORD | - | Mot de passe admin initial (ou INITIAL_ADMIN_PASSWORD_FILE) |
@@ -265,7 +265,7 @@ En production, les secrets peuvent être lus depuis des fichiers via les variabl
 ## Credentials par Défaut
 
 - **Admin**: admin / (défini par INITIAL_ADMIN_PASSWORD, MFA désactivé par défaut)
-- **Database**: netops / netopspassword / netops_flow
+- **Database**: inframate / inframatepassword / inframate
 
 ## Activation MFA (TOTP)
 
@@ -411,6 +411,6 @@ En production, les secrets peuvent être lus depuis des fichiers via les variabl
 
 **429 Too Many Requests**: Rate limited, attendre 60 secondes
 
-**Sandbox Docker indisponible**: Rebuild image `docker build -t netops-sandbox:latest -f docker/sandbox.Dockerfile .`
+**Sandbox Docker indisponible**: Rebuild image `docker build -t inframate-sandbox:latest -f docker/sandbox.Dockerfile .`
 
 **Build échoue sur macOS (Apple Silicon)**: PowerShell n'est installé que sur AMD64. Sur ARM64, l'exécution distante via WinRM ne sera pas disponible en développement (SSH reste fonctionnel)

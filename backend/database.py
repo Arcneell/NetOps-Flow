@@ -9,7 +9,7 @@ import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://netops:netopspassword@localhost:5432/netops_flow")
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://inframate:inframatepassword@localhost:5432/inframate")
 
 def get_engine(url):
     """Retry connection to database until successful."""
