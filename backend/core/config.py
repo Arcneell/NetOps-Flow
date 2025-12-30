@@ -84,7 +84,8 @@ class Settings(BaseSettings):
         description="Comma-separated list of allowed origins"
     )
 
-    # Scripts
+    # File Storage
+    upload_dir: str = Field(default="/uploads")
     scripts_dir: str = Field(default="/scripts_storage")
     max_script_name_length: int = Field(default=100, ge=10, le=255)
     max_filename_length: int = Field(default=255, ge=50, le=500)

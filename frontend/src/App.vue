@@ -90,10 +90,10 @@
           <!-- System Section - Admin only -->
           <div v-if="isAdmin" class="sidebar-section-title">{{ t('nav.system') }}</div>
 
-          <router-link v-if="isAdmin" to="/settings" custom v-slot="{ navigate, isActive }">
+          <router-link v-if="isAdmin" to="/users" custom v-slot="{ navigate, isActive }">
             <div @click="navigate" :class="['sidebar-link', isActive ? 'active' : '']">
-              <i class="pi pi-cog"></i>
-              <span>{{ t('nav.settings') }}</span>
+              <i class="pi pi-users"></i>
+              <span>{{ t('users.title') }}</span>
             </div>
           </router-link>
         </nav>
@@ -101,15 +101,21 @@
 
       <!-- User Profile -->
       <div class="sidebar-footer">
-        <div class="flex items-center gap-3 flex-1 min-w-0">
-          <div class="user-avatar">
-            {{ userInitials }}
+        <router-link to="/settings" class="flex items-center gap-3 flex-1 min-w-0 hover:opacity-80 transition-opacity">
+          <div class="user-avatar-container">
+            <img v-if="user.avatar" :src="`/api/v1/avatars/${user.avatar}`" class="user-avatar-img" alt="">
+            <div v-else class="user-avatar">
+              {{ userInitials }}
+            </div>
           </div>
           <div class="min-w-0 flex-1">
             <div class="text-white text-sm font-medium truncate">{{ user.username }}</div>
             <div class="text-slate-400 text-xs capitalize">{{ user.role }}</div>
           </div>
-        </div>
+        </router-link>
+        <Button icon="pi pi-cog" text rounded size="small"
+                class="!text-slate-400 hover:!text-white hover:!bg-white/10"
+                @click="$router.push('/settings')" v-tooltip.top="t('nav.settings')" />
         <Button icon="pi pi-sign-out" text rounded size="small"
                 class="!text-slate-400 hover:!text-white hover:!bg-white/10"
                 @click="logout" v-tooltip.top="t('nav.logout')" />
@@ -207,6 +213,7 @@ const currentRouteName = computed(() => {
   if(route.name === 'Script Automation') return t('nav.scriptRunner');
   if(route.name === 'Inventory') return t('nav.inventory');
   if(route.name === 'Settings') return t('nav.settings');
+  if(route.name === 'User Management') return t('users.title');
   if(route.name === 'DCIM') return t('dcim.title');
   if(route.name === 'Contracts') return t('contracts.title');
   if(route.name === 'Software') return t('software.title');
@@ -301,6 +308,19 @@ onMounted(async () => {
 }
 
 /* User Avatar */
+.user-avatar-container {
+  width: 2.25rem;
+  height: 2.25rem;
+  flex-shrink: 0;
+}
+
+.user-avatar-img {
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 0.625rem;
+  object-fit: cover;
+}
+
 .user-avatar {
   width: 2.25rem;
   height: 2.25rem;

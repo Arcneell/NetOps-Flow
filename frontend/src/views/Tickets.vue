@@ -243,13 +243,26 @@
                 <div v-if="isAdmin || !comment.is_internal"
                      class="p-3 rounded-lg" style="background-color: var(--bg-app);"
                      :class="{ 'border-l-4 border-yellow-500': comment.is_internal }">
-                  <div class="flex justify-between items-start mb-2">
-                    <span class="font-medium">{{ comment.username || 'System' }}</span>
-                    <span class="text-xs opacity-50">{{ formatDateTime(comment.created_at) }}</span>
-                  </div>
-                  <p class="text-sm whitespace-pre-wrap">{{ comment.content }}</p>
-                  <div v-if="comment.is_internal" class="mt-2">
-                    <Tag value="Internal" severity="warning" class="text-xs" />
+                  <div class="flex gap-3">
+                    <!-- User Avatar -->
+                    <div class="w-8 h-8 rounded-full overflow-hidden flex-shrink-0">
+                      <img v-if="comment.user_avatar" :src="`/api/v1/avatars/${comment.user_avatar}`"
+                           class="w-full h-full object-cover" alt="">
+                      <div v-else class="w-full h-full flex items-center justify-center bg-gradient-to-br from-sky-500 to-blue-600">
+                        <span class="text-xs font-bold text-white">{{ getInitials(comment.username) }}</span>
+                      </div>
+                    </div>
+                    <!-- Comment Content -->
+                    <div class="flex-1 min-w-0">
+                      <div class="flex justify-between items-start mb-1">
+                        <span class="font-medium">{{ comment.username || 'System' }}</span>
+                        <span class="text-xs opacity-50">{{ formatDateTime(comment.created_at) }}</span>
+                      </div>
+                      <p class="text-sm whitespace-pre-wrap">{{ comment.content }}</p>
+                      <div v-if="comment.is_internal" class="mt-2">
+                        <Tag value="Internal" severity="warning" class="text-xs" />
+                      </div>
+                    </div>
                   </div>
                 </div>
               </template>
@@ -504,6 +517,11 @@ const resolutionCodes = [
 
 // Helpers
 const capitalize = (str) => str ? str.charAt(0).toUpperCase() + str.slice(1) : '';
+
+const getInitials = (name) => {
+  if (!name) return '?';
+  return name.substring(0, 2).toUpperCase();
+};
 
 const formatDateTime = (dateStr) => {
   if (!dateStr) return '-';

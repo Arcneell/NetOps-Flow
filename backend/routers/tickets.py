@@ -266,7 +266,8 @@ def get_ticket(
             is_internal=c.is_internal,
             is_resolution=c.is_resolution,
             created_at=c.created_at,
-            username=c.user.username if c.user else None
+            username=c.user.username if c.user else None,
+            user_avatar=c.user.avatar if c.user else None
         ) for c in sorted(ticket.comments, key=lambda x: x.created_at)
     ]
 
@@ -587,7 +588,8 @@ def get_comments(
             is_internal=c.is_internal,
             is_resolution=c.is_resolution,
             created_at=c.created_at,
-            username=c.user.username if c.user else None
+            username=c.user.username if c.user else None,
+            user_avatar=c.user.avatar if c.user else None
         ) for c in comments
     ]
 

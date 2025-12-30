@@ -51,9 +51,9 @@ class MFADisableRequest(BaseModel):
 
 class UserBase(BaseModel):
     username: str
+    email: Optional[str] = None
     is_active: bool = True
     role: str = "user"
-    permissions: Dict[str, bool] = {}
     entity_id: Optional[int] = None
 
 class UserCreate(UserBase):
@@ -61,18 +61,25 @@ class UserCreate(UserBase):
 
 class User(UserBase):
     id: int
+    avatar: Optional[str] = None
     mfa_enabled: bool = False
+    created_at: Optional[datetime] = None
     class Config:
         from_attributes = True
 
 
 class UserUpdate(BaseModel):
     """Schema for updating user (all fields optional)."""
+    email: Optional[str] = None
     password: Optional[str] = None
     is_active: Optional[bool] = None
     role: Optional[str] = None
-    permissions: Optional[Dict[str, bool]] = None
     entity_id: Optional[int] = None
+
+
+class UserProfileUpdate(BaseModel):
+    """Schema for users to update their own profile."""
+    email: Optional[str] = None
 
 
 # --- IPAM ---
@@ -660,6 +667,7 @@ class TicketComment(TicketCommentBase):
 class TicketCommentFull(TicketComment):
     """Comment with user info"""
     username: Optional[str] = None
+    user_avatar: Optional[str] = None
 
 
 class TicketHistoryItem(BaseModel):

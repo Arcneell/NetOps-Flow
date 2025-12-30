@@ -5,6 +5,7 @@ import ScriptRunner from './views/ScriptRunner.vue'
 import Topology from './views/Topology.vue'
 import Login from './views/Login.vue'
 import Settings from './views/Settings.vue'
+import UserManagement from './views/UserManagement.vue'
 import Unauthorized from './views/Unauthorized.vue'
 import Inventory from './views/Inventory.vue'
 import Dcim from './views/Dcim.vue'
@@ -17,9 +18,10 @@ const routes = [
   { path: '/login', component: Login, name: 'Login', meta: { public: true } },
   { path: '/unauthorized', component: Unauthorized, name: 'Unauthorized', meta: { public: true } },
   { path: '/', component: Dashboard, name: 'Dashboard' },
-  // Helpdesk - accessible to all authenticated users
+  // Accessible to all authenticated users
   { path: '/tickets', component: Tickets, name: 'Tickets' },
   { path: '/knowledge', component: Knowledge, name: 'Knowledge Base' },
+  { path: '/settings', component: Settings, name: 'Settings' },
   // Admin only routes
   { path: '/ipam', component: Ipam, name: 'IP Address Management', meta: { adminOnly: true } },
   { path: '/topology', component: Topology, name: 'Network Topology', meta: { adminOnly: true } },
@@ -28,7 +30,7 @@ const routes = [
   { path: '/dcim', component: Dcim, name: 'DCIM', meta: { adminOnly: true } },
   { path: '/contracts', component: Contracts, name: 'Contracts', meta: { adminOnly: true } },
   { path: '/software', component: Software, name: 'Software', meta: { adminOnly: true } },
-  { path: '/settings', component: Settings, name: 'Settings', meta: { adminOnly: true } }
+  { path: '/users', component: UserManagement, name: 'User Management', meta: { adminOnly: true } }
 ]
 
 const router = createRouter({

@@ -119,18 +119,10 @@ def create_default_admin():
 
             logger.info("Creating default admin user...")
             hashed_pwd = get_password_hash(initial_password)
-            perms = {
-                "ipam": True,
-                "topology": True,
-                "scripts": True,
-                "settings": True,
-                "inventory": True
-            }
             admin = models.User(
                 username="admin",
                 hashed_password=hashed_pwd,
-                role="admin",
-                permissions=perms
+                role="admin"
             )
             db.add(admin)
             db.commit()

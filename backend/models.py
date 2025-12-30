@@ -57,11 +57,13 @@ class User(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     username = Column(String, unique=True, index=True)
+    email = Column(String, nullable=True)
     hashed_password = Column(String)
     is_active = Column(Boolean, default=True)
     role = Column(String, default="user")  # admin, user
-    permissions = Column(JSON, default={})  # ex: {"ipam": true, "scripts": false}
+    avatar = Column(String, nullable=True)  # Profile picture filename
     entity_id = Column(Integer, ForeignKey("entities.id"), nullable=True)
+    created_at = Column(DateTime, default=utc_now)
 
     # MFA/TOTP fields
     mfa_enabled = Column(Boolean, default=False)

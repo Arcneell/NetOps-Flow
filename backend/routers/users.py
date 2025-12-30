@@ -58,10 +58,10 @@ def create_user(
     hashed_password = get_password_hash(user.password)
     db_user = models.User(
         username=user.username.lower(),
+        email=user.email,
         hashed_password=hashed_password,
         role=user.role,
-        is_active=user.is_active,
-        permissions=user.permissions
+        is_active=user.is_active
     )
     db.add(db_user)
     db.commit()
@@ -114,8 +114,8 @@ def update_user(
     if user_update.is_active is not None:
         db_user.is_active = user_update.is_active
 
-    if user_update.permissions is not None:
-        db_user.permissions = user_update.permissions
+    if user_update.email is not None:
+        db_user.email = user_update.email
 
     if user_update.password:
         if not validate_password_strength(user_update.password):

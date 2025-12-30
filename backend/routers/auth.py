@@ -1,7 +1,7 @@
 """
 Authentication Router - Login, token management, and refresh tokens.
 """
-from fastapi import APIRouter, Depends, HTTPException, status, Request
+from fastapi import APIRouter, Depends, HTTPException, status, Request, UploadFile, File
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
@@ -180,6 +180,116 @@ async def update_password(
 
     logger.info(f"Password updated for user: {current_user.username}")
     return {"message": "Password updated successfully"}
+
+
+@router.put("/me/profile", response_model=schemas.User)
+async def update_profile(
+    profile_data: schemas.UserProfileUpdate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user)
+):
+    """Update current user's profile (email)."""
+    if profile_data.email is not None:
+        current_user.email = profile_data.email
+
+    db.commit()
+    db.refresh(current_user)
+
+    logger.info(f"Profile updated for user: {current_user.username}")
+    return current_user
+
+
+@router.post("/me/avatar")
+async def upload_avatar(
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user)
+):
+    """Upload user avatar/profile picture."""
+    import os
+    import uuid
+
+    # Validate file type
+    allowed_types = ["image/jpeg", "image/png", "image/gif", "image/webp"]
+    if file.content_type not in allowed_types:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid file type. Only JPEG, PNG, GIF, and WebP are allowed."
+        )
+
+    # Validate file size (max 2MB)
+    content = await file.read()
+    if len(content) > 2 * 1024 * 1024:
+        raise HTTPException(
+            status_code=400,
+            detail="File too large. Maximum size is 2MB."
+        )
+
+    # Generate unique filename
+    ext = file.filename.split(".")[-1] if "." in file.filename else "jpg"
+    filename = f"avatar_{current_user.id}_{uuid.uuid4().hex[:8]}.{ext}"
+
+    # Ensure avatars directory exists
+    avatars_dir = os.path.join(settings.upload_dir, "avatars")
+    os.makedirs(avatars_dir, exist_ok=True)
+
+    # Delete old avatar if exists
+    if current_user.avatar:
+        old_path = os.path.join(avatars_dir, current_user.avatar)
+        if os.path.exists(old_path):
+            os.remove(old_path)
+
+    # Save new avatar
+    avatar_path = os.path.join(avatars_dir, filename)
+    with open(avatar_path, "wb") as f:
+        f.write(content)
+
+    # Update user record
+    current_user.avatar = filename
+    db.commit()
+
+    logger.info(f"Avatar uploaded for user: {current_user.username}")
+    return {"message": "Avatar uploaded successfully", "avatar": filename}
+
+
+@router.delete("/me/avatar")
+async def delete_avatar(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user)
+):
+    """Delete user avatar."""
+    import os
+
+    if not current_user.avatar:
+        raise HTTPException(status_code=404, detail="No avatar to delete")
+
+    # Delete file
+    avatars_dir = os.path.join(settings.upload_dir, "avatars")
+    avatar_path = os.path.join(avatars_dir, current_user.avatar)
+    if os.path.exists(avatar_path):
+        os.remove(avatar_path)
+
+    # Clear avatar from user record
+    current_user.avatar = None
+    db.commit()
+
+    logger.info(f"Avatar deleted for user: {current_user.username}")
+    return {"message": "Avatar deleted successfully"}
+
+
+@router.get("/avatars/{filename}")
+async def get_avatar(filename: str):
+    """Serve user avatar files."""
+    import os
+    from fastapi.responses import FileResponse
+
+    avatars_dir = os.path.join(settings.upload_dir, "avatars")
+    file_path = os.path.join(avatars_dir, filename)
+
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="Avatar not found")
+
+    return FileResponse(file_path)
 
 
 # ==================== MFA ENDPOINTS ====================
