@@ -97,7 +97,8 @@
     "recentTickets": "Tickets Récents",
     "noTickets": "Aucun ticket",
     "ticketsByPriority": "Tickets par Priorité",
-    "myTickets": "Mes Tickets"
+    "myTickets": "Mes Tickets",
+    "slaBreached": "SLA Dépassé"
   },
   "ipam": {
     "cidr": "CIDR",

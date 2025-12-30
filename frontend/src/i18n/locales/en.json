@@ -97,7 +97,8 @@
     "recentTickets": "Recent Tickets",
     "noTickets": "No tickets",
     "ticketsByPriority": "Tickets by Priority",
-    "myTickets": "My Tickets"
+    "myTickets": "My Tickets",
+    "slaBreached": "SLA Breached"
   },
   "ipam": {
     "cidr": "CIDR",
