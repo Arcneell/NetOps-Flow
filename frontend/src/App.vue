@@ -43,64 +43,54 @@
             </div>
           </router-link>
 
-          <!-- Network Section -->
-          <div v-if="hasPerm('ipam') || hasPerm('topology')" class="sidebar-section-title">{{ t('nav.network') }}</div>
+          <!-- Network Section - Admin only -->
+          <div v-if="isAdmin" class="sidebar-section-title">{{ t('nav.network') }}</div>
 
-          <router-link v-if="hasPerm('ipam')" to="/ipam" custom v-slot="{ navigate, isActive }">
+          <router-link v-if="isAdmin" to="/ipam" custom v-slot="{ navigate, isActive }">
             <div @click="navigate" :class="['sidebar-link', isActive ? 'active' : '']">
               <i class="pi pi-sitemap"></i>
               <span>{{ t('nav.ipam') }}</span>
             </div>
           </router-link>
-          <router-link v-if="hasPerm('topology')" to="/topology" custom v-slot="{ navigate, isActive }">
+          <router-link v-if="isAdmin" to="/topology" custom v-slot="{ navigate, isActive }">
             <div @click="navigate" :class="['sidebar-link', isActive ? 'active' : '']">
               <i class="pi pi-share-alt"></i>
               <span>{{ t('nav.topology') }}</span>
             </div>
           </router-link>
 
-          <!-- Automation Section -->
-          <div v-if="hasPerm('scripts')" class="sidebar-section-title">{{ t('nav.automation') }}</div>
+          <!-- Assets Section - Admin only -->
+          <div v-if="isAdmin" class="sidebar-section-title">{{ t('nav.inventory') }}</div>
 
-          <router-link v-if="hasPerm('scripts')" to="/scripts" custom v-slot="{ navigate, isActive }">
-            <div @click="navigate" :class="['sidebar-link', isActive ? 'active' : '']">
-              <i class="pi pi-code"></i>
-              <span>{{ t('nav.scriptRunner') }}</span>
-            </div>
-          </router-link>
-
-          <!-- Assets Section -->
-          <div v-if="hasPerm('inventory')" class="sidebar-section-title">{{ t('nav.inventory') }}</div>
-
-          <router-link v-if="hasPerm('inventory')" to="/inventory" custom v-slot="{ navigate, isActive }">
+          <router-link v-if="isAdmin" to="/inventory" custom v-slot="{ navigate, isActive }">
             <div @click="navigate" :class="['sidebar-link', isActive ? 'active' : '']">
               <i class="pi pi-box"></i>
               <span>{{ t('nav.inventory') }}</span>
             </div>
           </router-link>
-          <router-link v-if="hasPerm('inventory')" to="/dcim" custom v-slot="{ navigate, isActive }">
+          <router-link v-if="isAdmin" to="/dcim" custom v-slot="{ navigate, isActive }">
             <div @click="navigate" :class="['sidebar-link', isActive ? 'active' : '']">
               <i class="pi pi-server"></i>
               <span>{{ t('dcim.title') }}</span>
             </div>
           </router-link>
-          <router-link v-if="hasPerm('inventory')" to="/contracts" custom v-slot="{ navigate, isActive }">
+          <router-link v-if="isAdmin" to="/contracts" custom v-slot="{ navigate, isActive }">
             <div @click="navigate" :class="['sidebar-link', isActive ? 'active' : '']">
               <i class="pi pi-file-edit"></i>
               <span>{{ t('contracts.title') }}</span>
             </div>
           </router-link>
-          <router-link v-if="hasPerm('inventory')" to="/software" custom v-slot="{ navigate, isActive }">
+          <router-link v-if="isAdmin" to="/software" custom v-slot="{ navigate, isActive }">
             <div @click="navigate" :class="['sidebar-link', isActive ? 'active' : '']">
               <i class="pi pi-desktop"></i>
               <span>{{ t('software.title') }}</span>
             </div>
           </router-link>
 
-          <!-- System Section -->
-          <div class="sidebar-section-title">{{ t('nav.system') }}</div>
+          <!-- System Section - Admin only -->
+          <div v-if="isAdmin" class="sidebar-section-title">{{ t('nav.system') }}</div>
 
-          <router-link v-if="hasPerm('settings') || user.role === 'admin'" to="/settings" custom v-slot="{ navigate, isActive }">
+          <router-link v-if="isAdmin" to="/settings" custom v-slot="{ navigate, isActive }">
             <div @click="navigate" :class="['sidebar-link', isActive ? 'active' : '']">
               <i class="pi pi-cog"></i>
               <span>{{ t('nav.settings') }}</span>
@@ -207,6 +197,7 @@ const user = ref({ username: '', role: '', permissions: {} });
 const isDark = ref(false);
 
 const isLoginPage = computed(() => route.path === '/login' || route.path === '/unauthorized');
+const isAdmin = computed(() => user.value.role === 'admin');
 const userInitials = computed(() => (user.value.username ? user.value.username.substring(0, 2).toUpperCase() : '??'));
 
 const currentRouteName = computed(() => {

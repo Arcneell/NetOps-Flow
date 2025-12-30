@@ -128,12 +128,15 @@ def list_tickets(
         joinedload(models.Ticket.assigned_to)
     )
 
-    # Entity filtering for non-admin users
-    if current_user.role != "admin" and current_user.entity_id:
+    # Non-admin users can only see their own tickets (created by them)
+    if current_user.role != "admin":
+        query = query.filter(models.Ticket.requester_id == current_user.id)
+    # Entity filtering for admin users with entity
+    elif current_user.entity_id:
         query = query.filter(models.Ticket.entity_id == current_user.entity_id)
 
-    # Filter by my tickets (assigned or requested)
-    if my_tickets:
+    # Filter by my tickets (assigned or requested) - only relevant for admins
+    if my_tickets and current_user.role == "admin":
         query = query.filter(
             or_(
                 models.Ticket.assigned_to_id == current_user.id,
@@ -192,7 +195,10 @@ def get_ticket_stats(
     """Get ticket statistics for dashboard."""
     query = db.query(models.Ticket)
 
-    if current_user.role != "admin" and current_user.entity_id:
+    # Non-admin users can only see stats for their own tickets
+    if current_user.role != "admin":
+        query = query.filter(models.Ticket.requester_id == current_user.id)
+    elif current_user.entity_id:
         query = query.filter(models.Ticket.entity_id == current_user.entity_id)
 
     tickets = query.all()
@@ -241,8 +247,12 @@ def get_ticket(
     if not ticket:
         raise HTTPException(status_code=404, detail="Ticket not found")
 
-    # Entity check
-    if current_user.role != "admin" and current_user.entity_id:
+    # Access control: non-admin users can only view their own tickets
+    if current_user.role != "admin":
+        if ticket.requester_id != current_user.id:
+            raise HTTPException(status_code=403, detail="Access denied")
+    # Entity check for admin users
+    elif current_user.entity_id:
         if ticket.entity_id and ticket.entity_id != current_user.entity_id:
             raise HTTPException(status_code=403, detail="Access denied")
 
@@ -391,10 +401,21 @@ def update_ticket(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user)
 ):
-    """Update a ticket."""
+    """Update a ticket. Non-admin users can only update their own tickets with limited fields."""
     ticket = db.query(models.Ticket).filter(models.Ticket.id == ticket_id).first()
     if not ticket:
         raise HTTPException(status_code=404, detail="Ticket not found")
+
+    # Access control: non-admin users can only update their own tickets
+    if current_user.role != "admin":
+        if ticket.requester_id != current_user.id:
+            raise HTTPException(status_code=403, detail="Access denied")
+        # Non-admin users can only update limited fields
+        allowed_fields = {"title", "description", "category", "subcategory"}
+        update_data_check = ticket_data.model_dump(exclude_unset=True)
+        disallowed = set(update_data_check.keys()) - allowed_fields
+        if disallowed:
+            raise HTTPException(status_code=403, detail=f"You cannot modify: {', '.join(disallowed)}")
 
     # Track changes for history
     update_data = ticket_data.model_dump(exclude_unset=True)
@@ -483,6 +504,14 @@ def add_comment(
     ticket = db.query(models.Ticket).filter(models.Ticket.id == ticket_id).first()
     if not ticket:
         raise HTTPException(status_code=404, detail="Ticket not found")
+
+    # Access control: non-admin users can only comment on their own tickets
+    if current_user.role != "admin":
+        if ticket.requester_id != current_user.id:
+            raise HTTPException(status_code=403, detail="Access denied")
+        # Non-admin users cannot post internal comments or mark as resolution
+        if comment_data.is_internal or comment_data.is_resolution:
+            raise HTTPException(status_code=403, detail="Only admins can post internal comments or resolutions")
 
     comment = models.TicketComment(
         ticket_id=ticket_id,

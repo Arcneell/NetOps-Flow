@@ -17,16 +17,18 @@ const routes = [
   { path: '/login', component: Login, name: 'Login', meta: { public: true } },
   { path: '/unauthorized', component: Unauthorized, name: 'Unauthorized', meta: { public: true } },
   { path: '/', component: Dashboard, name: 'Dashboard' },
-  { path: '/tickets', component: Tickets, name: 'Tickets', meta: { permission: 'tickets' } },
-  { path: '/knowledge', component: Knowledge, name: 'Knowledge Base', meta: { permission: 'knowledge' } },
-  { path: '/ipam', component: Ipam, name: 'IP Address Management', meta: { permission: 'ipam' } },
-  { path: '/topology', component: Topology, name: 'Network Topology', meta: { permission: 'topology' } },
-  { path: '/scripts', component: ScriptRunner, name: 'Script Automation', meta: { permission: 'scripts' } },
-  { path: '/inventory', component: Inventory, name: 'Inventory', meta: { permission: 'inventory' } },
-  { path: '/dcim', component: Dcim, name: 'DCIM', meta: { permission: 'inventory' } },
-  { path: '/contracts', component: Contracts, name: 'Contracts', meta: { permission: 'inventory' } },
-  { path: '/software', component: Software, name: 'Software', meta: { permission: 'inventory' } },
-  { path: '/settings', component: Settings, name: 'Settings', meta: { permission: 'settings' } }
+  // Helpdesk - accessible to all authenticated users
+  { path: '/tickets', component: Tickets, name: 'Tickets' },
+  { path: '/knowledge', component: Knowledge, name: 'Knowledge Base' },
+  // Admin only routes
+  { path: '/ipam', component: Ipam, name: 'IP Address Management', meta: { adminOnly: true } },
+  { path: '/topology', component: Topology, name: 'Network Topology', meta: { adminOnly: true } },
+  { path: '/scripts', component: ScriptRunner, name: 'Script Automation', meta: { adminOnly: true } },
+  { path: '/inventory', component: Inventory, name: 'Inventory', meta: { adminOnly: true } },
+  { path: '/dcim', component: Dcim, name: 'DCIM', meta: { adminOnly: true } },
+  { path: '/contracts', component: Contracts, name: 'Contracts', meta: { adminOnly: true } },
+  { path: '/software', component: Software, name: 'Software', meta: { adminOnly: true } },
+  { path: '/settings', component: Settings, name: 'Settings', meta: { adminOnly: true } }
 ]
 
 const router = createRouter({
@@ -47,12 +49,9 @@ const getCurrentUser = () => {
   return null;
 };
 
-// Check if user has permission
-const hasPermission = (user, permission) => {
-  if (!user) return false;
-  if (user.role === 'admin') return true;
-  if (!permission) return true;
-  return user.permissions && user.permissions[permission] === true;
+// Check if user is admin
+const isAdmin = (user) => {
+  return user && user.role === 'admin';
 };
 
 router.beforeEach((to, from, next) => {
@@ -73,11 +72,10 @@ router.beforeEach((to, from, next) => {
     return next('/login');
   }
 
-  // Check permissions for protected routes
-  const requiredPermission = to.meta.permission;
-  if (requiredPermission) {
+  // Check admin-only routes
+  if (to.meta.adminOnly) {
     const user = getCurrentUser();
-    if (!hasPermission(user, requiredPermission)) {
+    if (!isAdmin(user)) {
       return next('/unauthorized');
     }
   }

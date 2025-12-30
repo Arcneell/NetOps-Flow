@@ -93,7 +93,11 @@
     "activeUsers": "Utilisateurs Actifs",
     "totalLocations": "Emplacements",
     "dbConnected": "Base de données connectée",
-    "workerActive": "Worker Actif"
+    "workerActive": "Worker Actif",
+    "recentTickets": "Tickets Récents",
+    "noTickets": "Aucun ticket",
+    "ticketsByPriority": "Tickets par Priorité",
+    "myTickets": "Mes Tickets"
   },
   "ipam": {
     "cidr": "CIDR",

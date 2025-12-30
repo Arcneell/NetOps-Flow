@@ -78,7 +78,7 @@
             <Dropdown v-model="filters.ticket_type" :options="typeOptions" optionLabel="label" optionValue="value"
                       :placeholder="t('tickets.allTypes')" showClear class="w-full" @change="loadTickets" />
           </div>
-          <div class="flex items-center gap-2">
+          <div v-if="isAdmin" class="flex items-center gap-2">
             <Checkbox v-model="filters.my_tickets" :binary="true" inputId="myTickets" @change="loadTickets" />
             <label for="myTickets" class="text-sm cursor-pointer">{{ t('tickets.myTickets') }}</label>
           </div>
@@ -138,7 +138,7 @@
                 <span>{{ slotProps.data.requester_name || '-' }}</span>
               </template>
             </Column>
-            <Column field="assigned_to_name" :header="t('tickets.assignedTo')" style="width: 120px">
+            <Column v-if="isAdmin" field="assigned_to_name" :header="t('tickets.assignedTo')" style="width: 120px">
               <template #body="slotProps">
                 <span v-if="slotProps.data.assigned_to_name">{{ slotProps.data.assigned_to_name }}</span>
                 <span v-else class="opacity-50 italic">{{ t('tickets.unassigned') }}</span>
@@ -175,11 +175,11 @@
           <Dropdown v-model="ticketForm.category" :options="categoryOptions" optionLabel="label" optionValue="value"
                     class="w-full" showClear />
         </div>
-        <div>
+        <div v-if="isAdmin">
           <label class="block text-sm font-medium mb-1">{{ t('tickets.ticketPriority') }}</label>
           <Dropdown v-model="ticketForm.priority" :options="priorityOptions" optionLabel="label" optionValue="value" class="w-full" />
         </div>
-        <div>
+        <div v-if="isAdmin">
           <label class="block text-sm font-medium mb-1">{{ t('tickets.assignTo') }}</label>
           <Dropdown v-model="ticketForm.assigned_to_id" :options="users" optionLabel="username" optionValue="id"
                     class="w-full" showClear :placeholder="t('tickets.selectUser')" />
@@ -239,19 +239,21 @@
           <div class="mb-6">
             <h4 class="font-semibold mb-3">{{ t('tickets.comments') }} ({{ currentTicket.comments?.length || 0 }})</h4>
             <div class="space-y-3 max-h-64 overflow-auto mb-4">
-              <div v-for="comment in currentTicket.comments" :key="comment.id"
-                   class="p-3 rounded-lg" style="background-color: var(--bg-app);"
-                   :class="{ 'border-l-4 border-yellow-500': comment.is_internal }">
-                <div class="flex justify-between items-start mb-2">
-                  <span class="font-medium">{{ comment.username || 'System' }}</span>
-                  <span class="text-xs opacity-50">{{ formatDateTime(comment.created_at) }}</span>
+              <template v-for="comment in currentTicket.comments" :key="comment.id">
+                <div v-if="isAdmin || !comment.is_internal"
+                     class="p-3 rounded-lg" style="background-color: var(--bg-app);"
+                     :class="{ 'border-l-4 border-yellow-500': comment.is_internal }">
+                  <div class="flex justify-between items-start mb-2">
+                    <span class="font-medium">{{ comment.username || 'System' }}</span>
+                    <span class="text-xs opacity-50">{{ formatDateTime(comment.created_at) }}</span>
+                  </div>
+                  <p class="text-sm whitespace-pre-wrap">{{ comment.content }}</p>
+                  <div v-if="comment.is_internal" class="mt-2">
+                    <Tag value="Internal" severity="warning" class="text-xs" />
+                  </div>
                 </div>
-                <p class="text-sm whitespace-pre-wrap">{{ comment.content }}</p>
-                <div v-if="comment.is_internal" class="mt-2">
-                  <Tag value="Internal" severity="warning" class="text-xs" />
-                </div>
-              </div>
-              <div v-if="!currentTicket.comments?.length" class="text-center py-4 opacity-50">
+              </template>
+              <div v-if="!currentTicket.comments?.length || (!isAdmin && currentTicket.comments?.every(c => c.is_internal))" class="text-center py-4 opacity-50">
                 {{ t('tickets.noComments') }}
               </div>
             </div>
@@ -260,10 +262,11 @@
             <div class="border-t pt-4" style="border-color: var(--border-color);">
               <Textarea v-model="newComment" :placeholder="t('tickets.addComment')" rows="2" class="w-full mb-2" />
               <div class="flex justify-between items-center">
-                <div class="flex items-center gap-2">
+                <div v-if="isAdmin" class="flex items-center gap-2">
                   <Checkbox v-model="commentInternal" :binary="true" inputId="internal" />
                   <label for="internal" class="text-sm cursor-pointer">{{ t('tickets.internalNote') }}</label>
                 </div>
+                <div v-else></div>
                 <Button :label="t('tickets.postComment')" icon="pi pi-send" size="small"
                         @click="postComment" :disabled="!newComment.trim()" />
               </div>
@@ -288,8 +291,8 @@
         <!-- Sidebar Info -->
         <div class="w-64 flex-shrink-0">
           <div class="space-y-4">
-            <!-- Status Actions -->
-            <div class="p-4 rounded-lg" style="background-color: var(--bg-app);">
+            <!-- Status Actions (Admin only) -->
+            <div v-if="isAdmin" class="p-4 rounded-lg" style="background-color: var(--bg-app);">
               <h4 class="font-semibold mb-3">{{ t('tickets.actions') }}</h4>
               <div class="space-y-2">
                 <Button v-if="currentTicket.status === 'new' || currentTicket.status === 'pending'"
@@ -316,7 +319,7 @@
                 <span class="text-xs opacity-50 block">{{ t('tickets.requester') }}</span>
                 <span>{{ currentTicket.requester_name || '-' }}</span>
               </div>
-              <div>
+              <div v-if="isAdmin">
                 <span class="text-xs opacity-50 block">{{ t('tickets.assignedTo') }}</span>
                 <div class="flex items-center gap-2">
                   <span>{{ currentTicket.assigned_to_name || t('tickets.unassigned') }}</span>
@@ -397,6 +400,21 @@ import api from '../api';
 const { t } = useI18n();
 const toast = useToast();
 const ticketsStore = useTicketsStore();
+
+// User info for permission checks
+const currentUser = computed(() => {
+  const userStr = localStorage.getItem('user');
+  if (userStr) {
+    try {
+      return JSON.parse(userStr);
+    } catch (e) {
+      return null;
+    }
+  }
+  return null;
+});
+
+const isAdmin = computed(() => currentUser.value?.role === 'admin');
 
 // State
 const tickets = ref([]);
