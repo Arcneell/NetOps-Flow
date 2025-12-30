@@ -193,6 +193,7 @@ html {
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     scroll-behavior: smooth;
+    overflow-x: hidden;
 }
 
 body {
@@ -204,6 +205,7 @@ body {
     font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
     line-height: 1.5;
     min-height: 100vh;
+    overflow-x: hidden;
 }
 
 /* Selection */
@@ -712,12 +714,17 @@ a:hover {
     background: var(--bg-secondary) !important;
     padding: 1.25rem 1.75rem !important;
     border-top: 1px solid var(--border-default) !important;
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: center !important;
 }
 
-.p-dialog-footer > * {
-    display: flex !important;
-    justify-content: flex-end !important;
-    gap: 0.75rem !important;
+.p-dialog-footer > *:first-child {
+    margin-right: auto !important;
+}
+
+.p-dialog-footer > *:last-child {
+    margin-left: auto !important;
 }
 
 /* Dialog Mask */

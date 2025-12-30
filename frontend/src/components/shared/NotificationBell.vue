@@ -1,50 +1,52 @@
 <template>
-  <div class="relative">
-    <Button icon="pi pi-bell" text rounded class="!text-slate-500 dark:!text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700"
+  <div class="notification-bell-wrapper">
+    <Button icon="pi pi-bell" text rounded class="header-icon-btn"
             @click="togglePanel" v-badge.danger="unreadCount || null" />
 
-    <!-- Notification Panel -->
-    <transition name="fade">
-      <div v-if="showPanel" class="absolute right-0 top-12 w-80 max-h-96 overflow-hidden rounded-xl shadow-2xl z-50"
-           style="background-color: var(--bg-card); border: 1px solid var(--border-color);">
-        <div class="flex items-center justify-between p-4 border-b" style="border-color: var(--border-color);">
-          <h3 class="font-semibold">{{ t('notifications.title') }}</h3>
-          <Button v-if="notifications.length" :label="t('notifications.markAllRead')" text size="small"
-                  class="!text-xs" @click="markAllRead" />
-        </div>
+    <!-- Backdrop (must be before panel for correct stacking) -->
+    <Teleport to="body">
+      <div v-if="showPanel" class="notification-backdrop" @click="showPanel = false"></div>
+    </Teleport>
 
-        <div class="max-h-72 overflow-auto">
-          <div v-for="notification in notifications" :key="notification.id"
-               class="p-3 border-b cursor-pointer transition-colors hover:bg-white/5"
-               :class="{ 'bg-sky-500/10': !notification.is_read }"
-               style="border-color: var(--border-color);"
-               @click="handleNotificationClick(notification)">
-            <div class="flex items-start gap-3">
-              <i :class="getNotificationIcon(notification)" class="text-lg mt-1"></i>
-              <div class="flex-1 min-w-0">
-                <div class="font-medium text-sm">{{ notification.title }}</div>
-                <div class="text-xs opacity-70 mt-1 line-clamp-2">{{ notification.message }}</div>
-                <div class="text-xs opacity-50 mt-1">{{ formatTime(notification.created_at) }}</div>
+    <!-- Notification Panel -->
+    <Teleport to="body">
+      <transition name="notification-slide">
+        <div v-if="showPanel" class="notification-panel">
+          <div class="notification-header">
+            <h3 class="font-semibold">{{ t('notifications.title') }}</h3>
+            <Button v-if="notifications.length" :label="t('notifications.markAllRead')" text size="small"
+                    class="!text-xs" @click="markAllRead" />
+          </div>
+
+          <div class="notification-list custom-scrollbar">
+            <div v-for="notification in notifications" :key="notification.id"
+                 class="notification-item"
+                 :class="{ 'unread': !notification.is_read }"
+                 @click="handleNotificationClick(notification)">
+              <div class="flex items-start gap-3">
+                <i :class="getNotificationIcon(notification)" class="text-lg mt-1"></i>
+                <div class="flex-1 min-w-0">
+                  <div class="font-medium text-sm">{{ notification.title }}</div>
+                  <div class="text-xs opacity-70 mt-1 line-clamp-2">{{ notification.message }}</div>
+                  <div class="text-xs opacity-50 mt-1">{{ formatTime(notification.created_at) }}</div>
+                </div>
+                <Button v-if="!notification.is_read" icon="pi pi-circle-fill" text rounded size="small"
+                        class="!text-sky-500 !w-6 !h-6" @click.stop="markAsRead(notification.id)" />
               </div>
-              <Button v-if="!notification.is_read" icon="pi pi-circle-fill" text rounded size="small"
-                      class="!text-sky-500 !w-6 !h-6" @click.stop="markAsRead(notification.id)" />
+            </div>
+
+            <div v-if="!notifications.length" class="notification-empty">
+              <i class="pi pi-bell-slash text-3xl mb-2"></i>
+              <p>{{ t('notifications.noNotifications') }}</p>
             </div>
           </div>
 
-          <div v-if="!notifications.length" class="p-8 text-center opacity-50">
-            <i class="pi pi-bell-slash text-3xl mb-2"></i>
-            <p>{{ t('notifications.noNotifications') }}</p>
+          <div v-if="notifications.length" class="notification-footer">
+            <Button :label="t('notifications.deleteRead')" text size="small" class="!text-xs" @click="deleteRead" />
           </div>
         </div>
-
-        <div v-if="notifications.length" class="p-2 border-t text-center" style="border-color: var(--border-color);">
-          <Button :label="t('notifications.deleteRead')" text size="small" class="!text-xs" @click="deleteRead" />
-        </div>
-      </div>
-    </transition>
-
-    <!-- Backdrop -->
-    <div v-if="showPanel" class="fixed inset-0 z-40" @click="showPanel = false"></div>
+      </transition>
+    </Teleport>
   </div>
 </template>
 
@@ -125,12 +127,101 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-.fade-enter-active, .fade-leave-active {
-  transition: opacity 0.15s, transform 0.15s;
+.notification-bell-wrapper {
+  position: relative;
 }
-.fade-enter-from, .fade-leave-to {
-  opacity: 0;
-  transform: translateY(-10px);
+
+.header-icon-btn {
+  width: 2.25rem;
+  height: 2.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-md);
+  border: none;
+  background: transparent;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.header-icon-btn:hover {
+  background: var(--bg-hover);
+  color: var(--primary);
+}
+</style>
+
+<style>
+/* Global styles for teleported elements */
+.notification-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 9998;
+  background: transparent;
+}
+
+.notification-panel {
+  position: fixed;
+  top: 4.5rem;
+  right: 1.5rem;
+  width: 22rem;
+  max-height: calc(100vh - 6rem);
+  background: var(--bg-card-solid);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-xl), 0 0 40px rgba(0, 0, 0, 0.15);
+  z-index: 9999;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.notification-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid var(--border-default);
+  flex-shrink: 0;
+}
+
+.notification-list {
+  flex: 1;
+  overflow-y: auto;
+  max-height: 24rem;
+}
+
+.notification-item {
+  padding: 0.875rem 1.25rem;
+  border-bottom: 1px solid var(--border-subtle);
+  cursor: pointer;
+  transition: background-color var(--transition-fast);
+}
+
+.notification-item:hover {
+  background: var(--bg-hover);
+}
+
+.notification-item.unread {
+  background: rgba(14, 165, 233, 0.08);
+}
+
+.notification-item:last-child {
+  border-bottom: none;
+}
+
+.notification-empty {
+  padding: 3rem 1.25rem;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+.notification-footer {
+  padding: 0.75rem 1.25rem;
+  border-top: 1px solid var(--border-default);
+  text-align: center;
+  flex-shrink: 0;
+  background: var(--bg-secondary);
 }
 
 .line-clamp-2 {
@@ -138,5 +229,17 @@ onUnmounted(() => {
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+}
+
+/* Animation */
+.notification-slide-enter-active,
+.notification-slide-leave-active {
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.notification-slide-enter-from,
+.notification-slide-leave-to {
+  opacity: 0;
+  transform: translateY(-10px) scale(0.95);
 }
 </style>
