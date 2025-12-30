@@ -1249,3 +1249,172 @@ def _parse_software_output(output: str, os_type: str) -> List[dict]:
                     software_list.append({"name": line.strip(), "version": None})
 
     return software_list
+
+
+# ==================== TOKEN CLEANUP TASKS ====================
+
+@celery_app.task(bind=True)
+def cleanup_expired_tokens_task(self):
+    """
+    Clean up expired and revoked refresh tokens from the database.
+    This task should be run periodically (e.g., daily) to prevent
+    the user_tokens table from growing indefinitely.
+
+    Returns summary of cleanup operations performed.
+    """
+    from backend.core.database import SessionLocal
+    from backend.models import UserToken
+    from datetime import datetime, timezone
+
+    db: Session = SessionLocal()
+    try:
+        now = datetime.now(timezone.utc)
+
+        # Count tokens before cleanup for reporting
+        total_before = db.query(UserToken).count()
+        expired_count = db.query(UserToken).filter(
+            UserToken.expires_at < now
+        ).count()
+        revoked_count = db.query(UserToken).filter(
+            UserToken.revoked == True,
+            UserToken.expires_at >= now  # Only count non-expired revoked tokens
+        ).count()
+
+        # Delete expired tokens (already past expiration date)
+        deleted_expired = db.query(UserToken).filter(
+            UserToken.expires_at < now
+        ).delete(synchronize_session=False)
+
+        # Delete revoked tokens that are older than 24 hours
+        # (keep recent revoked tokens for security audit purposes)
+        from datetime import timedelta
+        cutoff_time = now - timedelta(hours=24)
+
+        deleted_revoked = db.query(UserToken).filter(
+            UserToken.revoked == True,
+            UserToken.created_at < cutoff_time
+        ).delete(synchronize_session=False)
+
+        db.commit()
+
+        total_deleted = deleted_expired + deleted_revoked
+        total_after = db.query(UserToken).count()
+
+        log_event(
+            "token_cleanup_complete",
+            total_before=total_before,
+            total_after=total_after,
+            expired_deleted=deleted_expired,
+            revoked_deleted=deleted_revoked,
+            total_deleted=total_deleted
+        )
+
+        return {
+            "status": "success",
+            "total_before": total_before,
+            "total_after": total_after,
+            "expired_deleted": deleted_expired,
+            "revoked_deleted": deleted_revoked,
+            "total_deleted": total_deleted
+        }
+
+    except Exception as e:
+        db.rollback()
+        log_event(
+            "token_cleanup_error",
+            error_type=type(e).__name__,
+            error_message=str(e)
+        )
+        return {"status": "error", "message": str(e)}
+    finally:
+        db.close()
+
+
+@celery_app.task(bind=True)
+def cleanup_old_audit_logs_task(self, days_to_keep: int = 90):
+    """
+    Clean up old audit logs to prevent the audit_logs table from growing indefinitely.
+    By default, keeps the last 90 days of audit logs.
+
+    Args:
+        days_to_keep: Number of days of audit logs to retain (default: 90)
+
+    Returns summary of cleanup operations performed.
+    """
+    from backend.core.database import SessionLocal
+    from backend.models import AuditLog
+    from datetime import datetime, timezone, timedelta
+
+    db: Session = SessionLocal()
+    try:
+        now = datetime.now(timezone.utc)
+        cutoff_date = now - timedelta(days=days_to_keep)
+
+        # Count logs before cleanup
+        total_before = db.query(AuditLog).count()
+        old_logs_count = db.query(AuditLog).filter(
+            AuditLog.created_at < cutoff_date
+        ).count()
+
+        # Delete old audit logs
+        deleted_count = db.query(AuditLog).filter(
+            AuditLog.created_at < cutoff_date
+        ).delete(synchronize_session=False)
+
+        db.commit()
+
+        total_after = db.query(AuditLog).count()
+
+        log_event(
+            "audit_log_cleanup_complete",
+            days_to_keep=days_to_keep,
+            cutoff_date=cutoff_date.isoformat(),
+            total_before=total_before,
+            total_after=total_after,
+            deleted_count=deleted_count
+        )
+
+        return {
+            "status": "success",
+            "days_to_keep": days_to_keep,
+            "total_before": total_before,
+            "total_after": total_after,
+            "deleted_count": deleted_count
+        }
+
+    except Exception as e:
+        db.rollback()
+        log_event(
+            "audit_log_cleanup_error",
+            error_type=type(e).__name__,
+            error_message=str(e)
+        )
+        return {"status": "error", "message": str(e)}
+    finally:
+        db.close()
+
+
+# ==================== CELERY BEAT SCHEDULE ====================
+# Configure periodic tasks (requires celery beat to be running)
+
+celery_app.conf.beat_schedule = {
+    # Clean up expired tokens daily at 2:00 AM
+    'cleanup-expired-tokens-daily': {
+        'task': 'worker.tasks.cleanup_expired_tokens_task',
+        'schedule': 86400.0,  # 24 hours in seconds
+    },
+    # Clean up old audit logs weekly on Sunday at 3:00 AM
+    'cleanup-old-audit-logs-weekly': {
+        'task': 'worker.tasks.cleanup_old_audit_logs_task',
+        'schedule': 604800.0,  # 7 days in seconds
+        'args': (90,),  # Keep 90 days of logs
+    },
+    # Check all expirations daily at 8:00 AM
+    'check-all-expirations-daily': {
+        'task': 'worker.tasks.check_all_expirations_task',
+        'schedule': 86400.0,  # 24 hours in seconds
+        'args': (30,),  # 30 days threshold
+    },
+}
+
+celery_app.conf.timezone = 'UTC'

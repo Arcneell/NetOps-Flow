@@ -201,6 +201,7 @@ import { useToast } from 'primevue/usetoast';
 import { useI18n } from 'vue-i18n';
 import QRCode from 'qrcode';
 import api from '../api';
+import { validateAvatarFile, validatePassword, validateMfaCode } from '../utils/validation';
 
 const { t } = useI18n();
 const toast = useToast();
@@ -267,9 +268,11 @@ const uploadAvatar = async (event) => {
   const file = event.target.files?.[0];
   if (!file) return;
 
-  // Validate file size (max 2MB)
-  if (file.size > 2 * 1024 * 1024) {
-    toast.add({ severity: 'error', summary: t('common.error'), detail: t('settings.avatarTooLarge') });
+  // Validate file with Zod schema (type, size, format)
+  const validation = validateAvatarFile(file);
+  if (!validation.success) {
+    toast.add({ severity: 'error', summary: t('common.error'), detail: validation.error });
+    event.target.value = '';
     return;
   }
 
@@ -314,8 +317,10 @@ const saveProfile = async () => {
 };
 
 const updatePassword = async () => {
-  if (!newPassword.value || newPassword.value.length < 8) {
-    toast.add({ severity: 'warn', summary: t('validation.error'), detail: t('validation.passwordTooShort') });
+  // Validate password with Zod schema
+  const passwordValidation = validatePassword(newPassword.value);
+  if (!passwordValidation.success) {
+    toast.add({ severity: 'warn', summary: t('validation.error'), detail: passwordValidation.error });
     return;
   }
 
@@ -359,7 +364,9 @@ const startMfaSetup = async () => {
 };
 
 const enableMfa = async () => {
-  if (!mfaVerificationCode.value || mfaVerificationCode.value.length !== 6) {
+  // Validate MFA code with Zod schema
+  const mfaValidation = validateMfaCode(mfaVerificationCode.value);
+  if (!mfaValidation.success) {
     toast.add({ severity: 'warn', summary: t('validation.error'), detail: t('auth.invalidMfaCode') });
     return;
   }

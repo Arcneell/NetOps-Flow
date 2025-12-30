@@ -50,7 +50,7 @@ backend/           # FastAPI API
 │   ├── rate_limiter.py     # Rate limiting Redis
 │   ├── logging.py          # Logging structuré JSON/Text
 │   ├── cache.py            # Cache Redis pour dashboard/topology (TTL 5min)
-│   └── middleware.py       # Audit middleware (log auto POST/PUT/DELETE)
+│   └── middleware.py       # Audit middleware (log auto POST/PUT/DELETE, enhanced metadata for critical ops)
 ├── routers/
 │   ├── auth.py             # POST /token, GET /me, MFA, refresh tokens (/refresh, /logout, /logout-all)
 │   ├── users.py            # CRUD utilisateurs (admin)
@@ -73,7 +73,10 @@ backend/           # FastAPI API
 └── app.py                  # Application FastAPI (lifespan context manager, optimized health check)
 
 worker/            # Celery worker
-└── tasks.py       # Tâches async (exécution scripts, scan subnet, alertes expirations, collecte logiciels)
+└── tasks.py       # Tâches async (exécution scripts, scan subnet, alertes expirations, collecte logiciels, cleanup tokens/audit logs)
+
+frontend/src/utils/
+└── validation.js  # Schémas de validation Zod (avatar, scripts, passwords, MFA codes)
 ```
 
 ## Fonctionnalités Principales
@@ -192,7 +195,7 @@ worker/            # Celery worker
 ## Sécurité
 
 - **Auth**: JWT (30min access token) + Refresh tokens (7 jours) + bcrypt pour mots de passe
-- **Refresh Tokens**: Rotation automatique, révocation individuelle ou globale, stockage haché (SHA256)
+- **Refresh Tokens**: Rotation automatique, révocation individuelle ou globale, stockage haché (SHA256), nettoyage automatique via Celery Beat
 - **MFA/TOTP**: Authentification à deux facteurs optionnelle avec pyotp (secrets auto-chiffrés via hooks SQLAlchemy)
 - **Encryption**: Fernet pour données sensibles (remote passwords, TOTP secrets)
 - **Auto-Encryption**: Hooks SQLAlchemy pour chiffrer automatiquement Equipment.remote_password et User.totp_secret
@@ -206,7 +209,8 @@ worker/            # Celery worker
 - **Sandbox Docker**: Mémoire 256MB, CPU 0.5, network disabled, read-only filesystem
 - **Sandbox Obligatoire**: Pas de fallback vers exécution directe quand DOCKER_SANDBOX_ENABLED=true
 - **Validation MIME**: Vérification du type MIME des scripts uploadés (anti-masquage)
-- **Audit Log**: Traçabilité complète via middleware (POST, PUT, DELETE) + événements MFA
+- **Audit Log**: Traçabilité complète via middleware (POST, PUT, DELETE) + événements MFA + métadonnées enrichies pour actions critiques (severity, category, affected_ids)
+- **Validation Frontend**: Schémas Zod pour validation des fichiers (avatar, scripts) et formulaires (password, MFA code)
 - **Cache Redis**: Dashboard et Topology cachés (TTL 5 minutes)
 
 ## Commandes
