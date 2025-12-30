@@ -15,8 +15,8 @@ router = APIRouter(prefix="/dcim", tags=["DCIM"])
 
 
 def check_dcim_permission(current_user: models.User):
-    """Check if user has DCIM/inventory permission."""
-    if current_user.role != "admin" and not current_user.permissions.get("inventory"):
+    """Check if user has DCIM/inventory permission (admin only)."""
+    if current_user.role != "admin":
         raise HTTPException(status_code=403, detail="Permission denied")
 
 

@@ -15,8 +15,8 @@ router = APIRouter(prefix="/network-ports", tags=["Network Ports"])
 
 
 def check_network_permission(current_user: models.User):
-    """Check if user has network/inventory permission."""
-    if current_user.role != "admin" and not current_user.permissions.get("inventory"):
+    """Check if user has network/inventory permission (admin only)."""
+    if current_user.role != "admin":
         raise HTTPException(status_code=403, detail="Permission denied")
 
 

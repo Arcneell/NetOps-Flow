@@ -25,8 +25,8 @@ def get_topology(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_active_user)
 ):
-    """Get network topology data for visualization with caching."""
-    if current_user.role != "admin" and not current_user.permissions.get("topology"):
+    """Get network topology data for visualization with caching (admin only)."""
+    if current_user.role != "admin":
         raise HTTPException(status_code=403, detail="Permission denied")
 
     # Try to get from cache first
@@ -101,8 +101,8 @@ def get_physical_topology(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_active_user)
 ):
-    """Get physical network topology (equipment and port connections) with caching."""
-    if current_user.role != "admin" and not current_user.permissions.get("topology"):
+    """Get physical network topology (equipment and port connections) with caching (admin only)."""
+    if current_user.role != "admin":
         raise HTTPException(status_code=403, detail="Permission denied")
 
     # Try to get from cache first
@@ -221,8 +221,8 @@ def get_rack_topology(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_active_user)
 ):
-    """Get topology for equipment within a specific rack."""
-    if current_user.role != "admin" and not current_user.permissions.get("topology"):
+    """Get topology for equipment within a specific rack (admin only)."""
+    if current_user.role != "admin":
         raise HTTPException(status_code=403, detail="Permission denied")
 
     rack = db.query(models.Rack).filter(models.Rack.id == rack_id).first()

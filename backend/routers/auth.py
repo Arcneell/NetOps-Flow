@@ -148,8 +148,7 @@ async def login_for_access_token(
             "id": user.id,
             "username": user.username,
             "role": user.role,
-            "permissions": user.permissions or {}
-        }
+                    }
     }
 
 
@@ -389,8 +388,7 @@ async def verify_mfa(
             "id": user.id,
             "username": user.username,
             "role": user.role,
-            "permissions": user.permissions or {}
-        }
+                    }
     }
 
 
@@ -574,8 +572,7 @@ async def refresh_access_token(
             "id": user.id,
             "username": user.username,
             "role": user.role,
-            "permissions": user.permissions or {}
-        }
+                    }
     }
 
 

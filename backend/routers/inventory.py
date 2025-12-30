@@ -18,8 +18,8 @@ router = APIRouter(prefix="/inventory", tags=["Inventory"])
 
 
 def check_inventory_permission(current_user: models.User):
-    """Check if user has inventory permission."""
-    if current_user.role != "admin" and not current_user.permissions.get("inventory"):
+    """Check if user has inventory permission (admin only)."""
+    if current_user.role != "admin":
         raise HTTPException(status_code=403, detail="Permission denied")
 
 
@@ -455,8 +455,8 @@ def list_executable_equipment(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_active_user)
 ):
-    """Get equipment configured for remote execution."""
-    if current_user.role != "admin" and not current_user.permissions.get("scripts"):
+    """Get equipment configured for remote execution (admin only)."""
+    if current_user.role != "admin":
         raise HTTPException(status_code=403, detail="Permission denied")
 
     query = db.query(models.Equipment).join(

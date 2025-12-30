@@ -81,8 +81,8 @@ def validate_mime_type(content: bytes, script_type: str) -> bool:
 
 
 def check_scripts_permission(current_user: models.User):
-    """Check if user has scripts permission."""
-    if current_user.role != "admin" and not current_user.permissions.get("scripts"):
+    """Check if user has scripts permission (admin only)."""
+    if current_user.role != "admin":
         raise HTTPException(status_code=403, detail="Permission denied")
 
 

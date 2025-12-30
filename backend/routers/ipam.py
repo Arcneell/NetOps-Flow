@@ -17,8 +17,8 @@ router = APIRouter(prefix="/subnets", tags=["IPAM"])
 
 
 def check_ipam_permission(current_user: models.User):
-    """Check if user has IPAM permission."""
-    if current_user.role != "admin" and not current_user.permissions.get("ipam"):
+    """Check if user has IPAM permission (admin only)."""
+    if current_user.role != "admin":
         raise HTTPException(status_code=403, detail="Permission denied")
 
 
@@ -56,10 +56,8 @@ def read_subnets(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_active_user)
 ):
-    """List all subnets with their IPs."""
-    if (current_user.role != "admin" and
-        not current_user.permissions.get("ipam") and
-        not current_user.permissions.get("topology")):
+    """List all subnets with their IPs (admin only)."""
+    if current_user.role != "admin":
         raise HTTPException(status_code=403, detail="Permission denied")
 
     subnets = db.query(models.Subnet).options(

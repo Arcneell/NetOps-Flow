@@ -73,22 +73,16 @@
                     <label class="text-xs font-bold text-blue-100 uppercase tracking-wider ml-1">{{ t('auth.password') }} <span class="text-red-500">*</span></label>
                     <div class="relative group">
                         <i class="pi pi-lock absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-400 transition-colors z-20"></i>
-                        <InputText
+                        <Password
                             v-model="password"
-                            :type="showPassword ? 'text' : 'password'"
                             :placeholder="t('auth.password')"
-                            class="block w-full !pl-12 !pr-12 !py-3 !bg-slate-950/80 !border-slate-700 !text-white placeholder:!text-slate-500 focus:!border-blue-500 focus:!ring-1 focus:!ring-blue-500 transition-all"
-                            style="padding-left: 3rem !important; padding-right: 3rem !important; background-color: #020617 !important; color: white !important;"
+                            :feedback="false"
+                            toggleMask
+                            class="w-full login-password"
+                            inputClass="block w-full !pl-12 !py-3 !bg-slate-950/80 !border-slate-700 !text-white placeholder:!text-slate-500 focus:!border-blue-500 focus:!ring-1 focus:!ring-blue-500 transition-all"
+                            inputStyle="padding-left: 3rem !important; background-color: #020617 !important; color: white !important;"
                             @input="errorMessage = ''"
                         />
-                        <button
-                            type="button"
-                            @click="togglePasswordVisibility"
-                            class="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-blue-400 transition-colors z-20 focus:outline-none"
-                            :title="showPassword ? t('auth.hidePassword') : t('auth.showPassword')"
-                        >
-                            <i :class="showPassword ? 'pi pi-eye-slash' : 'pi pi-eye'"></i>
-                        </button>
                     </div>
                 </div>
 
@@ -183,17 +177,12 @@ const username = ref('')
 const password = ref('')
 const loading = ref(false)
 const errorMessage = ref('')
-const showPassword = ref(false)
 const mfaCode = ref('')
 const showMfaScreen = ref(false)
 
 const setLang = (lang) => {
     locale.value = lang
     localStorage.setItem('lang', lang)
-}
-
-const togglePasswordVisibility = () => {
-    showPassword.value = !showPassword.value
 }
 
 onMounted(() => {

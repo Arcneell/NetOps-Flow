@@ -17,8 +17,8 @@ router = APIRouter(prefix="/contracts", tags=["Contracts"])
 
 
 def check_contract_permission(current_user: models.User):
-    """Check if user has contract/inventory permission."""
-    if current_user.role != "admin" and not current_user.permissions.get("inventory"):
+    """Check if user has contract/inventory permission (admin only)."""
+    if current_user.role != "admin":
         raise HTTPException(status_code=403, detail="Permission denied")
 
 
