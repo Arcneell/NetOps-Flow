@@ -524,7 +524,18 @@ const activities = ref([]);
 const alertsSection = ref(null);
 const lastRefresh = ref('');
 
-const username = computed(() => localStorage.getItem('username') || 'User');
+const username = computed(() => {
+  const userStr = localStorage.getItem('user');
+  if (userStr) {
+    try {
+      const user = JSON.parse(userStr);
+      return user.username || 'User';
+    } catch (e) {
+      return 'User';
+    }
+  }
+  return 'User';
+});
 
 const isAdmin = computed(() => {
   const userStr = localStorage.getItem('user');
