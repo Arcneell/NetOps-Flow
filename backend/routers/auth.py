@@ -147,8 +147,13 @@ async def login_for_access_token(
         "user": {
             "id": user.id,
             "username": user.username,
+            "email": user.email,
             "role": user.role,
-                    }
+            "permissions": user.permissions or [],
+            "avatar": user.avatar,
+            "mfa_enabled": user.mfa_enabled,
+            "is_active": user.is_active,
+        }
     }
 
 
@@ -415,8 +420,13 @@ async def verify_mfa(
         "user": {
             "id": user.id,
             "username": user.username,
+            "email": user.email,
             "role": user.role,
-                    }
+            "permissions": user.permissions or [],
+            "avatar": user.avatar,
+            "mfa_enabled": user.mfa_enabled,
+            "is_active": user.is_active,
+        }
     }
 
 
@@ -599,8 +609,13 @@ async def refresh_access_token(
         "user": {
             "id": user.id,
             "username": user.username,
+            "email": user.email,
             "role": user.role,
-                    }
+            "permissions": user.permissions or [],
+            "avatar": user.avatar,
+            "mfa_enabled": user.mfa_enabled,
+            "is_active": user.is_active,
+        }
     }
 
 

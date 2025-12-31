@@ -287,14 +287,28 @@ const fetchUser = async () => {
   try {
     const res = await api.get('/me');
     user.value = res.data;
-    if (!user.value.permissions) user.value.permissions = {};
+    // Ensure permissions is an array (not object)
+    if (!Array.isArray(user.value.permissions)) {
+      user.value.permissions = [];
+    }
   } catch (e) {
     // Handled by interceptor
   }
 };
 
-const logout = () => {
+const logout = async () => {
+  // Try to revoke refresh token on server
+  const refreshToken = localStorage.getItem('refreshToken');
+  if (refreshToken) {
+    try {
+      await api.post('/logout', { refresh_token: refreshToken });
+    } catch (e) {
+      // Ignore errors - we're logging out anyway
+    }
+  }
+
   localStorage.removeItem('token');
+  localStorage.removeItem('refreshToken');
   localStorage.removeItem('username');
   localStorage.removeItem('user');
   router.push('/login');
