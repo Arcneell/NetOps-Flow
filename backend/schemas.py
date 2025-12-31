@@ -257,6 +257,8 @@ class Supplier(SupplierBase):
 
 # --- Equipment ---
 class EquipmentBase(BaseModel):
+    model_config = {"protected_namespaces": ()}
+
     name: str
     serial_number: Optional[str] = None
     asset_tag: Optional[str] = None
@@ -292,6 +294,8 @@ class EquipmentCreate(EquipmentBase):
     remote_password: Optional[str] = None
 
 class EquipmentUpdate(BaseModel):
+    model_config = {"protected_namespaces": ()}
+
     name: Optional[str] = None
     serial_number: Optional[str] = None
     asset_tag: Optional[str] = None
@@ -412,6 +416,8 @@ class PDU(PDUBase):
 # --- Rack Layout Schemas ---
 class RackEquipmentDetail(BaseModel):
     """Detailed equipment info for rack layout visualization"""
+    model_config = {"protected_namespaces": ()}
+
     id: int
     name: str
     height_u: int
