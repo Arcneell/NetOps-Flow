@@ -37,8 +37,8 @@
         <div class="stat-label">{{ t('dashboard.openTickets') }}</div>
       </router-link>
 
-      <!-- Network Stats - Admin only -->
-      <router-link v-if="isAdmin" to="/ipam" class="stat-card group">
+      <!-- Network Stats - Permission-based -->
+      <router-link v-if="canViewIpam" to="/ipam" class="stat-card group">
         <div class="stat-icon bg-blue-500/20 text-blue-400 group-hover:bg-blue-500/30">
           <i class="pi pi-sitemap text-xl"></i>
         </div>
@@ -46,7 +46,7 @@
         <div class="stat-label">{{ t('dashboard.subnets') }}</div>
       </router-link>
 
-      <router-link v-if="isAdmin" to="/ipam" class="stat-card group">
+      <router-link v-if="canViewIpam" to="/ipam" class="stat-card group">
         <div class="stat-icon bg-green-500/20 text-green-400 group-hover:bg-green-500/30">
           <i class="pi pi-wifi text-xl"></i>
         </div>
@@ -54,8 +54,8 @@
         <div class="stat-label">{{ t('dashboard.activeIps') }}</div>
       </router-link>
 
-      <!-- Equipment Stats - Admin only -->
-      <router-link v-if="isAdmin" to="/inventory" class="stat-card group">
+      <!-- Equipment Stats - Permission-based -->
+      <router-link v-if="canViewInventory" to="/inventory" class="stat-card group">
         <div class="stat-icon bg-cyan-500/20 text-cyan-400 group-hover:bg-cyan-500/30">
           <i class="pi pi-box text-xl"></i>
         </div>
@@ -63,8 +63,8 @@
         <div class="stat-label">{{ t('dashboard.equipment') }}</div>
       </router-link>
 
-      <!-- Contracts Stats - Admin only -->
-      <router-link v-if="isAdmin" to="/contracts" class="stat-card group">
+      <!-- Contracts Stats - Permission-based -->
+      <router-link v-if="canViewContracts" to="/contracts" class="stat-card group">
         <div class="stat-icon bg-orange-500/20 text-orange-400 group-hover:bg-orange-500/30">
           <i class="pi pi-file-edit text-xl"></i>
         </div>
@@ -72,8 +72,8 @@
         <div class="stat-label">{{ t('dashboard.contracts') }}</div>
       </router-link>
 
-      <!-- DCIM Stats - Admin only -->
-      <router-link v-if="isAdmin" to="/dcim" class="stat-card group">
+      <!-- DCIM Stats - Permission-based -->
+      <router-link v-if="canViewDcim" to="/dcim" class="stat-card group">
         <div class="stat-icon bg-indigo-500/20 text-indigo-400 group-hover:bg-indigo-500/30">
           <i class="pi pi-server text-xl"></i>
         </div>
@@ -181,12 +181,12 @@
       </div>
     </div>
 
-    <!-- Admin Only Sections -->
-    <template v-if="isAdmin">
+    <!-- Admin/Tech Sections (based on permissions) -->
+    <template v-if="isTech">
       <!-- Secondary Row -->
       <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <!-- Equipment Status Distribution -->
-        <div class="card">
+        <!-- Equipment Status Distribution - Permission-based -->
+        <div v-if="canViewInventory" class="card">
           <h3 class="text-lg font-bold mb-4 flex items-center gap-2">
             <i class="pi pi-chart-pie text-cyan-400"></i>
             {{ t('dashboard.equipmentStatus') }}
@@ -275,8 +275,8 @@
           </div>
         </div>
 
-        <!-- Software & License Compliance -->
-        <div class="card">
+        <!-- Software & License Compliance - Permission-based -->
+        <div v-if="canViewSoftware" class="card">
           <h3 class="text-lg font-bold mb-4 flex items-center gap-2">
             <i class="pi pi-desktop text-blue-400"></i>
             {{ t('dashboard.softwareLicenses') }}
@@ -382,9 +382,9 @@
         </div>
       </div>
 
-      <!-- Quick Actions & System Status - Admin only -->
+      <!-- Quick Actions & System Status -->
       <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <!-- Quick Actions -->
+        <!-- Quick Actions - Permission-based -->
         <div class="lg:col-span-2 card">
           <h3 class="text-lg font-bold mb-4 flex items-center gap-2">
             <i class="pi pi-bolt text-yellow-400"></i>
@@ -395,27 +395,27 @@
               <i class="pi pi-ticket text-red-400"></i>
               <span>{{ t('dashboard.newTicket') }}</span>
             </router-link>
-            <router-link to="/ipam" class="action-btn">
+            <router-link v-if="canViewIpam" to="/ipam" class="action-btn">
               <i class="pi pi-plus text-blue-400"></i>
               <span>{{ t('dashboard.newSubnet') }}</span>
             </router-link>
-            <router-link to="/inventory" class="action-btn">
+            <router-link v-if="canViewInventory" to="/inventory" class="action-btn">
               <i class="pi pi-box text-cyan-400"></i>
               <span>{{ t('dashboard.addEquipment') }}</span>
             </router-link>
-            <router-link to="/topology" class="action-btn">
+            <router-link v-if="canViewTopology" to="/topology" class="action-btn">
               <i class="pi pi-share-alt text-green-400"></i>
               <span>{{ t('dashboard.viewTopology') }}</span>
             </router-link>
-            <router-link to="/dcim" class="action-btn">
+            <router-link v-if="canViewDcim" to="/dcim" class="action-btn">
               <i class="pi pi-server text-indigo-400"></i>
               <span>{{ t('dashboard.manageRacks') }}</span>
             </router-link>
-            <router-link to="/contracts" class="action-btn">
+            <router-link v-if="canViewContracts" to="/contracts" class="action-btn">
               <i class="pi pi-file-edit text-orange-400"></i>
               <span>{{ t('dashboard.newContract') }}</span>
             </router-link>
-            <router-link to="/software" class="action-btn">
+            <router-link v-if="canViewSoftware" to="/software" class="action-btn">
               <i class="pi pi-desktop text-pink-400"></i>
               <span>{{ t('dashboard.manageSoftware') }}</span>
             </router-link>
@@ -426,8 +426,8 @@
           </div>
         </div>
 
-        <!-- System Status -->
-        <div class="card">
+        <!-- System Status - Admin only -->
+        <div v-if="isAdmin" class="card">
           <h3 class="text-lg font-bold mb-4 flex items-center gap-2">
             <i class="pi pi-server text-green-400"></i>
             {{ t('dashboard.systemStatus') }}
@@ -469,8 +469,8 @@
       </div>
     </template>
 
-    <!-- User Quick Actions (non-admin) -->
-    <div v-if="!isAdmin" class="card">
+    <!-- User Quick Actions (regular users only) -->
+    <div v-if="!isTech" class="card">
       <h3 class="text-lg font-bold mb-4 flex items-center gap-2">
         <i class="pi pi-bolt text-yellow-400"></i>
         {{ t('dashboard.quickActions') }}
@@ -497,6 +497,12 @@
 import { ref, computed, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import api from '../api';
+import {
+  getCurrentUser,
+  hasPermission,
+  isAdmin as checkIsAdmin,
+  isTechOrAbove
+} from '../utils/permissions';
 
 const { t } = useI18n();
 
@@ -537,18 +543,18 @@ const username = computed(() => {
   return 'User';
 });
 
-const isAdmin = computed(() => {
-  const userStr = localStorage.getItem('user');
-  if (userStr) {
-    try {
-      const user = JSON.parse(userStr);
-      return user.role === 'admin' || user.role === 'superadmin';
-    } catch (e) {
-      return false;
-    }
-  }
-  return false;
-});
+// Use centralized permission utilities
+const currentUser = computed(() => getCurrentUser());
+const isAdmin = computed(() => checkIsAdmin());
+const isTech = computed(() => isTechOrAbove());
+
+// Permission-based computed properties for showing specific sections
+const canViewIpam = computed(() => hasPermission(currentUser.value, 'ipam'));
+const canViewInventory = computed(() => hasPermission(currentUser.value, 'inventory'));
+const canViewDcim = computed(() => hasPermission(currentUser.value, 'dcim'));
+const canViewContracts = computed(() => hasPermission(currentUser.value, 'contracts'));
+const canViewSoftware = computed(() => hasPermission(currentUser.value, 'software'));
+const canViewTopology = computed(() => hasPermission(currentUser.value, 'topology'));
 
 const currentDate = computed(() => {
   return new Date().toLocaleDateString(undefined, {
@@ -658,8 +664,8 @@ const loadDashboard = async () => {
     const ticketsRes = await api.get('/tickets/', { params: { limit: 5 } });
     recentTickets.value = ticketsRes.data;
 
-    // Load admin-only data
-    if (isAdmin.value) {
+    // Load extended dashboard data for tech/admin/superadmin
+    if (isTech.value) {
       const [statsRes, alertsRes, activitiesRes] = await Promise.all([
         api.get('/dashboard/stats'),
         api.get('/dashboard/alerts'),

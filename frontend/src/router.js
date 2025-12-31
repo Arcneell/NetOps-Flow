@@ -14,29 +14,12 @@ import Software from './views/Software.vue'
 import Tickets from './views/Tickets.vue'
 import Knowledge from './views/Knowledge.vue'
 import Administration from './views/Administration.vue'
-
-// Role hierarchy (higher = more privileges)
-const ROLE_HIERARCHY = {
-  user: 0,
-  tech: 1,
-  admin: 2,
-  superadmin: 3
-}
-
-// Available permissions for permission-based routes
-const AVAILABLE_PERMISSIONS = [
-  'ipam',
-  'inventory',
-  'dcim',
-  'contracts',
-  'software',
-  'topology',
-  'knowledge',
-  'network_ports',
-  'attachments',
-  'tickets_admin',
-  'reports'
-]
+import {
+  getCurrentUser,
+  hasRole,
+  hasPermission,
+  isSuperadmin
+} from './utils/permissions'
 
 const routes = [
   // Public routes
@@ -120,53 +103,6 @@ const router = createRouter({
   history: createWebHistory(),
   routes
 })
-
-// Helper to get current user from localStorage
-const getCurrentUser = () => {
-  const userStr = localStorage.getItem('user')
-  if (userStr) {
-    try {
-      return JSON.parse(userStr)
-    } catch (e) {
-      return null
-    }
-  }
-  return null
-}
-
-// Check if user has at least the required role level
-const hasRole = (user, requiredRole) => {
-  if (!user || !user.role) return false
-  const userLevel = ROLE_HIERARCHY[user.role] || 0
-  const requiredLevel = ROLE_HIERARCHY[requiredRole] || 0
-  return userLevel >= requiredLevel
-}
-
-// Check if user has a specific permission
-const hasPermission = (user, permission) => {
-  if (!user) return false
-
-  // Superadmin has all permissions
-  if (user.role === 'superadmin') return true
-
-  // Admin has all permissions except scripts
-  if (user.role === 'admin') {
-    return AVAILABLE_PERMISSIONS.includes(permission)
-  }
-
-  // Tech has only their assigned permissions
-  if (user.role === 'tech') {
-    return (user.permissions || []).includes(permission)
-  }
-
-  // Regular users have no permissions
-  return false
-}
-
-// Check if user is superadmin
-const isSuperadmin = (user) => {
-  return user && user.role === 'superadmin'
-}
 
 router.beforeEach((to, from, next) => {
   const isPublic = to.meta.public === true

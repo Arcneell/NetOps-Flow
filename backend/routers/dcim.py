@@ -7,7 +7,7 @@ from typing import List
 import logging
 
 from backend.core.database import get_db
-from backend.core.security import get_current_active_user, get_current_admin_user
+from backend.core.security import get_current_active_user, has_permission
 from backend import models, schemas
 
 logger = logging.getLogger(__name__)
@@ -15,8 +15,8 @@ router = APIRouter(prefix="/dcim", tags=["DCIM"])
 
 
 def check_dcim_permission(current_user: models.User):
-    """Check if user has DCIM/inventory permission (admin only)."""
-    if current_user.role != "admin":
+    """Check if user has DCIM permission (tech with dcim, admin, superadmin)."""
+    if not has_permission(current_user, "dcim"):
         raise HTTPException(status_code=403, detail="Permission denied")
 
 

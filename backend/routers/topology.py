@@ -8,7 +8,7 @@ from typing import Optional
 import logging
 
 from backend.core.database import get_db
-from backend.core.security import get_current_active_user
+from backend.core.security import get_current_active_user, has_permission
 from backend.core.cache import cache_get, cache_set, build_cache_key
 from backend import models
 
@@ -19,15 +19,20 @@ router = APIRouter(prefix="/topology", tags=["Topology"])
 TOPOLOGY_CACHE_TTL = 300
 
 
+def check_topology_permission(current_user: models.User):
+    """Check if user has topology permission (tech with topology, admin, superadmin)."""
+    if not has_permission(current_user, "topology"):
+        raise HTTPException(status_code=403, detail="Permission denied")
+
+
 @router.get("")
 def get_topology(
     include_physical: bool = Query(False, description="Include physical port connections"),
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_active_user)
 ):
-    """Get network topology data for visualization with caching (admin only)."""
-    if current_user.role != "admin":
-        raise HTTPException(status_code=403, detail="Permission denied")
+    """Get network topology data for visualization with caching."""
+    check_topology_permission(current_user)
 
     # Try to get from cache first
     cache_key = build_cache_key("topology", "network", include_physical=include_physical)
@@ -101,9 +106,8 @@ def get_physical_topology(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_active_user)
 ):
-    """Get physical network topology (equipment and port connections) with caching (admin only)."""
-    if current_user.role != "admin":
-        raise HTTPException(status_code=403, detail="Permission denied")
+    """Get physical network topology (equipment and port connections) with caching."""
+    check_topology_permission(current_user)
 
     # Try to get from cache first
     cache_key = build_cache_key("topology", "physical")
@@ -221,9 +225,8 @@ def get_rack_topology(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_active_user)
 ):
-    """Get topology for equipment within a specific rack (admin only)."""
-    if current_user.role != "admin":
-        raise HTTPException(status_code=403, detail="Permission denied")
+    """Get topology for equipment within a specific rack."""
+    check_topology_permission(current_user)
 
     rack = db.query(models.Rack).filter(models.Rack.id == rack_id).first()
     if not rack:

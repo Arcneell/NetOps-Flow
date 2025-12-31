@@ -211,6 +211,10 @@ import { useRoute, useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import api from './api';
 import NotificationBell from './components/shared/NotificationBell.vue';
+import {
+  hasPermission as checkPermission,
+  AVAILABLE_PERMISSIONS
+} from './utils/permissions';
 
 const { t, locale } = useI18n();
 const route = useRoute();
@@ -218,10 +222,6 @@ const router = useRouter();
 const user = ref({ username: '', role: '', permissions: [] });
 const isDark = ref(false);
 const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-
-// Role hierarchy (higher = more privileges)
-const ROLE_HIERARCHY = { user: 0, tech: 1, admin: 2, superadmin: 3 };
-const AVAILABLE_PERMISSIONS = ['ipam', 'inventory', 'dcim', 'contracts', 'software', 'topology', 'knowledge', 'network_ports', 'attachments', 'tickets_admin', 'reports'];
 
 const isLoginPage = computed(() => route.path === '/login' || route.path === '/unauthorized');
 const isSuperadmin = computed(() => user.value.role === 'superadmin');
@@ -271,16 +271,9 @@ const initTheme = () => {
   updateThemeClass();
 };
 
+// Use imported checkPermission with reactive user
 const hasPermission = (permission) => {
-  if (!user.value) return false;
-  // Superadmin has all permissions
-  if (user.value.role === 'superadmin') return true;
-  // Admin has all available permissions
-  if (user.value.role === 'admin') return AVAILABLE_PERMISSIONS.includes(permission);
-  // Tech has only their assigned permissions
-  if (user.value.role === 'tech') return (user.value.permissions || []).includes(permission);
-  // Regular users have no granular permissions
-  return false;
+  return checkPermission(user.value, permission);
 };
 
 const fetchUser = async () => {

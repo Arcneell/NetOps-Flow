@@ -9,7 +9,7 @@ from datetime import date, timedelta
 import logging
 
 from backend.core.database import get_db
-from backend.core.security import get_current_active_user, get_current_admin_user
+from backend.core.security import get_current_active_user, has_permission
 from backend import models, schemas
 
 logger = logging.getLogger(__name__)
@@ -17,8 +17,8 @@ router = APIRouter(prefix="/contracts", tags=["Contracts"])
 
 
 def check_contract_permission(current_user: models.User):
-    """Check if user has contract/inventory permission (admin only)."""
-    if current_user.role != "admin":
+    """Check if user has contracts permission (tech with contracts, admin, superadmin)."""
+    if not has_permission(current_user, "contracts"):
         raise HTTPException(status_code=403, detail="Permission denied")
 
 

@@ -8,7 +8,7 @@ import ipaddress
 import logging
 
 from backend.core.database import get_db
-from backend.core.security import get_current_active_user, get_current_admin_user
+from backend.core.security import get_current_active_user, has_permission
 from backend import models, schemas
 from worker.tasks import scan_subnet_task
 
@@ -17,8 +17,8 @@ router = APIRouter(prefix="/subnets", tags=["IPAM"])
 
 
 def check_ipam_permission(current_user: models.User):
-    """Check if user has IPAM permission (admin only)."""
-    if current_user.role != "admin":
+    """Check if user has IPAM permission (tech with ipam, admin, superadmin)."""
+    if not has_permission(current_user, "ipam"):
         raise HTTPException(status_code=403, detail="Permission denied")
 
 
@@ -56,9 +56,8 @@ def read_subnets(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_active_user)
 ):
-    """List all subnets with their IPs (admin only)."""
-    if current_user.role != "admin":
-        raise HTTPException(status_code=403, detail="Permission denied")
+    """List all subnets with their IPs (tech with ipam, admin, superadmin)."""
+    check_ipam_permission(current_user)
 
     subnets = db.query(models.Subnet).options(
         joinedload(models.Subnet.ips).joinedload(models.IPAddress.equipment)

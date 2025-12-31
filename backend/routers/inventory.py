@@ -10,6 +10,7 @@ from backend.core.database import get_db
 from backend.core.security import (
     get_current_active_user,
     get_current_admin_user,
+    has_permission,
 )
 from backend import models, schemas
 
@@ -18,8 +19,8 @@ router = APIRouter(prefix="/inventory", tags=["Inventory"])
 
 
 def check_inventory_permission(current_user: models.User):
-    """Check if user has inventory permission (admin only)."""
-    if current_user.role != "admin":
+    """Check if user has inventory permission (tech with inventory, admin, superadmin)."""
+    if not has_permission(current_user, "inventory"):
         raise HTTPException(status_code=403, detail="Permission denied")
 
 
@@ -455,9 +456,8 @@ def list_executable_equipment(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_active_user)
 ):
-    """Get equipment configured for remote execution (admin only)."""
-    if current_user.role != "admin":
-        raise HTTPException(status_code=403, detail="Permission denied")
+    """Get equipment configured for remote execution (inventory permission required)."""
+    check_inventory_permission(current_user)
 
     query = db.query(models.Equipment).join(
         models.EquipmentModel

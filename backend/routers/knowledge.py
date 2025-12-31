@@ -11,12 +11,17 @@ import re
 import logging
 
 from backend.core.database import get_db
-from backend.core.security import get_current_user
+from backend.core.security import get_current_user, has_permission
 from backend import models, schemas
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/knowledge", tags=["knowledge"])
+
+
+def can_manage_knowledge(user: models.User) -> bool:
+    """Check if user can manage knowledge base (tech, admin, superadmin)."""
+    return user.role in ("tech", "admin", "superadmin")
 
 
 def generate_slug(title: str, db: Session, existing_id: int = None) -> str:
@@ -59,8 +64,8 @@ def list_articles(
     """List knowledge base articles."""
     query = db.query(models.KnowledgeArticle)
 
-    # Entity filtering for non-admin users
-    if current_user.role != "admin" and current_user.entity_id:
+    # Entity filtering for non-privileged users
+    if not can_manage_knowledge(current_user) and current_user.entity_id:
         query = query.filter(
             or_(
                 models.KnowledgeArticle.entity_id == current_user.entity_id,
@@ -68,12 +73,12 @@ def list_articles(
             )
         )
 
-    # Published filter (users see only published, admins see all)
-    if published_only and current_user.role != "admin":
+    # Published filter (users see only published, tech/admin/superadmin see all)
+    if published_only and not can_manage_knowledge(current_user):
         query = query.filter(models.KnowledgeArticle.is_published == True)
 
-    # Internal articles only for admins/technicians
-    if current_user.role != "admin":
+    # Internal articles only for tech/admin/superadmin
+    if not can_manage_knowledge(current_user):
         query = query.filter(models.KnowledgeArticle.is_internal == False)
 
     # Category filter
@@ -127,7 +132,7 @@ def get_categories(
         models.KnowledgeArticle.is_published == True
     )
 
-    if current_user.role != "admin":
+    if not can_manage_knowledge(current_user):
         query = query.filter(models.KnowledgeArticle.is_internal == False)
 
     categories = query.distinct().all()
@@ -145,7 +150,7 @@ def get_popular_articles(
         models.KnowledgeArticle.is_published == True
     )
 
-    if current_user.role != "admin":
+    if not can_manage_knowledge(current_user):
         query = query.filter(models.KnowledgeArticle.is_internal == False)
 
     articles = query.order_by(
@@ -256,7 +261,7 @@ def create_article(
     current_user: models.User = Depends(get_current_user)
 ):
     """Create a new knowledge base article (admin only)."""
-    if current_user.role != "admin":
+    if not can_manage_knowledge(current_user):
         raise HTTPException(status_code=403, detail="Admin access required")
 
     slug = generate_slug(article_data.title, db)
@@ -291,7 +296,7 @@ def update_article(
     current_user: models.User = Depends(get_current_user)
 ):
     """Update an article (admin only)."""
-    if current_user.role != "admin":
+    if not can_manage_knowledge(current_user):
         raise HTTPException(status_code=403, detail="Admin access required")
 
     article = db.query(models.KnowledgeArticle).filter(
@@ -332,7 +337,7 @@ def delete_article(
     current_user: models.User = Depends(get_current_user)
 ):
     """Delete an article (admin only)."""
-    if current_user.role != "admin":
+    if not can_manage_knowledge(current_user):
         raise HTTPException(status_code=403, detail="Admin access required")
 
     article = db.query(models.KnowledgeArticle).filter(
@@ -357,7 +362,7 @@ def publish_article(
     current_user: models.User = Depends(get_current_user)
 ):
     """Publish an article (admin only)."""
-    if current_user.role != "admin":
+    if not can_manage_knowledge(current_user):
         raise HTTPException(status_code=403, detail="Admin access required")
 
     article = db.query(models.KnowledgeArticle).filter(
@@ -381,7 +386,7 @@ def unpublish_article(
     current_user: models.User = Depends(get_current_user)
 ):
     """Unpublish an article (admin only)."""
-    if current_user.role != "admin":
+    if not can_manage_knowledge(current_user):
         raise HTTPException(status_code=403, detail="Admin access required")
 
     article = db.query(models.KnowledgeArticle).filter(
