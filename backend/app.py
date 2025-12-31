@@ -121,16 +121,16 @@ def create_default_admin():
                 )
                 return
 
-            logger.info("Creating default admin user...")
+            logger.info("Creating default superadmin user...")
             hashed_pwd = get_password_hash(initial_password)
             admin = models.User(
                 username="admin",
                 hashed_password=hashed_pwd,
-                role="admin"
+                role="superadmin"
             )
             db.add(admin)
             db.commit()
-            logger.info("Default user 'admin' created successfully.")
+            logger.info("Default superadmin 'admin' created successfully.")
             logger.warning("IMPORTANT: Change the admin password immediately after first login!")
     except Exception as e:
         logger.error(f"Error creating default admin: {e}")
