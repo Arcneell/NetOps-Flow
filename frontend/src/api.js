@@ -31,6 +31,42 @@ const processQueue = (error, token = null) => {
   failedQueue = []
 }
 
+/**
+ * Refresh the access token using the stored refresh token.
+ * Returns the new access token or null if refresh fails.
+ */
+async function refreshAccessToken() {
+  const refreshToken = localStorage.getItem('refreshToken')
+  if (!refreshToken) {
+    return null
+  }
+
+  try {
+    const response = await axios.post(`${apiUrl}/api/v1/refresh`, {
+      refresh_token: refreshToken
+    })
+
+    const { access_token, refresh_token: newRefreshToken } = response.data
+
+    // Store new tokens
+    localStorage.setItem('token', access_token)
+    localStorage.setItem('refreshToken', newRefreshToken)
+
+    // Update user data if provided
+    if (response.data.user) {
+      localStorage.setItem('user', JSON.stringify(response.data.user))
+    }
+
+    return access_token
+  } catch (error) {
+    // Refresh failed - clear tokens
+    localStorage.removeItem('token')
+    localStorage.removeItem('refreshToken')
+    localStorage.removeItem('user')
+    return null
+  }
+}
+
 // Request interceptor
 api.interceptors.request.use(
   (config) => {
@@ -53,17 +89,43 @@ api.interceptors.response.use(
 
     // Handle 401 Unauthorized
     if (error.response?.status === 401 && !originalRequest._retry) {
-      // Check if we're on login page
-      if (window.location.pathname.includes('/login')) {
+      // Check if we're on login page or refresh endpoint
+      if (window.location.pathname.includes('/login') ||
+          originalRequest.url?.includes('/refresh')) {
         return Promise.reject(error)
       }
 
-      // Token is invalid - logout
-      localStorage.removeItem('token')
-      localStorage.removeItem('user')
-      localStorage.removeItem('username')
-      window.location.href = '/login'
-      return Promise.reject(error)
+      // If already refreshing, queue this request
+      if (isRefreshing) {
+        return new Promise((resolve, reject) => {
+          failedQueue.push({ resolve, reject })
+        }).then(token => {
+          originalRequest.headers['Authorization'] = `Bearer ${token}`
+          return api(originalRequest)
+        }).catch(err => {
+          return Promise.reject(err)
+        })
+      }
+
+      originalRequest._retry = true
+      isRefreshing = true
+
+      // Try to refresh the token
+      const newToken = await refreshAccessToken()
+
+      if (newToken) {
+        // Retry original request with new token
+        originalRequest.headers['Authorization'] = `Bearer ${newToken}`
+        processQueue(null, newToken)
+        isRefreshing = false
+        return api(originalRequest)
+      } else {
+        // Refresh failed - redirect to login
+        processQueue(new Error('Token refresh failed'), null)
+        isRefreshing = false
+        window.location.href = '/login'
+        return Promise.reject(error)
+      }
     }
 
     // Handle 403 Forbidden

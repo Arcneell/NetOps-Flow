@@ -57,6 +57,8 @@ def ensure_storage_dir():
 def list_equipment_attachments(
     equipment_id: int,
     category: str = None,
+    skip: int = 0,
+    limit: int = 50,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_active_user)
 ):
@@ -76,7 +78,7 @@ def list_equipment_attachments(
     if category:
         query = query.filter(models.Attachment.category == category)
 
-    return query.order_by(models.Attachment.uploaded_at.desc()).all()
+    return query.order_by(models.Attachment.uploaded_at.desc()).offset(skip).limit(limit).all()
 
 
 @router.get("/{attachment_id}", response_model=schemas.Attachment)

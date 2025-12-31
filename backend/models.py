@@ -764,3 +764,72 @@ class SLAPolicy(Base):
     created_at = Column(DateTime, default=utc_now)
 
     entity = relationship("Entity", backref="sla_policies")
+
+
+# ==================== WEBHOOKS MODELS ====================
+
+class Webhook(Base):
+    """
+    Webhook configuration for external integrations.
+    Supports event-based notifications to external systems.
+    """
+    __tablename__ = "webhooks"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, nullable=False)
+    url = Column(String, nullable=False)  # Target URL for webhook delivery
+    secret = Column(String, nullable=True)  # Shared secret for HMAC signature
+
+    # Event subscriptions
+    events = Column(JSON, default=[])  # List of events: ticket.created, ticket.updated, equipment.created, etc.
+
+    # Configuration
+    is_active = Column(Boolean, default=True)
+    content_type = Column(String, default="application/json")  # application/json or application/x-www-form-urlencoded
+    retry_count = Column(Integer, default=3)  # Number of retries on failure
+    timeout_seconds = Column(Integer, default=30)
+
+    # Stats
+    last_triggered = Column(DateTime, nullable=True)
+    last_status_code = Column(Integer, nullable=True)
+    failure_count = Column(Integer, default=0)
+    success_count = Column(Integer, default=0)
+
+    # Ownership
+    entity_id = Column(Integer, ForeignKey("entities.id", ondelete="SET NULL"), nullable=True)
+    created_by_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    created_at = Column(DateTime, default=utc_now)
+    updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
+
+    # Relationships
+    entity = relationship("Entity", backref="webhooks")
+    created_by = relationship("User", backref="webhooks")
+    deliveries = relationship("WebhookDelivery", back_populates="webhook", cascade="all, delete-orphan")
+
+
+class WebhookDelivery(Base):
+    """
+    Log of webhook delivery attempts for debugging and monitoring.
+    """
+    __tablename__ = "webhook_deliveries"
+
+    id = Column(Integer, primary_key=True, index=True)
+    webhook_id = Column(Integer, ForeignKey("webhooks.id", ondelete="CASCADE"), nullable=False)
+
+    # Delivery details
+    event_type = Column(String, nullable=False)
+    payload = Column(JSON, nullable=True)
+
+    # Response
+    status_code = Column(Integer, nullable=True)
+    response_body = Column(Text, nullable=True)
+    response_time_ms = Column(Integer, nullable=True)
+
+    # Status
+    success = Column(Boolean, default=False)
+    error_message = Column(Text, nullable=True)
+    attempt_count = Column(Integer, default=1)
+
+    created_at = Column(DateTime, default=utc_now, index=True)
+
+    webhook = relationship("Webhook", back_populates="deliveries")

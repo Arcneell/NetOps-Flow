@@ -1352,13 +1352,14 @@ def cleanup_old_audit_logs_task(self, days_to_keep: int = 90):
 
         # Count logs before cleanup
         total_before = db.query(AuditLog).count()
+        # Note: AuditLog uses 'timestamp' column, not 'created_at'
         old_logs_count = db.query(AuditLog).filter(
-            AuditLog.created_at < cutoff_date
+            AuditLog.timestamp < cutoff_date
         ).count()
 
         # Delete old audit logs
         deleted_count = db.query(AuditLog).filter(
-            AuditLog.created_at < cutoff_date
+            AuditLog.timestamp < cutoff_date
         ).delete(synchronize_session=False)
 
         db.commit()
@@ -1396,25 +1397,95 @@ def cleanup_old_audit_logs_task(self, days_to_keep: int = 90):
 
 # ==================== CELERY BEAT SCHEDULE ====================
 # Configure periodic tasks (requires celery beat to be running)
+# Using crontab for precise scheduling instead of intervals
+
+from celery.schedules import crontab
 
 celery_app.conf.beat_schedule = {
-    # Clean up expired tokens daily at 2:00 AM
+    # Clean up expired tokens daily at 2:00 AM UTC
     'cleanup-expired-tokens-daily': {
         'task': 'worker.tasks.cleanup_expired_tokens_task',
-        'schedule': 86400.0,  # 24 hours in seconds
+        'schedule': crontab(hour=2, minute=0),
     },
-    # Clean up old audit logs weekly on Sunday at 3:00 AM
+    # Clean up old audit logs weekly on Sunday at 3:00 AM UTC
     'cleanup-old-audit-logs-weekly': {
         'task': 'worker.tasks.cleanup_old_audit_logs_task',
-        'schedule': 604800.0,  # 7 days in seconds
+        'schedule': crontab(hour=3, minute=0, day_of_week='sunday'),
         'args': (90,),  # Keep 90 days of logs
     },
-    # Check all expirations daily at 8:00 AM
+    # Check all expirations daily at 8:00 AM UTC
     'check-all-expirations-daily': {
         'task': 'worker.tasks.check_all_expirations_task',
-        'schedule': 86400.0,  # 24 hours in seconds
+        'schedule': crontab(hour=8, minute=0),
         'args': (30,),  # 30 days threshold
+    },
+    # Check SLA breaches every 15 minutes during business hours
+    'check-sla-breaches': {
+        'task': 'worker.tasks.check_sla_breaches_task',
+        'schedule': crontab(minute='*/15', hour='6-22'),
     },
 }
 
 celery_app.conf.timezone = 'UTC'
+
+
+@celery_app.task(bind=True)
+def check_sla_breaches_task(self):
+    """
+    Check for SLA breaches on open tickets and update sla_breached flag.
+    Creates notifications for tickets approaching SLA breach.
+    """
+    from backend.core.database import SessionLocal
+    from backend.models import Ticket, Notification
+    from datetime import datetime, timezone
+
+    db: Session = SessionLocal()
+    try:
+        now = datetime.now(timezone.utc)
+
+        # Find tickets that have breached SLA but not yet marked
+        breached_tickets = db.query(Ticket).filter(
+            Ticket.status.in_(["new", "open", "pending"]),
+            Ticket.sla_breached == False,
+            Ticket.sla_due_date < now
+        ).all()
+
+        breached_count = 0
+        for ticket in breached_tickets:
+            ticket.sla_breached = True
+            breached_count += 1
+
+            # Notify assigned user about SLA breach
+            if ticket.assigned_to_id:
+                notification = Notification(
+                    user_id=ticket.assigned_to_id,
+                    title=f"SLA Breach: {ticket.ticket_number}",
+                    message=f"Ticket '{ticket.title}' has breached its SLA deadline.",
+                    notification_type="error",
+                    link_type="ticket",
+                    link_id=ticket.id
+                )
+                db.add(notification)
+
+        db.commit()
+
+        log_event(
+            "sla_check_completed",
+            breached_count=breached_count
+        )
+
+        return {
+            "status": "success",
+            "breached_count": breached_count
+        }
+
+    except Exception as e:
+        db.rollback()
+        log_event(
+            "sla_check_error",
+            error_type=type(e).__name__,
+            error_message=str(e)
+        )
+        return {"status": "error", "message": str(e)}
+    finally:
+        db.close()

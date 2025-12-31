@@ -25,6 +25,8 @@ def check_network_permission(current_user: models.User):
 @router.get("/", response_model=List[schemas.NetworkPortFull])
 def list_network_ports(
     equipment_id: int = None,
+    skip: int = 0,
+    limit: int = 100,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_active_user)
 ):
@@ -39,7 +41,7 @@ def list_network_ports(
     return query.order_by(
         models.NetworkPort.equipment_id,
         models.NetworkPort.name
-    ).all()
+    ).offset(skip).limit(limit).all()
 
 
 @router.get("/equipment/{equipment_id}", response_model=List[schemas.NetworkPortFull])

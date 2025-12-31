@@ -63,9 +63,14 @@ export const useAuthStore = defineStore('auth', () => {
         return { success: false, mfaRequired: true, userId: data.user_id }
       }
 
-      // No MFA - store token and fetch user
+      // No MFA - store tokens and fetch user
       token.value = data.access_token
       localStorage.setItem('token', data.access_token)
+
+      // Store refresh token if provided
+      if (data.refresh_token) {
+        localStorage.setItem('refreshToken', data.refresh_token)
+      }
 
       // Store user data if provided
       if (data.user) {
@@ -110,9 +115,14 @@ export const useAuthStore = defineStore('auth', () => {
       })
       const data = response.data
 
-      // Store token
+      // Store tokens
       token.value = data.access_token
       localStorage.setItem('token', data.access_token)
+
+      // Store refresh token if provided
+      if (data.refresh_token) {
+        localStorage.setItem('refreshToken', data.refresh_token)
+      }
 
       // Store user data
       if (data.user) {
@@ -167,13 +177,28 @@ export const useAuthStore = defineStore('auth', () => {
 
   /**
    * Logout and clear all auth state.
+   * Optionally revoke the refresh token on the server.
    */
-  function logout() {
+  async function logout(revokeToken = true) {
+    // Try to revoke the refresh token on the server
+    if (revokeToken) {
+      const refreshToken = localStorage.getItem('refreshToken')
+      if (refreshToken && token.value) {
+        try {
+          await api.post('/logout', { refresh_token: refreshToken })
+        } catch (err) {
+          // Ignore errors - we're logging out anyway
+          console.warn('Failed to revoke refresh token:', err)
+        }
+      }
+    }
+
     token.value = null
     user.value = null
     error.value = null
 
     localStorage.removeItem('token')
+    localStorage.removeItem('refreshToken')
     localStorage.removeItem('user')
     localStorage.removeItem('username')
 

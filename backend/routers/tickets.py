@@ -28,7 +28,12 @@ def generate_ticket_number() -> str:
 
 
 def calculate_sla_times(ticket: models.Ticket, db: Session) -> dict:
-    """Calculate SLA response and resolution times based on priority."""
+    """
+    Calculate SLA response and resolution times based on priority.
+    Supports business hours calculation when configured in SLA policy.
+    """
+    from backend.core.sla import calculate_sla_due_date
+
     # Get default SLA policy or entity-specific
     policy = db.query(models.SLAPolicy).filter(
         or_(
@@ -45,6 +50,7 @@ def calculate_sla_times(ticket: models.Ticket, db: Session) -> dict:
             "medium": {"response": 240, "resolution": 1440},
             "low": {"response": 480, "resolution": 2880}
         }
+        use_business_hours = False
     else:
         sla_config = {
             "critical": {"response": policy.critical_response_time, "resolution": policy.critical_resolution_time},
@@ -52,14 +58,29 @@ def calculate_sla_times(ticket: models.Ticket, db: Session) -> dict:
             "medium": {"response": policy.medium_response_time, "resolution": policy.medium_resolution_time},
             "low": {"response": policy.low_response_time, "resolution": policy.low_resolution_time}
         }
+        use_business_hours = policy.business_hours_only
 
     priority_sla = sla_config.get(ticket.priority, sla_config["medium"])
     now = datetime.now(timezone.utc)
 
+    # Calculate due dates using business hours if configured
+    first_response_due = calculate_sla_due_date(
+        now,
+        priority_sla["response"],
+        policy,
+        use_business_hours
+    )
+    resolution_due = calculate_sla_due_date(
+        now,
+        priority_sla["resolution"],
+        policy,
+        use_business_hours
+    )
+
     return {
-        "first_response_due": now + timedelta(minutes=priority_sla["response"]),
-        "resolution_due": now + timedelta(minutes=priority_sla["resolution"]),
-        "sla_due_date": now + timedelta(minutes=priority_sla["resolution"])
+        "first_response_due": first_response_due,
+        "resolution_due": resolution_due,
+        "sla_due_date": resolution_due
     }
 
 
@@ -192,40 +213,98 @@ def get_ticket_stats(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user)
 ):
-    """Get ticket statistics for dashboard."""
-    query = db.query(models.Ticket)
+    """Get ticket statistics for dashboard using optimized SQL aggregations with caching."""
+    from sqlalchemy import case, literal_column
+    from backend.core.cache import cache_get, cache_set, build_cache_key
 
-    # Non-admin users can only see stats for their own tickets
-    if current_user.role != "admin":
-        query = query.filter(models.Ticket.requester_id == current_user.id)
-    elif current_user.entity_id:
-        query = query.filter(models.Ticket.entity_id == current_user.entity_id)
-
-    tickets = query.all()
-
-    stats = schemas.TicketStats(
-        total=len(tickets),
-        new=sum(1 for t in tickets if t.status == "new"),
-        open=sum(1 for t in tickets if t.status == "open"),
-        pending=sum(1 for t in tickets if t.status == "pending"),
-        resolved=sum(1 for t in tickets if t.status == "resolved"),
-        closed=sum(1 for t in tickets if t.status == "closed"),
-        sla_breached=sum(1 for t in tickets if t.sla_breached),
-        by_priority={
-            "critical": sum(1 for t in tickets if t.priority == "critical"),
-            "high": sum(1 for t in tickets if t.priority == "high"),
-            "medium": sum(1 for t in tickets if t.priority == "medium"),
-            "low": sum(1 for t in tickets if t.priority == "low")
-        },
-        by_type={
-            "incident": sum(1 for t in tickets if t.ticket_type == "incident"),
-            "request": sum(1 for t in tickets if t.ticket_type == "request"),
-            "problem": sum(1 for t in tickets if t.ticket_type == "problem"),
-            "change": sum(1 for t in tickets if t.ticket_type == "change")
-        }
+    # Build cache key based on user context
+    cache_key = build_cache_key(
+        "tickets",
+        "stats",
+        user_id=current_user.id,
+        role=current_user.role,
+        entity_id=current_user.entity_id
     )
 
-    return stats
+    # Try to get from cache first (TTL: 2 minutes for stats)
+    cached_stats = cache_get(cache_key)
+    if cached_stats:
+        return schemas.TicketStats(**cached_stats)
+
+    # Build base query with filters
+    base_filter = []
+    if current_user.role != "admin":
+        base_filter.append(models.Ticket.requester_id == current_user.id)
+    elif current_user.entity_id:
+        base_filter.append(models.Ticket.entity_id == current_user.entity_id)
+
+    # Count total tickets
+    total_query = db.query(func.count(models.Ticket.id))
+    if base_filter:
+        total_query = total_query.filter(*base_filter)
+    total = total_query.scalar() or 0
+
+    # Aggregate by status using CASE expressions
+    status_counts = db.query(
+        func.sum(case((models.Ticket.status == "new", 1), else_=0)).label("new"),
+        func.sum(case((models.Ticket.status == "open", 1), else_=0)).label("open"),
+        func.sum(case((models.Ticket.status == "pending", 1), else_=0)).label("pending"),
+        func.sum(case((models.Ticket.status == "resolved", 1), else_=0)).label("resolved"),
+        func.sum(case((models.Ticket.status == "closed", 1), else_=0)).label("closed"),
+        func.sum(case((models.Ticket.sla_breached == True, 1), else_=0)).label("sla_breached")
+    )
+    if base_filter:
+        status_counts = status_counts.filter(*base_filter)
+    status_result = status_counts.first()
+
+    # Aggregate by priority
+    priority_counts = db.query(
+        func.sum(case((models.Ticket.priority == "critical", 1), else_=0)).label("critical"),
+        func.sum(case((models.Ticket.priority == "high", 1), else_=0)).label("high"),
+        func.sum(case((models.Ticket.priority == "medium", 1), else_=0)).label("medium"),
+        func.sum(case((models.Ticket.priority == "low", 1), else_=0)).label("low")
+    )
+    if base_filter:
+        priority_counts = priority_counts.filter(*base_filter)
+    priority_result = priority_counts.first()
+
+    # Aggregate by type
+    type_counts = db.query(
+        func.sum(case((models.Ticket.ticket_type == "incident", 1), else_=0)).label("incident"),
+        func.sum(case((models.Ticket.ticket_type == "request", 1), else_=0)).label("request"),
+        func.sum(case((models.Ticket.ticket_type == "problem", 1), else_=0)).label("problem"),
+        func.sum(case((models.Ticket.ticket_type == "change", 1), else_=0)).label("change")
+    )
+    if base_filter:
+        type_counts = type_counts.filter(*base_filter)
+    type_result = type_counts.first()
+
+    stats_data = {
+        "total": total,
+        "new": int(status_result.new or 0),
+        "open": int(status_result.open or 0),
+        "pending": int(status_result.pending or 0),
+        "resolved": int(status_result.resolved or 0),
+        "closed": int(status_result.closed or 0),
+        "sla_breached": int(status_result.sla_breached or 0),
+        "by_priority": {
+            "critical": int(priority_result.critical or 0),
+            "high": int(priority_result.high or 0),
+            "medium": int(priority_result.medium or 0),
+            "low": int(priority_result.low or 0)
+        },
+        "by_type": {
+            "incident": int(type_result.incident or 0),
+            "request": int(type_result.request or 0),
+            "problem": int(type_result.problem or 0),
+            "change": int(type_result.change or 0)
+        }
+    }
+
+    # Cache the stats for 2 minutes
+    cache_set(cache_key, stats_data, expire_seconds=120)
+
+    return schemas.TicketStats(**stats_data)
 
 
 @router.get("/{ticket_id}", response_model=schemas.TicketFull)

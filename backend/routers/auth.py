@@ -280,10 +280,26 @@ async def delete_avatar(
 async def get_avatar(filename: str):
     """Serve user avatar files."""
     import os
+    import re
     from fastapi.responses import FileResponse
+
+    # Sanitize filename to prevent path traversal
+    # Only allow alphanumeric characters, underscores, hyphens, and dots
+    if not re.match(r'^[\w\-\.]+$', filename):
+        raise HTTPException(status_code=400, detail="Invalid filename")
+
+    # Prevent directory traversal
+    if '..' in filename or filename.startswith('/') or filename.startswith('\\'):
+        raise HTTPException(status_code=400, detail="Invalid filename")
 
     avatars_dir = os.path.join(settings.upload_dir, "avatars")
     file_path = os.path.join(avatars_dir, filename)
+
+    # Verify the resolved path is within the avatars directory
+    real_path = os.path.realpath(file_path)
+    real_avatars_dir = os.path.realpath(avatars_dir)
+    if not real_path.startswith(real_avatars_dir):
+        raise HTTPException(status_code=400, detail="Invalid file path")
 
     if not os.path.exists(file_path):
         raise HTTPException(status_code=404, detail="Avatar not found")
@@ -306,6 +322,18 @@ async def verify_mfa(
     and MFA is enabled on their account.
     """
     client_ip = request.client.host if request.client else "unknown"
+
+    # Rate limiting for MFA verification (prevent brute force on TOTP codes)
+    rate_limiter = get_rate_limiter()
+    mfa_rate_key = f"mfa:{mfa_data.user_id}"
+    if not rate_limiter.is_allowed(client_ip, mfa_rate_key):
+        remaining_time = rate_limiter.get_reset_time(client_ip, mfa_rate_key)
+        logger.warning(f"MFA rate limit exceeded for user_id: {mfa_data.user_id} from IP: {client_ip}")
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=f"Too many MFA attempts. Please try again in {remaining_time} seconds.",
+            headers={"Retry-After": str(remaining_time)},
+        )
 
     # Fetch user
     user = db.query(models.User).filter(models.User.id == mfa_data.user_id).first()

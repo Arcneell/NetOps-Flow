@@ -203,7 +203,7 @@ class AuditLoggingMiddleware(BaseHTTPMiddleware):
                     token = auth_header.split(" ")[1]
                     payload = jwt.decode(
                         token,
-                        settings.jwt_secret_key,
+                        settings.get_jwt_secret(),
                         algorithms=[settings.jwt_algorithm]
                     )
                     username = payload.get("sub")

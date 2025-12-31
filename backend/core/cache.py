@@ -143,6 +143,11 @@ def invalidate_topology_cache():
     cache_delete_pattern("topology:*")
 
 
+def invalidate_ticket_cache():
+    """Invalidate all ticket-related caches."""
+    cache_delete_pattern("tickets:*")
+
+
 # Cache key builders
 def build_cache_key(prefix: str, *args, **kwargs) -> str:
     """
