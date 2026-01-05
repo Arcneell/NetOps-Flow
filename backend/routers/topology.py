@@ -289,7 +289,7 @@ def get_physical_topology(
                 "rack": eq.rack.name if eq.rack else None,
                 "position_u": eq.position_u,
                 "serial_number": eq.serial_number,
-                "ip_address": eq.management_ip,
+                "ip_address": eq.remote_ip,
                 "ports_connected": connected_ports,
                 "ports_total": total_ports
             }
