@@ -1,27 +1,21 @@
 <template>
   <div class="flex flex-col h-full gap-4">
-    <!-- Header with controls -->
+    <!-- Header -->
     <div class="flex items-center justify-between flex-wrap gap-3">
       <div class="flex items-center gap-3">
-        <!-- View Mode Selector -->
         <SelectButton v-model="viewMode" :options="viewModes" optionLabel="label" optionValue="value"
-          :allowEmpty="false" class="view-mode-selector" />
+          :allowEmpty="false" />
 
-        <!-- Site Selector (for physical view) -->
         <Dropdown v-if="viewMode === 'physical' && sites.length > 0" v-model="selectedSite" :options="siteOptions"
-          optionLabel="label" optionValue="value" :placeholder="t('topology.allSites')" showClear class="w-48" />
+          optionLabel="label" optionValue="value" :placeholder="t('topology.allSites')" showClear class="w-52" />
       </div>
 
       <div class="flex items-center gap-2">
-        <!-- Zoom controls -->
         <div class="zoom-controls">
-          <Button icon="pi pi-minus" text size="small" @click="zoomOut" v-tooltip.top="t('topology.zoomOut')" />
+          <Button icon="pi pi-minus" text size="small" @click="zoomOut" />
           <span class="zoom-level">{{ Math.round(zoomLevel * 100) }}%</span>
-          <Button icon="pi pi-plus" text size="small" @click="zoomIn" v-tooltip.top="t('topology.zoomIn')" />
+          <Button icon="pi pi-plus" text size="small" @click="zoomIn" />
         </div>
-
-        <div class="action-divider"></div>
-
         <Button icon="pi pi-arrows-alt" text @click="fitToScreen" v-tooltip.top="t('topology.fitToScreen')" />
         <Button icon="pi pi-refresh" text @click="loadTopology" :loading="loading" v-tooltip.top="t('common.refresh')" />
         <Button icon="pi pi-download" text @click="exportImage" v-tooltip.top="t('topology.exportImage')" />
@@ -29,172 +23,103 @@
     </div>
 
     <div class="flex gap-4 flex-1 min-h-0">
-      <!-- Main Graph Area -->
+      <!-- Graph -->
       <div class="graph-container flex-1 relative">
-        <!-- Loading overlay -->
         <div v-if="loading" class="loading-overlay">
           <i class="pi pi-spin pi-spinner text-3xl"></i>
           <span>{{ t('topology.loadingTopology') }}</span>
         </div>
 
-        <!-- Empty state -->
         <div v-else-if="nodes.length === 0" class="empty-state">
-          <div class="empty-icon">
-            <i class="pi pi-share-alt"></i>
-          </div>
+          <i class="pi pi-share-alt text-5xl mb-4" style="color: var(--text-muted);"></i>
           <h3>{{ t('topology.noData') }}</h3>
           <p>{{ t('topology.noDataDescription') }}</p>
-          <Button :label="t('common.refresh')" icon="pi pi-refresh" size="small" @click="loadTopology" />
         </div>
 
-        <!-- Network Graph -->
         <div ref="networkContainer" class="network-canvas"></div>
 
         <!-- Legend -->
-        <div class="legend-panel" v-if="nodes.length > 0">
+        <div v-if="nodes.length > 0" class="legend-panel">
           <div class="legend-title">{{ t('topology.legend') }}</div>
-          <div class="legend-content">
-            <template v-if="viewMode === 'logical'">
-              <div class="legend-item">
-                <span class="legend-shape diamond" style="background: #6366f1;"></span>
-                <span>{{ t('topology.gateway') }}</span>
-              </div>
-              <div class="legend-item">
-                <span class="legend-shape box" style="background: #3b82f6;"></span>
-                <span>{{ t('topology.subnet') }}</span>
-              </div>
-              <div class="legend-item">
-                <span class="legend-dot" style="background: #10b981;"></span>
-                <span>{{ t('topology.activeIp') }}</span>
-              </div>
-            </template>
-            <template v-else-if="viewMode === 'physical'">
-              <div class="legend-section">{{ t('topology.equipmentTypes') }}</div>
-              <div class="legend-item">
-                <span class="legend-shape diamond" style="background: #7c3aed;"></span>
-                <span>{{ t('topology.router') }}</span>
-              </div>
-              <div class="legend-item">
-                <span class="legend-shape box" style="background: #2563eb;"></span>
-                <span>{{ t('topology.switch') }}</span>
-              </div>
-              <div class="legend-item">
-                <span class="legend-shape hexagon" style="background: #dc2626;"></span>
-                <span>{{ t('topology.firewall') }}</span>
-              </div>
-              <div class="legend-item">
-                <span class="legend-shape box" style="background: #059669;"></span>
-                <span>{{ t('topology.server') }}</span>
-              </div>
-              <div class="legend-section">{{ t('topology.linkSpeeds') }}</div>
-              <div class="legend-item">
-                <span class="legend-line" style="background: #10b981; height: 4px;"></span>
-                <span>100G</span>
-              </div>
-              <div class="legend-item">
-                <span class="legend-line" style="background: #3b82f6; height: 3px;"></span>
-                <span>10G</span>
-              </div>
-              <div class="legend-item">
-                <span class="legend-line" style="background: #64748b; height: 2px;"></span>
-                <span>1G</span>
-              </div>
-            </template>
-            <template v-else>
-              <div class="legend-item">
-                <span class="legend-shape diamond" style="background: #6366f1;"></span>
-                <span>{{ t('topology.gateway') }}</span>
-              </div>
-              <div class="legend-item">
-                <span class="legend-shape box" style="background: #3b82f6;"></span>
-                <span>{{ t('topology.subnet') }}</span>
-              </div>
-              <div class="legend-item">
-                <span class="legend-shape box" style="background: #059669;"></span>
-                <span>{{ t('topology.equipment') }}</span>
-              </div>
-            </template>
-          </div>
+          <template v-if="viewMode === 'physical'">
+            <div class="legend-item"><span class="legend-color" style="background: #7c3aed;"></span> Router</div>
+            <div class="legend-item"><span class="legend-color" style="background: #2563eb;"></span> Switch</div>
+            <div class="legend-item"><span class="legend-color" style="background: #dc2626;"></span> Firewall</div>
+            <div class="legend-item"><span class="legend-color" style="background: #059669;"></span> Server</div>
+            <div class="legend-item"><span class="legend-color" style="background: #0891b2;"></span> Storage</div>
+            <div class="legend-item"><span class="legend-color" style="background: #f59e0b;"></span> Access Point</div>
+            <div class="legend-divider"></div>
+            <div class="legend-item"><span class="legend-line thick"></span> 10G+</div>
+            <div class="legend-item"><span class="legend-line medium"></span> 1G</div>
+            <div class="legend-item"><span class="legend-line thin"></span> &lt;1G</div>
+          </template>
+          <template v-else>
+            <div class="legend-item"><span class="legend-shape diamond"></span> {{ t('topology.gateway') }}</div>
+            <div class="legend-item"><span class="legend-shape box"></span> {{ t('topology.subnet') }}</div>
+            <div class="legend-item"><span class="legend-color" style="background: #10b981;"></span> {{ t('topology.activeIp') }}</div>
+          </template>
         </div>
 
-        <!-- Stats Mini Panel -->
-        <div class="stats-mini" v-if="stats && nodes.length > 0">
-          <div class="stat-item">
-            <span class="stat-value">{{ nodes.length }}</span>
-            <span class="stat-label">{{ t('topology.nodes') }}</span>
-          </div>
-          <div class="stat-item">
-            <span class="stat-value">{{ edges.length }}</span>
-            <span class="stat-label">{{ t('topology.links') }}</span>
-          </div>
+        <!-- Stats overlay -->
+        <div v-if="nodes.length > 0" class="stats-overlay">
+          <span><strong>{{ nodes.length }}</strong> {{ t('topology.nodes') }}</span>
+          <span><strong>{{ edges.length }}</strong> {{ t('topology.links') }}</span>
+          <span v-if="groups.length > 0"><strong>{{ groups.length }}</strong> {{ viewMode === 'physical' ? 'Sites' : 'Groups' }}</span>
         </div>
       </div>
 
       <!-- Details Panel -->
       <div class="details-panel">
-        <!-- Statistics -->
-        <div class="panel-section">
-          <h3 class="panel-title">
-            <i class="pi pi-chart-bar"></i>
-            {{ t('topology.statistics') }}
-          </h3>
+        <div class="panel-card">
+          <h3><i class="pi pi-chart-bar"></i> {{ t('topology.statistics') }}</h3>
           <div class="stats-grid" v-if="stats">
-            <div class="stat-box">
-              <div class="stat-number">{{ stats.subnets }}</div>
-              <div class="stat-name">{{ t('topology.subnets') }}</div>
+            <div class="stat-item">
+              <span class="stat-value">{{ stats.subnets }}</span>
+              <span class="stat-label">{{ t('topology.subnets') }}</span>
             </div>
-            <div class="stat-box">
-              <div class="stat-number text-green-500">{{ stats.ips?.active || 0 }}</div>
-              <div class="stat-name">{{ t('topology.activeIps') }}</div>
+            <div class="stat-item">
+              <span class="stat-value text-green-500">{{ stats.ips?.active || 0 }}</span>
+              <span class="stat-label">{{ t('topology.activeIps') }}</span>
             </div>
-            <div class="stat-box">
-              <div class="stat-number">{{ stats.equipment?.total || 0 }}</div>
-              <div class="stat-name">{{ t('topology.equipment') }}</div>
+            <div class="stat-item">
+              <span class="stat-value">{{ stats.equipment?.total || 0 }}</span>
+              <span class="stat-label">{{ t('topology.equipment') }}</span>
             </div>
-            <div class="stat-box">
-              <div class="stat-number text-blue-500">{{ stats.ports?.connected || 0 }}</div>
-              <div class="stat-name">{{ t('topology.connectedPorts') }}</div>
+            <div class="stat-item">
+              <span class="stat-value text-blue-500">{{ stats.ports?.connected || 0 }}</span>
+              <span class="stat-label">{{ t('topology.connectedPorts') }}</span>
             </div>
           </div>
         </div>
 
-        <!-- Selected Node -->
-        <div class="panel-section flex-1">
-          <h3 class="panel-title">
-            <i class="pi pi-info-circle"></i>
-            {{ t('topology.nodeDetails') }}
-          </h3>
+        <div class="panel-card flex-1">
+          <h3><i class="pi pi-info-circle"></i> {{ t('topology.nodeDetails') }}</h3>
 
           <div v-if="selectedNode" class="node-details">
-            <!-- Header -->
             <div class="node-header">
               <div class="node-icon" :style="{ background: selectedNode.color + '20', color: selectedNode.color }">
                 <i :class="getNodeIcon(selectedNode)"></i>
               </div>
-              <div class="node-info">
+              <div>
                 <div class="node-name">{{ selectedNode.label }}</div>
                 <div class="node-type">{{ selectedNode.sublabel || selectedNode.type }}</div>
               </div>
             </div>
 
-            <!-- Properties -->
-            <div class="node-properties">
+            <div class="node-props">
               <template v-for="(value, key) in selectedNode.data" :key="key">
-                <div v-if="value !== null && value !== undefined && value !== ''" class="property-row">
-                  <span class="property-key">{{ formatKey(key) }}</span>
-                  <span class="property-value">{{ formatValue(key, value) }}</span>
+                <div v-if="value != null && value !== ''" class="prop-row">
+                  <span>{{ formatKey(key) }}</span>
+                  <span>{{ value }}</span>
                 </div>
               </template>
             </div>
 
-            <!-- Actions -->
             <div class="node-actions">
               <Button v-if="selectedNode.type === 'equipment'" :label="t('topology.viewInventory')" icon="pi pi-box"
-                size="small" outlined class="flex-1" @click="goToEquipment" />
+                size="small" outlined @click="goToEquipment" />
               <Button v-if="selectedNode.type === 'subnet'" :label="t('topology.viewIpam')" icon="pi pi-sitemap"
-                size="small" outlined class="flex-1" @click="goToIpam" />
-              <Button icon="pi pi-search-plus" size="small" outlined @click="focusNode"
-                v-tooltip.top="t('topology.focusNode')" />
+                size="small" outlined @click="goToIpam" />
             </div>
           </div>
 
@@ -218,11 +143,11 @@ import api from '../api';
 const { t } = useI18n();
 const router = useRouter();
 
-// State
 const loading = ref(false);
 const networkContainer = ref(null);
 const nodes = ref([]);
 const edges = ref([]);
+const groups = ref([]);
 const stats = ref(null);
 const sites = ref([]);
 const selectedSite = ref(null);
@@ -232,47 +157,33 @@ const zoomLevel = ref(1);
 
 let network = null;
 
-// View mode options
 const viewModes = computed(() => [
   { label: t('topology.logical'), value: 'logical' },
   { label: t('topology.physical'), value: 'physical' },
   { label: t('topology.combined'), value: 'combined' }
 ]);
 
-// Site options for dropdown
 const siteOptions = computed(() => [
   { label: t('topology.allSites'), value: null },
   ...sites.value.map(s => ({ label: `${s.name} (${s.equipment_count})`, value: s.name }))
 ]);
 
-// Load topology data
 const loadTopology = async () => {
   loading.value = true;
   selectedNode.value = null;
 
   try {
-    // Fetch stats
-    const statsRes = await api.get('/topology/stats');
+    const [statsRes, sitesRes] = await Promise.all([
+      api.get('/topology/stats'),
+      viewMode.value === 'physical' ? api.get('/topology/sites').catch(() => ({ data: [] })) : Promise.resolve({ data: [] })
+    ]);
+
     stats.value = statsRes.data;
+    sites.value = sitesRes.data || [];
 
-    // Fetch sites for physical view
-    if (viewMode.value === 'physical') {
-      try {
-        const sitesRes = await api.get('/topology/sites');
-        sites.value = sitesRes.data || [];
-      } catch {
-        sites.value = [];
-      }
-    }
-
-    // Fetch topology based on view mode and selected site
     let endpoint = '/topology/logical';
     if (viewMode.value === 'physical') {
-      if (selectedSite.value) {
-        endpoint = `/topology/site/${encodeURIComponent(selectedSite.value)}`;
-      } else {
-        endpoint = '/topology/physical';
-      }
+      endpoint = selectedSite.value ? `/topology/site/${encodeURIComponent(selectedSite.value)}` : '/topology/physical';
     } else if (viewMode.value === 'combined') {
       endpoint = '/topology/combined';
     }
@@ -280,339 +191,185 @@ const loadTopology = async () => {
     const res = await api.get(endpoint);
     nodes.value = res.data.nodes || [];
     edges.value = res.data.edges || [];
+    groups.value = res.data.groups || [];
 
     renderNetwork();
   } catch {
     nodes.value = [];
     edges.value = [];
+    groups.value = [];
   } finally {
     loading.value = false;
   }
 };
 
-// Render vis-network
 const renderNetwork = () => {
   if (!networkContainer.value || nodes.value.length === 0) return;
 
-  // Get CSS variables for theming
   const style = getComputedStyle(document.documentElement);
   const textColor = style.getPropertyValue('--text-main')?.trim() || '#1f2937';
-  const bgColor = style.getPropertyValue('--bg-secondary')?.trim() || '#f8fafc';
 
-  // Transform nodes for vis-network
-  const visNodes = nodes.value.map(node => {
-    const baseNode = {
+  // Group colors for clustering
+  const groupColors = ['#6366f1', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#3b82f6', '#06b6d4', '#84cc16'];
+
+  const visNodes = nodes.value.map((node, idx) => {
+    const groupIndex = groups.value.findIndex(g => g.id === node.group);
+    const groupColor = groupIndex >= 0 ? groupColors[groupIndex % groupColors.length] : null;
+
+    return {
       id: node.id,
       label: node.label,
       title: createTooltip(node),
+      group: node.group,
       color: {
-        background: node.color + '15',
+        background: node.color + '18',
         border: node.color,
-        highlight: {
-          background: node.color + '30',
-          border: node.color
-        },
-        hover: {
-          background: node.color + '25',
-          border: node.color
-        }
+        highlight: { background: node.color + '35', border: node.color },
+        hover: { background: node.color + '28', border: node.color }
       },
-      font: {
-        color: textColor,
-        size: node.size > 35 ? 14 : 12,
-        face: 'Inter, system-ui, sans-serif'
-      },
+      font: { color: textColor, size: 12 },
       borderWidth: 2,
-      borderWidthSelected: 3,
-      level: node.level,
+      shape: node.shape || 'box',
+      size: node.size || 25,
+      margin: node.shape === 'box' ? 8 : undefined,
       _data: node
     };
-
-    // Shape-specific properties
-    switch (node.shape) {
-      case 'diamond':
-        return { ...baseNode, shape: 'diamond', size: node.size || 30 };
-      case 'hexagon':
-        return { ...baseNode, shape: 'hexagon', size: node.size || 25 };
-      case 'box':
-        return {
-          ...baseNode,
-          shape: 'box',
-          margin: 10,
-          widthConstraint: { minimum: 80, maximum: 150 }
-        };
-      case 'dot':
-        return { ...baseNode, shape: 'dot', size: node.size || 15 };
-      default:
-        return { ...baseNode, shape: 'ellipse', size: node.size || 25 };
-    }
   });
 
-  // Transform edges for vis-network
   const visEdges = edges.value.map(edge => ({
     id: edge.id,
     from: edge.source,
     to: edge.target,
-    color: {
-      color: edge.color || '#94a3b8',
-      highlight: '#3b82f6',
-      hover: '#64748b'
-    },
-    width: edge.width || 2,
+    color: { color: edge.color || '#94a3b8', highlight: '#3b82f6' },
+    width: edge.width || 1,
     dashes: edge.dashes || false,
-    smooth: {
-      type: 'curvedCW',
-      roundness: 0.1
-    },
     label: edge.label || undefined,
-    font: {
-      size: 10,
-      color: '#64748b',
-      strokeWidth: 2,
-      strokeColor: bgColor,
-      align: 'middle'
-    },
-    arrows: edge.type === 'network' ? { to: { enabled: true, scaleFactor: 0.5 } } : undefined
+    font: { size: 9, color: '#64748b', strokeWidth: 2, strokeColor: '#ffffff' },
+    smooth: { type: 'continuous', roundness: 0.2 }
   }));
 
-  // Network options
+  // Create group configuration for clustering
+  const groupConfig = {};
+  groups.value.forEach((g, idx) => {
+    groupConfig[g.id] = {
+      color: { background: groupColors[idx % groupColors.length] + '15', border: groupColors[idx % groupColors.length] }
+    };
+  });
+
   const options = {
     nodes: {
-      font: {
-        face: 'Inter, system-ui, sans-serif'
-      },
-      shadow: {
-        enabled: true,
-        color: 'rgba(0, 0, 0, 0.1)',
-        size: 8,
-        x: 2,
-        y: 2
-      }
+      font: { face: 'Inter, system-ui, sans-serif' },
+      shadow: { enabled: true, color: 'rgba(0,0,0,0.08)', size: 6, x: 1, y: 2 }
     },
     edges: {
-      smooth: {
-        type: 'curvedCW',
-        roundness: 0.1
-      },
-      shadow: false
+      smooth: { type: 'continuous', roundness: 0.2 }
     },
+    groups: groupConfig,
     physics: {
       enabled: true,
-      solver: 'hierarchicalRepulsion',
-      hierarchicalRepulsion: {
-        centralGravity: 0.2,
-        springLength: 150,
-        springConstant: 0.01,
-        nodeDistance: 180,
-        damping: 0.09
+      solver: 'forceAtlas2Based',
+      forceAtlas2Based: {
+        gravitationalConstant: -80,
+        centralGravity: 0.015,
+        springLength: 120,
+        springConstant: 0.1,
+        damping: 0.5
       },
-      stabilization: {
-        enabled: true,
-        iterations: 150,
-        updateInterval: 25,
-        fit: true
-      }
-    },
-    layout: {
-      hierarchical: {
-        enabled: true,
-        direction: 'UD',
-        sortMethod: 'directed',
-        levelSeparation: 120,
-        nodeSpacing: 150,
-        treeSpacing: 200,
-        blockShifting: true,
-        edgeMinimization: true,
-        parentCentralization: true
-      }
+      stabilization: { iterations: 150, fit: true }
     },
     interaction: {
       hover: true,
-      tooltipDelay: 150,
-      zoomView: true,
-      dragView: true,
+      tooltipDelay: 100,
       dragNodes: true,
-      selectConnectedEdges: true,
-      hoverConnectedEdges: true,
-      keyboard: {
-        enabled: true,
-        speed: { x: 10, y: 10, zoom: 0.02 }
-      }
+      dragView: true,
+      zoomView: true
     }
   };
 
-  // Destroy existing network
-  if (network) {
-    network.destroy();
-  }
+  if (network) network.destroy();
 
-  // Create new network
-  network = new Network(
-    networkContainer.value,
-    { nodes: visNodes, edges: visEdges },
-    options
-  );
+  network = new Network(networkContainer.value, { nodes: visNodes, edges: visEdges }, options);
 
-  // Event handlers
-  network.on('click', (params) => {
+  network.on('click', params => {
     if (params.nodes.length > 0) {
-      const nodeId = params.nodes[0];
-      const node = nodes.value.find(n => n.id === nodeId);
+      const node = nodes.value.find(n => n.id === params.nodes[0]);
       selectedNode.value = node || null;
     } else {
       selectedNode.value = null;
     }
   });
 
-  network.on('zoom', (params) => {
+  network.on('zoom', params => {
     zoomLevel.value = params.scale;
   });
 
-  network.on('doubleClick', (params) => {
+  network.on('doubleClick', params => {
     if (params.nodes.length > 0) {
-      const nodeId = params.nodes[0];
-      const node = nodes.value.find(n => n.id === nodeId);
-      if (node) {
-        if (node.type === 'equipment') {
-          goToEquipment(node.data.id);
-        } else if (node.type === 'subnet') {
-          goToIpam();
-        }
-      }
+      const node = nodes.value.find(n => n.id === params.nodes[0]);
+      if (node?.type === 'equipment') goToEquipment(node.data?.id);
+      else if (node?.type === 'subnet') goToIpam();
     }
   });
 
-  // Fit to screen after stabilization
   network.once('stabilizationIterationsDone', () => {
-    network.fit({ animation: { duration: 300, easingFunction: 'easeOutQuad' } });
+    network.fit({ animation: { duration: 300 } });
     zoomLevel.value = network.getScale();
   });
 };
 
-// Helper functions
 const createTooltip = (node) => {
-  let html = `<div style="padding: 8px 12px; max-width: 250px;">`;
-  html += `<div style="font-weight: 600; margin-bottom: 4px;">${node.label}</div>`;
-  if (node.sublabel) {
-    html += `<div style="color: #64748b; font-size: 12px; margin-bottom: 8px;">${node.sublabel}</div>`;
-  }
+  let html = `<div style="padding:8px 12px;max-width:220px;">`;
+  html += `<div style="font-weight:600;margin-bottom:4px;">${node.label}</div>`;
+  if (node.sublabel) html += `<div style="color:#64748b;font-size:11px;margin-bottom:6px;">${node.sublabel}</div>`;
   if (node.data) {
-    const importantKeys = ['status', 'type', 'location', 'ip_address', 'cidr'];
-    for (const key of importantKeys) {
-      if (node.data[key]) {
-        html += `<div style="font-size: 11px; color: #94a3b8;">${formatKey(key)}: ${node.data[key]}</div>`;
-      }
-    }
+    ['status', 'type', 'site', 'room', 'ip_address', 'cidr'].forEach(key => {
+      if (node.data[key]) html += `<div style="font-size:10px;color:#94a3b8;">${formatKey(key)}: ${node.data[key]}</div>`;
+    });
   }
-  html += `</div>`;
-  return html;
+  return html + '</div>';
 };
 
 const getNodeIcon = (node) => {
   if (!node) return 'pi pi-circle';
-  const type = node.type || '';
-  const eqType = (node.equipmentType || '').toLowerCase();
-
+  const type = (node.equipmentType || node.type || '').toLowerCase();
+  if (type.includes('router')) return 'pi pi-share-alt';
+  if (type.includes('switch')) return 'pi pi-sitemap';
+  if (type.includes('firewall')) return 'pi pi-shield';
+  if (type.includes('server')) return 'pi pi-server';
+  if (type.includes('storage')) return 'pi pi-database';
   if (type === 'gateway') return 'pi pi-globe';
   if (type === 'subnet') return 'pi pi-sitemap';
-  if (type === 'ip') return 'pi pi-circle-fill';
-  if (eqType.includes('router')) return 'pi pi-share-alt';
-  if (eqType.includes('switch')) return 'pi pi-sitemap';
-  if (eqType.includes('firewall')) return 'pi pi-shield';
-  if (eqType.includes('server')) return 'pi pi-server';
-  if (eqType.includes('storage')) return 'pi pi-database';
   return 'pi pi-box';
 };
 
-const formatKey = (key) => {
-  return key.replace(/_/g, ' ').replace(/([A-Z])/g, ' $1')
-    .split(' ')
-    .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-    .join(' ');
-};
+const formatKey = (key) => key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 
-const formatValue = (key, value) => {
-  if (typeof value === 'boolean') return value ? 'Yes' : 'No';
-  if (key.includes('date') && value) return new Date(value).toLocaleDateString();
-  return String(value);
-};
+const zoomIn = () => network?.moveTo({ scale: network.getScale() * 1.25, animation: { duration: 150 } });
+const zoomOut = () => network?.moveTo({ scale: network.getScale() / 1.25, animation: { duration: 150 } });
+const fitToScreen = () => network?.fit({ animation: { duration: 300 } });
 
-// Controls
-const zoomIn = () => {
-  if (network) {
-    const scale = network.getScale() * 1.25;
-    network.moveTo({ scale, animation: { duration: 150 } });
-  }
-};
-
-const zoomOut = () => {
-  if (network) {
-    const scale = network.getScale() / 1.25;
-    network.moveTo({ scale, animation: { duration: 150 } });
-  }
-};
-
-const fitToScreen = () => {
-  if (network) {
-    network.fit({ animation: { duration: 300 } });
-  }
-};
-
-const focusNode = () => {
-  if (network && selectedNode.value) {
-    network.focus(selectedNode.value.id, {
-      scale: 1.5,
-      animation: { duration: 300 }
-    });
-  }
-};
-
-// Navigation
 const goToEquipment = (id) => {
   const eqId = id || selectedNode.value?.data?.id;
-  if (eqId) {
-    router.push({ path: '/inventory', query: { equipment: eqId } });
-  }
+  if (eqId) router.push({ path: '/inventory', query: { equipment: eqId } });
 };
 
-const goToIpam = () => {
-  router.push('/ipam');
-};
+const goToIpam = () => router.push('/ipam');
 
-// Export as image
 const exportImage = () => {
-  if (network) {
-    const canvas = networkContainer.value?.querySelector('canvas');
-    if (canvas) {
-      const link = document.createElement('a');
-      link.download = `topology-${viewMode.value}-${new Date().toISOString().split('T')[0]}.png`;
-      link.href = canvas.toDataURL('image/png');
-      link.click();
-    }
+  const canvas = networkContainer.value?.querySelector('canvas');
+  if (canvas) {
+    const link = document.createElement('a');
+    link.download = `topology-${viewMode.value}-${new Date().toISOString().split('T')[0]}.png`;
+    link.href = canvas.toDataURL('image/png');
+    link.click();
   }
 };
 
-// Watchers
-watch(viewMode, () => {
-  selectedSite.value = null;
-  loadTopology();
-});
+watch(viewMode, () => { selectedSite.value = null; loadTopology(); });
+watch(selectedSite, loadTopology);
 
-watch(selectedSite, () => {
-  loadTopology();
-});
-
-// Lifecycle
-onMounted(() => {
-  loadTopology();
-});
-
-onUnmounted(() => {
-  if (network) {
-    network.destroy();
-    network = null;
-  }
-});
+onMounted(loadTopology);
+onUnmounted(() => network?.destroy());
 </script>
 
 <style scoped>
@@ -621,6 +378,7 @@ onUnmounted(() => {
   border-radius: var(--radius-lg);
   overflow: hidden;
   min-height: 500px;
+  position: relative;
 }
 
 .network-canvas {
@@ -628,61 +386,21 @@ onUnmounted(() => {
   height: 100%;
 }
 
-.loading-overlay {
+.loading-overlay, .empty-state {
   position: absolute;
   inset: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 1rem;
+  gap: 0.75rem;
+  color: var(--text-muted);
   background: var(--bg-secondary);
-  color: var(--text-muted);
-  z-index: 10;
 }
 
-.empty-state {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 1rem;
-  padding: 2rem;
-  text-align: center;
-}
+.empty-state h3 { font-size: 1rem; font-weight: 600; color: var(--text-main); margin: 0; }
+.empty-state p { font-size: 0.8125rem; max-width: 280px; text-align: center; margin: 0; }
 
-.empty-icon {
-  width: 80px;
-  height: 80px;
-  border-radius: 50%;
-  background: var(--bg-card);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.empty-icon i {
-  font-size: 2.5rem;
-  color: var(--text-muted);
-}
-
-.empty-state h3 {
-  font-size: 1.125rem;
-  font-weight: 600;
-  color: var(--text-main);
-  margin: 0;
-}
-
-.empty-state p {
-  color: var(--text-muted);
-  font-size: 0.875rem;
-  max-width: 300px;
-  margin: 0;
-}
-
-/* Controls */
 .zoom-controls {
   display: flex;
   align-items: center;
@@ -694,107 +412,78 @@ onUnmounted(() => {
 
 .zoom-level {
   font-size: 0.75rem;
-  font-weight: 500;
-  min-width: 3rem;
+  min-width: 2.5rem;
   text-align: center;
   color: var(--text-secondary);
 }
 
-.action-divider {
-  width: 1px;
-  height: 24px;
-  background: var(--border-color);
-  margin: 0 0.25rem;
-}
-
-/* Legend */
 .legend-panel {
   position: absolute;
   bottom: 1rem;
   left: 1rem;
   background: var(--bg-card);
   border: 1px solid var(--border-color);
-  border-radius: var(--radius-lg);
-  padding: 0.75rem 1rem;
-  box-shadow: var(--shadow-lg);
+  border-radius: var(--radius-md);
+  padding: 0.625rem 0.875rem;
+  font-size: 0.6875rem;
   z-index: 5;
-  max-width: 180px;
 }
 
 .legend-title {
-  font-size: 0.6875rem;
   font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.04em;
   color: var(--text-muted);
   margin-bottom: 0.5rem;
-}
-
-.legend-content {
-  display: flex;
-  flex-direction: column;
-  gap: 0.375rem;
-}
-
-.legend-section {
-  font-size: 0.625rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  color: var(--text-muted);
-  margin-top: 0.5rem;
-  padding-top: 0.5rem;
-  border-top: 1px solid var(--border-color);
-}
-
-.legend-section:first-child {
-  margin-top: 0;
-  padding-top: 0;
-  border-top: none;
 }
 
 .legend-item {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  font-size: 0.75rem;
   color: var(--text-secondary);
+  padding: 0.125rem 0;
 }
 
-.legend-dot {
+.legend-color {
   width: 10px;
   height: 10px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-
-.legend-shape {
-  width: 14px;
-  height: 14px;
-  flex-shrink: 0;
-}
-
-.legend-shape.box {
   border-radius: 2px;
 }
 
-.legend-shape.diamond {
-  transform: rotate(45deg);
+.legend-shape {
   width: 10px;
   height: 10px;
 }
 
-.legend-shape.hexagon {
-  clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+.legend-shape.diamond {
+  background: #6366f1;
+  transform: rotate(45deg);
+  width: 8px;
+  height: 8px;
+}
+
+.legend-shape.box {
+  background: #3b82f6;
+  border-radius: 2px;
+}
+
+.legend-divider {
+  height: 1px;
+  background: var(--border-color);
+  margin: 0.375rem 0;
 }
 
 .legend-line {
-  width: 24px;
+  width: 20px;
   border-radius: 1px;
-  flex-shrink: 0;
 }
 
-/* Stats Mini */
-.stats-mini {
+.legend-line.thick { height: 4px; background: #3b82f6; }
+.legend-line.medium { height: 2px; background: #64748b; }
+.legend-line.thin { height: 1px; background: #94a3b8; }
+
+.stats-overlay {
   position: absolute;
   top: 1rem;
   right: 1rem;
@@ -802,168 +491,93 @@ onUnmounted(() => {
   gap: 1rem;
   background: var(--bg-card);
   border: 1px solid var(--border-color);
-  border-radius: var(--radius-lg);
-  padding: 0.5rem 1rem;
-  box-shadow: var(--shadow-md);
+  border-radius: var(--radius-md);
+  padding: 0.5rem 0.875rem;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
   z-index: 5;
 }
 
-.stat-item {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.125rem;
-}
-
-.stat-value {
-  font-size: 1.125rem;
-  font-weight: 700;
-  color: var(--text-main);
-}
-
-.stat-label {
-  font-size: 0.625rem;
-  text-transform: uppercase;
-  color: var(--text-muted);
-}
-
-/* Details Panel */
 .details-panel {
-  width: 320px;
+  width: 300px;
   display: flex;
   flex-direction: column;
   gap: 1rem;
 }
 
-.panel-section {
+.panel-card {
   background: var(--bg-card);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);
   padding: 1rem;
 }
 
-.panel-title {
+.panel-card h3 {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  font-size: 0.875rem;
+  font-size: 0.8125rem;
   font-weight: 600;
-  color: var(--text-main);
   margin: 0 0 0.75rem 0;
+  color: var(--text-main);
 }
 
-.panel-title i {
-  color: var(--primary-color);
-  font-size: 0.875rem;
-}
+.panel-card h3 i { color: var(--primary-color); font-size: 0.875rem; }
 
-/* Stats Grid */
 .stats-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 0.75rem;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.625rem;
 }
 
-.stat-box {
+.stat-item {
   background: var(--bg-secondary);
   border-radius: var(--radius-md);
-  padding: 0.75rem;
+  padding: 0.625rem;
   text-align: center;
 }
 
-.stat-number {
-  font-size: 1.25rem;
-  font-weight: 700;
-  color: var(--text-main);
-}
+.stat-value { font-size: 1.125rem; font-weight: 700; color: var(--text-main); }
+.stat-label { font-size: 0.625rem; text-transform: uppercase; color: var(--text-muted); }
 
-.stat-name {
-  font-size: 0.6875rem;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.025em;
-  margin-top: 0.125rem;
-}
-
-/* Node Details */
-.node-details {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
+.node-details { display: flex; flex-direction: column; gap: 0.75rem; }
 
 .node-header {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  padding-bottom: 0.75rem;
+  gap: 0.625rem;
+  padding-bottom: 0.625rem;
   border-bottom: 1px solid var(--border-color);
 }
 
 .node-icon {
-  width: 40px;
-  height: 40px;
+  width: 36px;
+  height: 36px;
   border-radius: var(--radius-md);
   display: flex;
   align-items: center;
   justify-content: center;
-  flex-shrink: 0;
+  font-size: 1rem;
 }
 
-.node-icon i {
-  font-size: 1.125rem;
-}
+.node-name { font-weight: 600; font-size: 0.875rem; color: var(--text-main); }
+.node-type { font-size: 0.6875rem; color: var(--text-muted); }
 
-.node-info {
-  min-width: 0;
-  flex: 1;
-}
+.node-props { display: flex; flex-direction: column; gap: 0.375rem; }
 
-.node-name {
-  font-weight: 600;
-  font-size: 0.9375rem;
-  color: var(--text-main);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.node-type {
-  font-size: 0.75rem;
-  color: var(--text-muted);
-}
-
-.node-properties {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.property-row {
+.prop-row {
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
-  gap: 0.75rem;
-  font-size: 0.8125rem;
+  font-size: 0.75rem;
 }
 
-.property-key {
-  color: var(--text-muted);
-  flex-shrink: 0;
-}
-
-.property-value {
-  color: var(--text-main);
-  font-weight: 500;
-  text-align: right;
-  word-break: break-word;
-  max-width: 60%;
-}
+.prop-row span:first-child { color: var(--text-muted); }
+.prop-row span:last-child { color: var(--text-main); font-weight: 500; text-align: right; max-width: 60%; word-break: break-word; }
 
 .node-actions {
   display: flex;
   gap: 0.5rem;
-  padding-top: 0.75rem;
+  padding-top: 0.625rem;
   border-top: 1px solid var(--border-color);
 }
 
@@ -971,43 +585,23 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
   padding: 2rem 1rem;
   text-align: center;
   color: var(--text-muted);
 }
 
-.no-selection i {
-  font-size: 2rem;
-  margin-bottom: 0.75rem;
-  opacity: 0.5;
-}
-
-.no-selection p {
-  font-size: 0.875rem;
-  margin: 0;
-}
-
-/* View Mode Selector */
-.view-mode-selector :deep(.p-selectbutton) {
-  border-radius: var(--radius-lg);
-}
-
-.view-mode-selector :deep(.p-button) {
-  padding: 0.5rem 1rem;
-  font-size: 0.8125rem;
-}
+.no-selection i { font-size: 1.5rem; margin-bottom: 0.5rem; opacity: 0.5; }
+.no-selection p { font-size: 0.8125rem; margin: 0; }
 </style>
 
 <style>
-/* Global vis-network tooltip styles */
 div.vis-tooltip {
-  background-color: var(--bg-card, #ffffff);
+  background: var(--bg-card, #fff);
   color: var(--text-main, #1f2937);
-  border-radius: 8px;
+  border-radius: 6px;
   border: 1px solid var(--border-color, #e2e8f0);
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
   font-family: Inter, system-ui, sans-serif;
-  font-size: 13px;
+  font-size: 12px;
 }
 </style>
