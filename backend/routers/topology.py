@@ -4,6 +4,7 @@ With Redis caching for performance optimization.
 """
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session, joinedload
+from sqlalchemy import func
 from typing import Optional
 import logging
 
@@ -18,11 +19,64 @@ router = APIRouter(prefix="/topology", tags=["Topology"])
 # Cache expiration in seconds (5 minutes)
 TOPOLOGY_CACHE_TTL = 300
 
+# Equipment type hierarchy for network layout
+NETWORK_LAYERS = {
+    "core": ["router", "core switch", "core router", "backbone"],
+    "distribution": ["switch", "distribution switch", "layer 3 switch", "firewall"],
+    "access": ["access switch", "access point", "wifi"],
+    "endpoint": ["server", "storage", "workstation", "desktop", "laptop", "printer"]
+}
+
+# Icons for equipment types
+EQUIPMENT_ICONS = {
+    "server": "server",
+    "switch": "switch",
+    "router": "router",
+    "firewall": "firewall",
+    "storage": "storage",
+    "access point": "wifi",
+    "workstation": "desktop",
+    "desktop": "desktop",
+    "laptop": "laptop"
+}
+
+# Colors for equipment types (professional network diagram colors)
+EQUIPMENT_COLORS = {
+    "router": "#7c3aed",      # Purple - Core
+    "core switch": "#7c3aed",
+    "switch": "#2563eb",      # Blue - Distribution/Access
+    "firewall": "#dc2626",    # Red - Security
+    "server": "#059669",      # Green - Servers
+    "storage": "#0891b2",     # Cyan - Storage
+    "access point": "#f59e0b", # Amber - Wireless
+    "workstation": "#64748b",  # Slate - Endpoints
+    "desktop": "#64748b",
+    "default": "#6b7280"
+}
+
 
 def check_topology_permission(current_user: models.User):
     """Check if user has topology permission (tech with topology, admin, superadmin)."""
     if not has_permission(current_user, "topology"):
         raise HTTPException(status_code=403, detail="Permission denied")
+
+
+def get_equipment_layer(equipment_type: str) -> str:
+    """Determine network layer based on equipment type."""
+    eq_type_lower = equipment_type.lower() if equipment_type else ""
+    for layer, types in NETWORK_LAYERS.items():
+        if any(t in eq_type_lower for t in types):
+            return layer
+    return "endpoint"
+
+
+def get_equipment_color(equipment_type: str) -> str:
+    """Get color for equipment type."""
+    eq_type_lower = equipment_type.lower() if equipment_type else ""
+    for type_name, color in EQUIPMENT_COLORS.items():
+        if type_name in eq_type_lower:
+            return color
+    return EQUIPMENT_COLORS["default"]
 
 
 @router.get("/stats")
@@ -114,11 +168,13 @@ def get_logical_topology(
     # Add internet/gateway node as center
     nodes.append({
         "id": "gateway",
-        "label": "Gateway",
+        "label": "Internet",
         "type": "gateway",
-        "icon": "pi-globe",
+        "shape": "diamond",
         "color": "#6366f1",
-        "size": 50
+        "size": 50,
+        "level": 0,
+        "data": {}
     })
 
     for subnet in subnets:
@@ -130,12 +186,13 @@ def get_logical_topology(
 
         nodes.append({
             "id": subnet_node_id,
-            "label": subnet.name or subnet.cidr,
+            "label": subnet.name or str(subnet.cidr),
             "sublabel": str(subnet.cidr),
             "type": "subnet",
-            "icon": "pi-sitemap",
+            "shape": "box",
             "color": "#3b82f6",
-            "size": 40,
+            "size": 35,
+            "level": 1,
             "data": {
                 "id": subnet.id,
                 "cidr": str(subnet.cidr),
@@ -152,29 +209,26 @@ def get_logical_topology(
             "source": "gateway",
             "target": subnet_node_id,
             "type": "network",
-            "animated": True
+            "width": 3,
+            "color": "#6366f1"
         })
 
-        # Add IP nodes
+        # Only add active IPs (not all IPs to avoid clutter)
         for ip in subnet.ips:
-            ip_node_id = f"ip_{ip.id}"
+            if ip.status != "active":
+                continue
 
-            # Determine color based on status
-            color_map = {
-                "active": "#10b981",
-                "reserved": "#f59e0b",
-                "available": "#6b7280"
-            }
-            color = color_map.get(ip.status, "#6b7280")
+            ip_node_id = f"ip_{ip.id}"
 
             nodes.append({
                 "id": ip_node_id,
                 "label": str(ip.address),
-                "sublabel": ip.hostname or ip.status,
+                "sublabel": ip.hostname or "",
                 "type": "ip",
-                "icon": "pi-circle-fill",
-                "color": color,
-                "size": 20,
+                "shape": "dot",
+                "color": "#10b981",
+                "size": 15,
+                "level": 2,
                 "data": {
                     "id": ip.id,
                     "address": str(ip.address),
@@ -189,7 +243,9 @@ def get_logical_topology(
                 "id": f"edge_{subnet_node_id}_{ip_node_id}",
                 "source": subnet_node_id,
                 "target": ip_node_id,
-                "type": "contains"
+                "type": "contains",
+                "width": 1,
+                "color": "#94a3b8"
             })
 
     result = {"nodes": nodes, "edges": edges}
@@ -202,7 +258,7 @@ def get_physical_topology(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_active_user)
 ):
-    """Get physical network topology (equipment and port connections)."""
+    """Get physical network topology - equipment connected by ports."""
     check_topology_permission(current_user)
 
     cache_key = build_cache_key("topology", "physical")
@@ -213,104 +269,32 @@ def get_physical_topology(
     nodes = []
     edges = []
     equipment_ids = set()
-    equipment_by_rack = {}  # Group equipment by rack
-    equipment_by_location = {}  # Group equipment by location (no rack)
-    connected_equipment = set()  # Track equipment with port connections
+    equipment_map = {}  # id -> equipment data
+    connected_equipment = set()
 
-    # Get all equipment with network ports
+    # Get all equipment with network ports that have connections
     equipment_list = db.query(models.Equipment).options(
         joinedload(models.Equipment.model).joinedload(models.EquipmentModel.equipment_type),
         joinedload(models.Equipment.model).joinedload(models.EquipmentModel.manufacturer),
         joinedload(models.Equipment.network_ports),
-        joinedload(models.Equipment.location),
-        joinedload(models.Equipment.rack)
+        joinedload(models.Equipment.location)
     ).filter(
         models.Equipment.status.in_(["in_service", "maintenance"])
     ).all()
 
-    # Icon mapping for equipment types
-    icon_map = {
-        "pi-server": "pi-server",
-        "pi-desktop": "pi-desktop",
-        "pi-sitemap": "pi-sitemap",
-        "pi-share-alt": "pi-share-alt",
-        "pi-wifi": "pi-wifi",
-        "pi-database": "pi-database",
-        "pi-shield": "pi-shield",
-        "pi-bolt": "pi-bolt"
-    }
-
-    # Status color mapping
-    status_colors = {
-        "in_service": "#10b981",
-        "maintenance": "#f59e0b",
-        "in_stock": "#6b7280",
-        "retired": "#ef4444"
-    }
-
+    # Build equipment map
     for eq in equipment_list:
         equipment_ids.add(eq.id)
+        eq_type_name = eq.model.equipment_type.name if eq.model and eq.model.equipment_type else "Unknown"
+        equipment_map[eq.id] = {
+            "equipment": eq,
+            "type": eq_type_name,
+            "layer": get_equipment_layer(eq_type_name),
+            "color": get_equipment_color(eq_type_name),
+            "has_connections": False
+        }
 
-        # Group by rack or location
-        if eq.rack_id:
-            if eq.rack_id not in equipment_by_rack:
-                equipment_by_rack[eq.rack_id] = {"rack": eq.rack, "equipment": []}
-            equipment_by_rack[eq.rack_id]["equipment"].append(eq)
-        elif eq.location_id:
-            if eq.location_id not in equipment_by_location:
-                equipment_by_location[eq.location_id] = {"location": eq.location, "equipment": []}
-            equipment_by_location[eq.location_id]["equipment"].append(eq)
-
-        # Get equipment type info
-        eq_type_name = "Unknown"
-        icon = "pi-box"
-        if eq.model and eq.model.equipment_type:
-            eq_type_name = eq.model.equipment_type.name
-            icon = icon_map.get(eq.model.equipment_type.icon, "pi-box")
-
-        # Get location info
-        location_str = ""
-        if eq.location:
-            parts = [eq.location.site]
-            if eq.location.building:
-                parts.append(eq.location.building)
-            if eq.location.room:
-                parts.append(eq.location.room)
-            location_str = " > ".join(parts)
-
-        # Count ports
-        port_connected = sum(1 for p in eq.network_ports if p.connected_to_id)
-        total_ports = len(eq.network_ports)
-
-        nodes.append({
-            "id": f"equipment_{eq.id}",
-            "label": eq.name,
-            "sublabel": eq_type_name,
-            "type": "equipment",
-            "equipmentType": eq_type_name.lower().replace(" ", "_"),
-            "icon": icon,
-            "color": status_colors.get(eq.status, "#6b7280"),
-            "size": 30,
-            "rackId": eq.rack_id,
-            "locationId": eq.location_id,
-            "data": {
-                "id": eq.id,
-                "name": eq.name,
-                "status": eq.status,
-                "type": eq_type_name,
-                "manufacturer": eq.model.manufacturer.name if eq.model and eq.model.manufacturer else None,
-                "model": eq.model.name if eq.model else None,
-                "location": location_str,
-                "rack": eq.rack.name if eq.rack else None,
-                "position_u": eq.position_u,
-                "serial_number": eq.serial_number,
-                "ip_address": eq.remote_ip,
-                "ports_connected": port_connected,
-                "ports_total": total_ports
-            }
-        })
-
-    # Get all port connections
+    # Find all port connections and mark connected equipment
     port_connections = db.query(models.NetworkPort).filter(
         models.NetworkPort.connected_to_id.isnot(None),
         models.NetworkPort.equipment_id.in_(equipment_ids)
@@ -326,9 +310,11 @@ def get_physical_topology(
         if not target_port or target_port.equipment_id not in equipment_ids:
             continue
 
-        # Track connected equipment
+        # Mark both as connected
         connected_equipment.add(port.equipment_id)
         connected_equipment.add(target_port.equipment_id)
+        equipment_map[port.equipment_id]["has_connections"] = True
+        equipment_map[target_port.equipment_id]["has_connections"] = True
 
         # Avoid duplicate connections
         connection_key = tuple(sorted([port.id, port.connected_to_id]))
@@ -336,32 +322,36 @@ def get_physical_topology(
             continue
         seen_connections.add(connection_key)
 
-        # Determine edge style based on port type
-        edge_style = "solid"
-        if port.port_type == "fiber":
-            edge_style = "dashed"
-
         # Determine edge color based on speed
-        edge_color = "#94a3b8"
-        if port.speed:
-            speed_colors = {
-                "100M": "#94a3b8",
-                "1G": "#3b82f6",
-                "10G": "#8b5cf6",
-                "25G": "#ec4899",
-                "40G": "#f59e0b",
-                "100G": "#10b981"
-            }
-            edge_color = speed_colors.get(port.speed, "#94a3b8")
+        speed = port.speed or ""
+        if "100G" in speed:
+            edge_color = "#10b981"
+            edge_width = 5
+        elif "40G" in speed or "25G" in speed:
+            edge_color = "#8b5cf6"
+            edge_width = 4
+        elif "10G" in speed:
+            edge_color = "#3b82f6"
+            edge_width = 3
+        elif "1G" in speed:
+            edge_color = "#64748b"
+            edge_width = 2
+        else:
+            edge_color = "#94a3b8"
+            edge_width = 1
+
+        # Edge label shows port names
+        edge_label = f"{port.name} ↔ {target_port.name}"
 
         edges.append({
             "id": f"edge_{port.id}_{target_port.id}",
             "source": f"equipment_{port.equipment_id}",
             "target": f"equipment_{target_port.equipment_id}",
             "type": "connection",
-            "style": edge_style,
+            "width": edge_width,
             "color": edge_color,
             "label": port.speed or "",
+            "dashes": port.port_type == "fiber",
             "data": {
                 "source_port": port.name,
                 "target_port": target_port.name,
@@ -370,90 +360,195 @@ def get_physical_topology(
             }
         })
 
-    # Add rack nodes and connect equipment to their racks
-    for rack_id, rack_data in equipment_by_rack.items():
-        rack = rack_data["rack"]
-        rack_node_id = f"rack_{rack_id}"
+    # Assign levels based on network layer
+    layer_levels = {"core": 0, "distribution": 1, "access": 2, "endpoint": 3}
 
-        # Add rack node
+    # Create nodes - only for equipment with connections
+    for eq_id, eq_data in equipment_map.items():
+        if not eq_data["has_connections"]:
+            continue
+
+        eq = eq_data["equipment"]
+        eq_type = eq_data["type"]
+        layer = eq_data["layer"]
+        color = eq_data["color"]
+
+        # Get location info
+        location_str = ""
+        if eq.location:
+            parts = [eq.location.site]
+            if eq.location.room:
+                parts.append(eq.location.room)
+            location_str = " / ".join(parts)
+
+        # Count ports
+        port_connected = sum(1 for p in eq.network_ports if p.connected_to_id)
+        total_ports = len(eq.network_ports)
+
+        # Determine shape based on type
+        if "router" in eq_type.lower():
+            shape = "diamond"
+        elif "switch" in eq_type.lower():
+            shape = "box"
+        elif "firewall" in eq_type.lower():
+            shape = "hexagon"
+        elif "server" in eq_type.lower():
+            shape = "box"
+        else:
+            shape = "ellipse"
+
         nodes.append({
-            "id": rack_node_id,
-            "label": rack.name,
-            "sublabel": f"{rack.height_u}U",
-            "type": "rack",
-            "icon": "pi-server",
-            "color": "#8b5cf6",
-            "size": 45,
+            "id": f"equipment_{eq.id}",
+            "label": eq.name,
+            "sublabel": eq_type,
+            "type": "equipment",
+            "equipmentType": eq_type.lower().replace(" ", "_"),
+            "shape": shape,
+            "color": color,
+            "size": 35 if layer in ["core", "distribution"] else 25,
+            "level": layer_levels.get(layer, 3),
+            "layer": layer,
             "data": {
-                "id": rack.id,
-                "name": rack.name,
-                "total_u": rack.height_u,
-                "equipment_count": len(rack_data["equipment"])
+                "id": eq.id,
+                "name": eq.name,
+                "status": eq.status,
+                "type": eq_type,
+                "manufacturer": eq.model.manufacturer.name if eq.model and eq.model.manufacturer else None,
+                "model": eq.model.name if eq.model else None,
+                "location": location_str,
+                "serial_number": eq.serial_number,
+                "ip_address": eq.remote_ip,
+                "ports_connected": port_connected,
+                "ports_total": total_ports
             }
         })
-
-        # Connect unconnected equipment to their rack
-        for eq in rack_data["equipment"]:
-            if eq.id not in connected_equipment:
-                edges.append({
-                    "id": f"edge_rack_{rack_id}_eq_{eq.id}",
-                    "source": rack_node_id,
-                    "target": f"equipment_{eq.id}",
-                    "type": "placement",
-                    "style": "dotted",
-                    "color": "#8b5cf680",
-                    "data": {
-                        "relationship": "housed_in",
-                        "position_u": eq.position_u
-                    }
-                })
-
-    # Add location nodes for equipment without racks
-    for loc_id, loc_data in equipment_by_location.items():
-        location = loc_data["location"]
-        loc_node_id = f"location_{loc_id}"
-
-        # Only add location node if it has unconnected equipment
-        unconnected_in_loc = [eq for eq in loc_data["equipment"] if eq.id not in connected_equipment]
-        if unconnected_in_loc:
-            loc_name = location.site
-            if location.room:
-                loc_name = f"{location.site} - {location.room}"
-
-            nodes.append({
-                "id": loc_node_id,
-                "label": loc_name,
-                "sublabel": "Location",
-                "type": "location",
-                "icon": "pi-building",
-                "color": "#06b6d4",
-                "size": 40,
-                "data": {
-                    "id": location.id,
-                    "site": location.site,
-                    "building": location.building,
-                    "room": location.room,
-                    "equipment_count": len(loc_data["equipment"])
-                }
-            })
-
-            # Connect unconnected equipment to their location
-            for eq in unconnected_in_loc:
-                edges.append({
-                    "id": f"edge_loc_{loc_id}_eq_{eq.id}",
-                    "source": loc_node_id,
-                    "target": f"equipment_{eq.id}",
-                    "type": "placement",
-                    "style": "dotted",
-                    "color": "#06b6d480",
-                    "data": {
-                        "relationship": "located_at"
-                    }
-                })
 
     result = {"nodes": nodes, "edges": edges}
     cache_set(cache_key, result, TOPOLOGY_CACHE_TTL)
     return result
+
+
+@router.get("/site/{site_name}")
+def get_site_topology(
+    site_name: str,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user)
+):
+    """Get topology for a specific site."""
+    check_topology_permission(current_user)
+
+    # Get locations for this site
+    locations = db.query(models.Location).filter(
+        models.Location.site == site_name
+    ).all()
+
+    if not locations:
+        raise HTTPException(status_code=404, detail="Site not found")
+
+    location_ids = [loc.id for loc in locations]
+
+    # Get equipment at these locations
+    equipment_list = db.query(models.Equipment).options(
+        joinedload(models.Equipment.model).joinedload(models.EquipmentModel.equipment_type),
+        joinedload(models.Equipment.network_ports),
+        joinedload(models.Equipment.location)
+    ).filter(
+        models.Equipment.location_id.in_(location_ids),
+        models.Equipment.status.in_(["in_service", "maintenance"])
+    ).all()
+
+    nodes = []
+    edges = []
+    equipment_ids = set(eq.id for eq in equipment_list)
+
+    # Group by room
+    rooms = {}
+    for eq in equipment_list:
+        room = eq.location.room if eq.location else "Unknown"
+        if room not in rooms:
+            rooms[room] = []
+        rooms[room].append(eq)
+
+    layer_levels = {"core": 0, "distribution": 1, "access": 2, "endpoint": 3}
+
+    for eq in equipment_list:
+        eq_type = eq.model.equipment_type.name if eq.model and eq.model.equipment_type else "Unknown"
+        layer = get_equipment_layer(eq_type)
+        color = get_equipment_color(eq_type)
+
+        port_connected = sum(1 for p in eq.network_ports if p.connected_to_id)
+
+        nodes.append({
+            "id": f"equipment_{eq.id}",
+            "label": eq.name,
+            "sublabel": eq_type,
+            "type": "equipment",
+            "shape": "box",
+            "color": color,
+            "size": 30,
+            "level": layer_levels.get(layer, 3),
+            "group": eq.location.room if eq.location else "Unknown",
+            "data": {
+                "id": eq.id,
+                "name": eq.name,
+                "type": eq_type,
+                "room": eq.location.room if eq.location else None,
+                "ports_connected": port_connected
+            }
+        })
+
+        # Add connections
+        for port in eq.network_ports:
+            if port.connected_to_id:
+                target_port = db.query(models.NetworkPort).filter(
+                    models.NetworkPort.id == port.connected_to_id
+                ).first()
+
+                if target_port and target_port.equipment_id in equipment_ids:
+                    edge_key = tuple(sorted([eq.id, target_port.equipment_id]))
+                    edge_id = f"conn_{edge_key[0]}_{edge_key[1]}"
+
+                    if not any(e.get("id") == edge_id for e in edges):
+                        edges.append({
+                            "id": edge_id,
+                            "source": f"equipment_{eq.id}",
+                            "target": f"equipment_{target_port.equipment_id}",
+                            "type": "connection",
+                            "label": port.speed or "",
+                            "width": 2,
+                            "color": "#64748b"
+                        })
+
+    return {
+        "site": site_name,
+        "rooms": list(rooms.keys()),
+        "nodes": nodes,
+        "edges": edges
+    }
+
+
+@router.get("/sites")
+def get_topology_sites(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user)
+):
+    """Get list of sites with equipment counts for topology."""
+    check_topology_permission(current_user)
+
+    sites = db.query(
+        models.Location.site,
+        func.count(models.Equipment.id).label("equipment_count")
+    ).join(
+        models.Equipment,
+        models.Equipment.location_id == models.Location.id
+    ).filter(
+        models.Equipment.status.in_(["in_service", "maintenance"])
+    ).group_by(models.Location.site).all()
+
+    return [
+        {"name": site, "equipment_count": count}
+        for site, count in sites
+    ]
 
 
 @router.get("/combined")
@@ -482,15 +577,21 @@ def get_combined_topology(
         models.IPAddress.equipment_id.isnot(None)
     ).all()
 
+    # Get set of equipment node IDs
+    equipment_node_ids = {n["id"] for n in physical["nodes"]}
+
     for ip in ip_equipment_map:
-        edges.append({
-            "id": f"edge_ip_{ip.id}_eq_{ip.equipment_id}",
-            "source": f"ip_{ip.id}",
-            "target": f"equipment_{ip.equipment_id}",
-            "type": "assigned",
-            "style": "dotted",
-            "color": "#8b5cf6"
-        })
+        eq_node_id = f"equipment_{ip.equipment_id}"
+        if eq_node_id in equipment_node_ids:
+            edges.append({
+                "id": f"edge_ip_{ip.id}_eq_{ip.equipment_id}",
+                "source": f"ip_{ip.id}",
+                "target": eq_node_id,
+                "type": "assigned",
+                "dashes": True,
+                "width": 1,
+                "color": "#8b5cf6"
+            })
 
     result = {"nodes": nodes, "edges": edges}
     cache_set(cache_key, result, TOPOLOGY_CACHE_TTL)
@@ -524,41 +625,36 @@ def get_rack_topology(
     nodes.append({
         "id": f"rack_{rack.id}",
         "label": rack.name,
-        "sublabel": f"{rack.total_u}U",
+        "sublabel": f"{rack.height_u}U",
         "type": "rack",
-        "icon": "pi-server",
+        "shape": "box",
         "color": "#8b5cf6",
         "size": 50,
+        "level": 0,
         "data": {
             "id": rack.id,
             "name": rack.name,
-            "total_u": rack.total_u
+            "height_u": rack.height_u
         }
     })
 
     equipment_ids = set()
-    status_colors = {
-        "in_service": "#10b981",
-        "maintenance": "#f59e0b",
-        "in_stock": "#6b7280",
-        "retired": "#ef4444"
-    }
 
     for eq in equipment_list:
         equipment_ids.add(eq.id)
 
-        eq_type_name = "Unknown"
-        if eq.model and eq.model.equipment_type:
-            eq_type_name = eq.model.equipment_type.name
+        eq_type_name = eq.model.equipment_type.name if eq.model and eq.model.equipment_type else "Unknown"
+        color = get_equipment_color(eq_type_name)
 
         nodes.append({
             "id": f"equipment_{eq.id}",
             "label": eq.name,
             "sublabel": f"U{eq.position_u or '?'} - {eq_type_name}",
             "type": "equipment",
-            "icon": "pi-box",
-            "color": status_colors.get(eq.status, "#6b7280"),
+            "shape": "box",
+            "color": color,
             "size": 30,
+            "level": 1,
             "data": {
                 "id": eq.id,
                 "name": eq.name,
@@ -573,7 +669,10 @@ def get_rack_topology(
             "id": f"edge_rack_{rack.id}_eq_{eq.id}",
             "source": f"rack_{rack.id}",
             "target": f"equipment_{eq.id}",
-            "type": "placement"
+            "type": "placement",
+            "dashes": True,
+            "width": 1,
+            "color": "#8b5cf680"
         })
 
     # Add connections between equipment in rack
@@ -594,7 +693,8 @@ def get_rack_topology(
                             "source": f"equipment_{eq.id}",
                             "target": f"equipment_{target_port.equipment_id}",
                             "type": "connection",
-                            "label": port.name,
+                            "label": port.speed or "",
+                            "width": 2,
                             "color": "#10b981"
                         })
 
@@ -602,7 +702,7 @@ def get_rack_topology(
         "rack": {
             "id": rack.id,
             "name": rack.name,
-            "total_u": rack.total_u
+            "height_u": rack.height_u
         },
         "nodes": nodes,
         "edges": edges

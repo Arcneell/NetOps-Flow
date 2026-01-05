@@ -783,6 +783,11 @@
     "firewalls": "Firewalls",
     "rack": "Rack",
     "location": "Location",
-    "viewDcim": "View in DCIM"
+    "viewDcim": "View in DCIM",
+    "nodes": "Nodes",
+    "links": "Links",
+    "allSites": "All Sites",
+    "equipmentTypes": "Equipment Types",
+    "linkSpeeds": "Link Speeds"
   }
 }

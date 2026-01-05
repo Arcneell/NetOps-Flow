@@ -783,6 +783,11 @@
     "firewalls": "Pare-feux",
     "rack": "Baie",
     "location": "Emplacement",
-    "viewDcim": "Voir dans DCIM"
+    "viewDcim": "Voir dans DCIM",
+    "nodes": "Nœuds",
+    "links": "Liens",
+    "allSites": "Tous les sites",
+    "equipmentTypes": "Types d'équipements",
+    "linkSpeeds": "Débits des liens"
   }
 }
