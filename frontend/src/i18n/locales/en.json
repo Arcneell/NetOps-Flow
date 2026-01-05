@@ -780,6 +780,9 @@
     "servers": "Servers",
     "switches": "Switches",
     "routers": "Routers",
-    "firewalls": "Firewalls"
+    "firewalls": "Firewalls",
+    "rack": "Rack",
+    "location": "Location",
+    "viewDcim": "View in DCIM"
   }
 }

@@ -8,11 +8,11 @@
           :allowEmpty="false" class="view-mode-selector" />
 
         <!-- Search -->
-        <div class="relative">
-          <i class="pi pi-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"></i>
+        <span class="p-input-icon-left">
+          <i class="pi pi-search" />
           <InputText v-model="searchQuery" :placeholder="t('topology.search')"
-            class="pl-10 w-64" @input="handleSearch" />
-        </div>
+            class="w-64" @input="handleSearch" />
+        </span>
       </div>
 
       <div class="flex items-center gap-2">
@@ -88,6 +88,14 @@
                 </div>
               </template>
               <template v-if="viewMode === 'physical' || viewMode === 'combined'">
+                <div class="legend-item">
+                  <span class="legend-dot" style="background: #8b5cf6;"></span>
+                  <span>{{ t('topology.rack') }}</span>
+                </div>
+                <div class="legend-item">
+                  <span class="legend-dot" style="background: #06b6d4;"></span>
+                  <span>{{ t('topology.location') }}</span>
+                </div>
                 <div class="legend-item">
                   <span class="legend-dot" style="background: #10b981;"></span>
                   <span>{{ t('topology.inService') }}</span>
@@ -174,10 +182,12 @@
 
             <!-- Actions -->
             <div class="pt-3 border-t flex gap-2" style="border-color: var(--border-color);">
-              <Button v-if="selectedNode.type === 'equipment'" :label="t('topology.viewDetails')"
+              <Button v-if="selectedNode.type === 'equipment'" :label="t('topology.viewInventory')"
                 size="small" outlined class="flex-1" @click="goToEquipment" />
               <Button v-if="selectedNode.type === 'subnet'" :label="t('topology.viewIpam')"
                 size="small" outlined class="flex-1" @click="goToIpam" />
+              <Button v-if="selectedNode.type === 'rack'" :label="t('topology.viewDcim')"
+                size="small" outlined class="flex-1" @click="goToRack" />
               <Button icon="pi pi-search-plus" size="small" outlined @click="focusNode"
                 v-tooltip.top="t('topology.focusNode')" />
             </div>
@@ -560,6 +570,12 @@ const goToEquipment = () => {
 
 const goToIpam = () => {
   router.push('/ipam');
+};
+
+const goToRack = () => {
+  if (selectedNode.value?.data?.id) {
+    router.push({ path: '/dcim', query: { rack: selectedNode.value.data.id } });
+  }
 };
 
 // Export as image

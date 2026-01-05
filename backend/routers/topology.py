@@ -213,6 +213,9 @@ def get_physical_topology(
     nodes = []
     edges = []
     equipment_ids = set()
+    equipment_by_rack = {}  # Group equipment by rack
+    equipment_by_location = {}  # Group equipment by location (no rack)
+    connected_equipment = set()  # Track equipment with port connections
 
     # Get all equipment with network ports
     equipment_list = db.query(models.Equipment).options(
@@ -248,6 +251,16 @@ def get_physical_topology(
     for eq in equipment_list:
         equipment_ids.add(eq.id)
 
+        # Group by rack or location
+        if eq.rack_id:
+            if eq.rack_id not in equipment_by_rack:
+                equipment_by_rack[eq.rack_id] = {"rack": eq.rack, "equipment": []}
+            equipment_by_rack[eq.rack_id]["equipment"].append(eq)
+        elif eq.location_id:
+            if eq.location_id not in equipment_by_location:
+                equipment_by_location[eq.location_id] = {"location": eq.location, "equipment": []}
+            equipment_by_location[eq.location_id]["equipment"].append(eq)
+
         # Get equipment type info
         eq_type_name = "Unknown"
         icon = "pi-box"
@@ -266,7 +279,7 @@ def get_physical_topology(
             location_str = " > ".join(parts)
 
         # Count ports
-        connected_ports = sum(1 for p in eq.network_ports if p.connected_to_id)
+        port_connected = sum(1 for p in eq.network_ports if p.connected_to_id)
         total_ports = len(eq.network_ports)
 
         nodes.append({
@@ -277,7 +290,9 @@ def get_physical_topology(
             "equipmentType": eq_type_name.lower().replace(" ", "_"),
             "icon": icon,
             "color": status_colors.get(eq.status, "#6b7280"),
-            "size": 35,
+            "size": 30,
+            "rackId": eq.rack_id,
+            "locationId": eq.location_id,
             "data": {
                 "id": eq.id,
                 "name": eq.name,
@@ -290,26 +305,30 @@ def get_physical_topology(
                 "position_u": eq.position_u,
                 "serial_number": eq.serial_number,
                 "ip_address": eq.remote_ip,
-                "ports_connected": connected_ports,
+                "ports_connected": port_connected,
                 "ports_total": total_ports
             }
         })
 
-    # Get all connections
-    connected_ports = db.query(models.NetworkPort).filter(
+    # Get all port connections
+    port_connections = db.query(models.NetworkPort).filter(
         models.NetworkPort.connected_to_id.isnot(None),
         models.NetworkPort.equipment_id.in_(equipment_ids)
     ).all()
 
     seen_connections = set()
 
-    for port in connected_ports:
+    for port in port_connections:
         target_port = db.query(models.NetworkPort).filter(
             models.NetworkPort.id == port.connected_to_id
         ).first()
 
         if not target_port or target_port.equipment_id not in equipment_ids:
             continue
+
+        # Track connected equipment
+        connected_equipment.add(port.equipment_id)
+        connected_equipment.add(target_port.equipment_id)
 
         # Avoid duplicate connections
         connection_key = tuple(sorted([port.id, port.connected_to_id]))
@@ -350,6 +369,87 @@ def get_physical_topology(
                 "speed": port.speed
             }
         })
+
+    # Add rack nodes and connect equipment to their racks
+    for rack_id, rack_data in equipment_by_rack.items():
+        rack = rack_data["rack"]
+        rack_node_id = f"rack_{rack_id}"
+
+        # Add rack node
+        nodes.append({
+            "id": rack_node_id,
+            "label": rack.name,
+            "sublabel": f"{rack.total_u}U",
+            "type": "rack",
+            "icon": "pi-server",
+            "color": "#8b5cf6",
+            "size": 45,
+            "data": {
+                "id": rack.id,
+                "name": rack.name,
+                "total_u": rack.total_u,
+                "equipment_count": len(rack_data["equipment"])
+            }
+        })
+
+        # Connect unconnected equipment to their rack
+        for eq in rack_data["equipment"]:
+            if eq.id not in connected_equipment:
+                edges.append({
+                    "id": f"edge_rack_{rack_id}_eq_{eq.id}",
+                    "source": rack_node_id,
+                    "target": f"equipment_{eq.id}",
+                    "type": "placement",
+                    "style": "dotted",
+                    "color": "#8b5cf680",
+                    "data": {
+                        "relationship": "housed_in",
+                        "position_u": eq.position_u
+                    }
+                })
+
+    # Add location nodes for equipment without racks
+    for loc_id, loc_data in equipment_by_location.items():
+        location = loc_data["location"]
+        loc_node_id = f"location_{loc_id}"
+
+        # Only add location node if it has unconnected equipment
+        unconnected_in_loc = [eq for eq in loc_data["equipment"] if eq.id not in connected_equipment]
+        if unconnected_in_loc:
+            loc_name = location.site
+            if location.room:
+                loc_name = f"{location.site} - {location.room}"
+
+            nodes.append({
+                "id": loc_node_id,
+                "label": loc_name,
+                "sublabel": "Location",
+                "type": "location",
+                "icon": "pi-building",
+                "color": "#06b6d4",
+                "size": 40,
+                "data": {
+                    "id": location.id,
+                    "site": location.site,
+                    "building": location.building,
+                    "room": location.room,
+                    "equipment_count": len(loc_data["equipment"])
+                }
+            })
+
+            # Connect unconnected equipment to their location
+            for eq in unconnected_in_loc:
+                edges.append({
+                    "id": f"edge_loc_{loc_id}_eq_{eq.id}",
+                    "source": loc_node_id,
+                    "target": f"equipment_{eq.id}",
+                    "type": "placement",
+                    "style": "dotted",
+                    "color": "#06b6d480",
+                    "data": {
+                        "relationship": "located_at"
+                    }
+                })
 
     result = {"nodes": nodes, "edges": edges}
     cache_set(cache_key, result, TOPOLOGY_CACHE_TTL)

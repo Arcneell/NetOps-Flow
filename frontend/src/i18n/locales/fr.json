@@ -780,6 +780,9 @@
     "servers": "Serveurs",
     "switches": "Switches",
     "routers": "Routeurs",
-    "firewalls": "Pare-feux"
+    "firewalls": "Pare-feux",
+    "rack": "Baie",
+    "location": "Emplacement",
+    "viewDcim": "Voir dans DCIM"
   }
 }
