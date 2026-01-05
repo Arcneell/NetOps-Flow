@@ -223,7 +223,7 @@ def get_alerts(
             "severity": "danger" if days_remaining <= 7 else "warning",
             "title": contract.name,
             "message": f"{days_remaining} days remaining",
-            "link": "/contracts",
+            "link": f"/contracts?id={contract.id}",
             "id": contract.id
         })
 
@@ -237,12 +237,13 @@ def get_alerts(
 
     for license in expiring_licenses:
         days_remaining = (license.expiry_date - today).days
+        software_id = license.software.id if license.software else None
         alerts.append({
             "type": "license",
             "severity": "danger" if days_remaining <= 7 else "warning",
             "title": license.software.name if license.software else "License",
             "message": f"{days_remaining} days remaining",
-            "link": "/software",
+            "link": f"/software?id={software_id}" if software_id else "/software",
             "id": license.id
         })
 
@@ -261,7 +262,7 @@ def get_alerts(
             "severity": "danger" if days_remaining <= 7 else "warning",
             "title": eq.name,
             "message": f"{days_remaining} days remaining",
-            "link": "/inventory",
+            "link": f"/inventory?equipment={eq.id}",
             "id": eq.id
         })
 
@@ -275,7 +276,7 @@ def get_alerts(
                 "severity": "danger",
                 "title": software.name,
                 "message": f"{total_installations} installs / {total_licenses} licenses",
-                "link": "/software",
+                "link": f"/software?id={software.id}",
                 "id": software.id
             })
 
@@ -290,7 +291,7 @@ def get_alerts(
             "severity": "info",
             "title": eq.name,
             "message": "In maintenance",
-            "link": "/inventory",
+            "link": f"/inventory?equipment={eq.id}",
             "id": eq.id
         })
 

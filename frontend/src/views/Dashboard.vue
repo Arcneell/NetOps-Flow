@@ -4,7 +4,6 @@
     <div class="flex items-center justify-between">
       <div>
         <h1 class="text-2xl font-bold">{{ t('dashboard.welcome') }}, {{ username }}</h1>
-        <p class="text-sm opacity-60 mt-1">{{ t('dashboard.welcomeSubtitle') }}</p>
       </div>
       <div class="text-right text-sm opacity-60">
         <div>{{ currentDate }}</div>

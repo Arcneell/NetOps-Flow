@@ -604,10 +604,14 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import { useToast } from 'primevue/usetoast';
 import { useI18n } from 'vue-i18n';
 import api from '../api';
+
+const route = useRoute();
+const router = useRouter();
 
 const { t } = useI18n();
 const toast = useToast();
@@ -1132,5 +1136,29 @@ const onLinkIpDialogEnter = (event) => {
   }
 };
 
-onMounted(loadData);
+// Open equipment from URL parameter
+const openEquipmentFromUrl = () => {
+  const equipmentId = route.query.equipment;
+  if (equipmentId && equipment.value.length > 0) {
+    const eq = equipment.value.find(e => e.id === parseInt(equipmentId));
+    if (eq) {
+      openEquipmentDialog(eq);
+      // Clear the query parameter after opening
+      router.replace({ path: route.path });
+    }
+  }
+};
+
+// Watch for route changes
+watch(() => route.query.equipment, (newVal) => {
+  if (newVal) {
+    openEquipmentFromUrl();
+  }
+});
+
+onMounted(async () => {
+  await loadData();
+  // Check if we need to open an equipment from URL
+  openEquipmentFromUrl();
+});
 </script>
