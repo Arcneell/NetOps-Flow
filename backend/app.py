@@ -12,6 +12,7 @@ from fastapi.responses import JSONResponse
 import logging
 import redis
 from sqlalchemy import text
+from anyio import to_thread
 
 from backend.core.config import get_settings
 from backend.core.logging import setup_logging
@@ -88,7 +89,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     # Create default admin user if not exists (idempotent)
     try:
-        create_default_admin()
+        await to_thread.run_sync(create_default_admin)
     except Exception as e:
         logger.warning(f"Could not create default admin: {e}")
 
