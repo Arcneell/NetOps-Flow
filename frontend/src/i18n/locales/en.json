@@ -377,7 +377,8 @@
     "days": "days",
     "overview": "Overview",
     "name": "Name",
-    "current": "Current"
+    "current": "Current",
+    "dismiss": "Dismiss"
   },
   "dcim": {
     "title": "DCIM",
