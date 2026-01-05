@@ -2,16 +2,25 @@
 Inventory Router - Equipment management.
 """
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import Response
 from sqlalchemy.orm import Session
 from typing import List, Optional
 import logging
+import io
+import base64
+
+import qrcode
+from qrcode.image.pil import PilImage
 
 from backend.core.database import get_db
 from backend.core.security import (
     get_current_active_user,
     has_permission,
 )
+from backend.core.config import get_settings
 from backend import models, schemas
+
+settings = get_settings()
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/inventory", tags=["Inventory"])
@@ -687,3 +696,128 @@ def get_available_ips(
         )
 
     return query.all()
+
+
+# --- QR Code Generation ---
+
+@router.get("/equipment/{equipment_id}/qrcode")
+def get_equipment_qrcode(
+    equipment_id: int,
+    format: str = "png",
+    size: int = 200,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user)
+):
+    """
+    Generate QR code for equipment based on asset_tag.
+
+    Args:
+        equipment_id: Equipment ID
+        format: Output format ('png' for image, 'base64' for base64-encoded string)
+        size: QR code size in pixels (default 200, max 500)
+
+    Returns:
+        PNG image or JSON with base64-encoded QR code
+    """
+    check_inventory_permission(current_user)
+
+    # Validate size
+    if size < 50 or size > 500:
+        raise HTTPException(status_code=400, detail="Size must be between 50 and 500 pixels")
+
+    # Get equipment
+    equipment = db.query(models.Equipment).filter(
+        models.Equipment.id == equipment_id
+    ).first()
+
+    if not equipment:
+        raise HTTPException(status_code=404, detail="Equipment not found")
+
+    # Check entity access
+    entity_filter = get_user_entity_filter(current_user)
+    if entity_filter and equipment.entity_id != entity_filter:
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    # Use asset_tag if available, otherwise use equipment ID
+    qr_data = equipment.asset_tag or f"INFRAMATE-EQ-{equipment.id}"
+
+    # Add equipment URL for scanning convenience
+    # Format: asset_tag|name|serial (compact info)
+    qr_content = f"{qr_data}"
+    if equipment.name:
+        qr_content += f"|{equipment.name}"
+    if equipment.serial_number:
+        qr_content += f"|{equipment.serial_number}"
+
+    # Generate QR code
+    qr = qrcode.QRCode(
+        version=1,
+        error_correction=qrcode.constants.ERROR_CORRECT_M,
+        box_size=10,
+        border=2,
+    )
+    qr.add_data(qr_content)
+    qr.make(fit=True)
+
+    # Create image
+    img = qr.make_image(fill_color="black", back_color="white")
+
+    # Resize to requested size
+    img = img.resize((size, size))
+
+    # Convert to bytes
+    img_buffer = io.BytesIO()
+    img.save(img_buffer, format="PNG")
+    img_buffer.seek(0)
+    img_bytes = img_buffer.getvalue()
+
+    if format.lower() == "base64":
+        # Return as JSON with base64-encoded image
+        b64_string = base64.b64encode(img_bytes).decode("utf-8")
+        return {
+            "equipment_id": equipment.id,
+            "asset_tag": equipment.asset_tag,
+            "qr_data": qr_content,
+            "image_base64": f"data:image/png;base64,{b64_string}"
+        }
+    else:
+        # Return as PNG image
+        return Response(
+            content=img_bytes,
+            media_type="image/png",
+            headers={
+                "Content-Disposition": f"inline; filename=qr_{qr_data}.png"
+            }
+        )
+
+
+@router.get("/equipment/by-asset-tag/{asset_tag}", response_model=schemas.EquipmentDetail)
+def get_equipment_by_asset_tag(
+    asset_tag: str,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user)
+):
+    """
+    Get equipment by asset_tag (for QR code scanning).
+
+    Args:
+        asset_tag: The asset tag to search for
+
+    Returns:
+        Equipment details
+    """
+    check_inventory_permission(current_user)
+
+    equipment = db.query(models.Equipment).filter(
+        models.Equipment.asset_tag == asset_tag
+    ).first()
+
+    if not equipment:
+        raise HTTPException(status_code=404, detail="Equipment not found")
+
+    # Check entity access
+    entity_filter = get_user_entity_filter(current_user)
+    if entity_filter and equipment.entity_id != entity_filter:
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    return equipment

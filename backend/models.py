@@ -298,7 +298,7 @@ class Equipment(Base):
     name = Column(String, nullable=False, index=True)
     serial_number = Column(String, unique=True, nullable=True, index=True)
     asset_tag = Column(String, unique=True, nullable=True, index=True)
-    status = Column(String, default="in_service")  # in_service, in_stock, retired, maintenance
+    status = Column(String, default="in_service", index=True)  # in_service, in_stock, retired, maintenance
     notes = Column(Text, nullable=True)
     created_at = Column(DateTime, default=utc_now)
     updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
@@ -424,12 +424,12 @@ class Contract(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, nullable=False, index=True)
-    contract_type = Column(String, nullable=False)  # maintenance, insurance, leasing, support
+    contract_type = Column(String, nullable=False, index=True)  # maintenance, insurance, leasing, support
     contract_number = Column(String, unique=True, nullable=True)
     supplier_id = Column(Integer, ForeignKey("suppliers.id"), nullable=True)
     entity_id = Column(Integer, ForeignKey("entities.id"), nullable=True)
     start_date = Column(Date, nullable=False)
-    end_date = Column(Date, nullable=False)
+    end_date = Column(Date, nullable=False, index=True)  # Indexed for expiration alerts
     annual_cost = Column(Numeric(12, 2), nullable=True)
     renewal_type = Column(String, default="manual")  # auto, manual, none
     renewal_notice_days = Column(Integer, default=30)
@@ -580,9 +580,9 @@ class AuditLog(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     timestamp = Column(DateTime, default=utc_now, nullable=False, index=True)
-    user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
     username = Column(String, nullable=False)  # Denormalized for historical accuracy
-    action = Column(String, nullable=False)  # CREATE, UPDATE, DELETE, LOGIN, LOGOUT
+    action = Column(String, nullable=False, index=True)  # CREATE, UPDATE, DELETE, LOGIN, LOGOUT
     resource_type = Column(String, nullable=False, index=True)  # equipment, subnet, user, etc.
     resource_id = Column(String, nullable=True)  # ID of the affected resource
     entity_id = Column(Integer, ForeignKey("entities.id", ondelete="SET NULL"), nullable=True)
@@ -853,6 +853,48 @@ class SLAPolicy(Base):
     created_at = Column(DateTime, default=utc_now)
 
     entity = relationship("Entity", backref="sla_policies")
+
+
+# ==================== TICKET TEMPLATE MODELS ====================
+
+class TicketTemplate(Base):
+    """
+    Pre-defined ticket templates for quick ticket creation.
+    Allows creating commonly used ticket types like "Hardware Request", "Software Installation", etc.
+    """
+    __tablename__ = "ticket_templates"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, nullable=False, unique=True, index=True)
+    description = Column(Text, nullable=True)
+
+    # Template fields (pre-filled values)
+    title_template = Column(String, nullable=False)  # Can contain placeholders like {user}, {date}
+    description_template = Column(Text, nullable=True)
+    ticket_type = Column(String, default="request")  # incident, request, problem, change
+    category = Column(String, nullable=True)
+    subcategory = Column(String, nullable=True)
+    priority = Column(String, default="medium")  # critical, high, medium, low
+    assigned_group = Column(String, nullable=True)  # Default assignment group
+
+    # Visibility
+    is_active = Column(Boolean, default=True, index=True)
+    is_public = Column(Boolean, default=True)  # Visible to all users or just tech/admin
+
+    # Metadata
+    icon = Column(String, default="pi-ticket")  # PrimeIcons class
+    color = Column(String, default="#0ea5e9")  # Accent color for UI
+    usage_count = Column(Integer, default=0)  # Track template usage
+
+    # Ownership
+    entity_id = Column(Integer, ForeignKey("entities.id", ondelete="SET NULL"), nullable=True)
+    created_by_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    created_at = Column(DateTime, default=utc_now)
+    updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
+
+    # Relationships
+    entity = relationship("Entity", backref="ticket_templates")
+    created_by = relationship("User", backref="created_templates")
 
 
 # ==================== WEBHOOKS MODELS ====================

@@ -890,3 +890,232 @@ def reopen_ticket(
 
     db.commit()
     return {"message": "Ticket reopened"}
+
+
+# ==================== TICKET TEMPLATES ====================
+
+@router.get("/templates/", response_model=List[schemas.TicketTemplate])
+def list_ticket_templates(
+    active_only: bool = True,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    """
+    List available ticket templates.
+
+    Regular users see only public active templates.
+    Tech/admin/superadmin see all templates.
+    """
+    query = db.query(models.TicketTemplate)
+
+    # Apply visibility filter
+    if not can_manage_tickets(current_user):
+        query = query.filter(
+            models.TicketTemplate.is_public == True,
+            models.TicketTemplate.is_active == True
+        )
+    elif active_only:
+        query = query.filter(models.TicketTemplate.is_active == True)
+
+    # Apply entity filter
+    if current_user.entity_id:
+        query = query.filter(
+            (models.TicketTemplate.entity_id == None) |
+            (models.TicketTemplate.entity_id == current_user.entity_id)
+        )
+
+    return query.order_by(models.TicketTemplate.name).all()
+
+
+@router.get("/templates/{template_id}", response_model=schemas.TicketTemplate)
+def get_ticket_template(
+    template_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    """Get a specific ticket template."""
+    template = db.query(models.TicketTemplate).filter(
+        models.TicketTemplate.id == template_id
+    ).first()
+
+    if not template:
+        raise HTTPException(status_code=404, detail="Template not found")
+
+    # Check visibility
+    if not can_manage_tickets(current_user):
+        if not template.is_public or not template.is_active:
+            raise HTTPException(status_code=403, detail="Access denied")
+
+    # Check entity access
+    if current_user.entity_id and template.entity_id:
+        if template.entity_id != current_user.entity_id:
+            raise HTTPException(status_code=403, detail="Access denied")
+
+    return template
+
+
+@router.post("/templates/", response_model=schemas.TicketTemplate)
+def create_ticket_template(
+    template_data: schemas.TicketTemplateCreate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    """Create a new ticket template (tech/admin/superadmin only)."""
+    if not can_manage_tickets(current_user):
+        raise HTTPException(status_code=403, detail="Permission denied")
+
+    # Check for duplicate name
+    existing = db.query(models.TicketTemplate).filter(
+        models.TicketTemplate.name == template_data.name
+    ).first()
+
+    if existing:
+        raise HTTPException(status_code=400, detail="Template with this name already exists")
+
+    template = models.TicketTemplate(
+        **template_data.model_dump(),
+        created_by_id=current_user.id
+    )
+
+    db.add(template)
+    db.commit()
+    db.refresh(template)
+
+    logger.info(f"Ticket template '{template.name}' created by {current_user.username}")
+    return template
+
+
+@router.put("/templates/{template_id}", response_model=schemas.TicketTemplate)
+def update_ticket_template(
+    template_id: int,
+    template_data: schemas.TicketTemplateUpdate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    """Update a ticket template (tech/admin/superadmin only)."""
+    if not can_manage_tickets(current_user):
+        raise HTTPException(status_code=403, detail="Permission denied")
+
+    template = db.query(models.TicketTemplate).filter(
+        models.TicketTemplate.id == template_id
+    ).first()
+
+    if not template:
+        raise HTTPException(status_code=404, detail="Template not found")
+
+    # Check for duplicate name if name is being changed
+    if template_data.name and template_data.name != template.name:
+        existing = db.query(models.TicketTemplate).filter(
+            models.TicketTemplate.name == template_data.name
+        ).first()
+        if existing:
+            raise HTTPException(status_code=400, detail="Template with this name already exists")
+
+    # Update fields
+    for key, value in template_data.model_dump(exclude_unset=True).items():
+        setattr(template, key, value)
+
+    db.commit()
+    db.refresh(template)
+
+    logger.info(f"Ticket template '{template.name}' updated by {current_user.username}")
+    return template
+
+
+@router.delete("/templates/{template_id}")
+def delete_ticket_template(
+    template_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    """Delete a ticket template (admin/superadmin only)."""
+    if current_user.role not in ("admin", "superadmin"):
+        raise HTTPException(status_code=403, detail="Admin access required")
+
+    template = db.query(models.TicketTemplate).filter(
+        models.TicketTemplate.id == template_id
+    ).first()
+
+    if not template:
+        raise HTTPException(status_code=404, detail="Template not found")
+
+    template_name = template.name
+    db.delete(template)
+    db.commit()
+
+    logger.info(f"Ticket template '{template_name}' deleted by {current_user.username}")
+    return {"message": "Template deleted"}
+
+
+@router.post("/from-template", response_model=schemas.Ticket)
+def create_ticket_from_template(
+    request_data: schemas.TicketFromTemplate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    """
+    Create a ticket from a template.
+
+    Template placeholders in title:
+    - {user} - Current user's username
+    - {date} - Current date (YYYY-MM-DD)
+    """
+    from datetime import datetime, timezone
+
+    template = db.query(models.TicketTemplate).filter(
+        models.TicketTemplate.id == request_data.template_id,
+        models.TicketTemplate.is_active == True
+    ).first()
+
+    if not template:
+        raise HTTPException(status_code=404, detail="Template not found or inactive")
+
+    # Check visibility for regular users
+    if not can_manage_tickets(current_user) and not template.is_public:
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    # Process title template with placeholders
+    title = request_data.title or template.title_template
+    title = title.replace("{user}", current_user.username)
+    title = title.replace("{date}", datetime.now(timezone.utc).strftime("%Y-%m-%d"))
+
+    # Build description
+    description = template.description_template or ""
+    if request_data.description:
+        description = f"{description}\n\n{request_data.description}" if description else request_data.description
+
+    # Create ticket (ticket_number is auto-generated by hook)
+    ticket = models.Ticket(
+        title=title,
+        description=description,
+        ticket_type=template.ticket_type,
+        category=template.category,
+        subcategory=template.subcategory,
+        priority=template.priority,
+        assigned_group=template.assigned_group,
+        requester_id=current_user.id,
+        equipment_id=request_data.equipment_id,
+        entity_id=current_user.entity_id,
+        status="new"
+    )
+
+    # Calculate SLA times
+    sla_times = calculate_sla_times(ticket, db)
+    ticket.first_response_due = sla_times["first_response_due"]
+    ticket.resolution_due = sla_times["resolution_due"]
+    ticket.sla_due_date = sla_times["sla_due_date"]
+
+    db.add(ticket)
+
+    # Increment template usage count
+    template.usage_count += 1
+
+    db.commit()
+    db.refresh(ticket)
+
+    # Add creation history
+    add_ticket_history(db, ticket.id, current_user.id, "created", extra=f"from template: {template.name}")
+    db.commit()
+
+    logger.info(f"Ticket {ticket.ticket_number} created from template '{template.name}' by {current_user.username}")
+    return ticket

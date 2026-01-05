@@ -905,3 +905,65 @@ class SLAPolicy(SLAPolicyBase):
 
     class Config:
         from_attributes = True
+
+
+# ==================== TICKET TEMPLATE SCHEMAS ====================
+
+class TicketTemplateBase(BaseModel):
+    """Base schema for ticket templates."""
+    name: str = Field(..., min_length=1, max_length=100, description="Template name")
+    description: Optional[str] = Field(None, description="Template description")
+    title_template: str = Field(..., min_length=1, max_length=200, description="Title template with optional placeholders")
+    description_template: Optional[str] = Field(None, description="Description template")
+    ticket_type: str = Field("request", description="Ticket type: incident, request, problem, change")
+    category: Optional[str] = Field(None, description="Ticket category")
+    subcategory: Optional[str] = Field(None, description="Ticket subcategory")
+    priority: str = Field("medium", description="Default priority: critical, high, medium, low")
+    assigned_group: Optional[str] = Field(None, description="Default assignment group")
+    is_active: bool = Field(True, description="Whether template is active")
+    is_public: bool = Field(True, description="Visible to all users or just tech/admin")
+    icon: str = Field("pi-ticket", description="PrimeIcons class for display")
+    color: str = Field("#0ea5e9", description="Accent color for UI")
+
+
+class TicketTemplateCreate(TicketTemplateBase):
+    """Schema for creating a ticket template."""
+    entity_id: Optional[int] = None
+
+
+class TicketTemplateUpdate(BaseModel):
+    """Schema for updating a ticket template."""
+    name: Optional[str] = Field(None, min_length=1, max_length=100)
+    description: Optional[str] = None
+    title_template: Optional[str] = Field(None, min_length=1, max_length=200)
+    description_template: Optional[str] = None
+    ticket_type: Optional[str] = None
+    category: Optional[str] = None
+    subcategory: Optional[str] = None
+    priority: Optional[str] = None
+    assigned_group: Optional[str] = None
+    is_active: Optional[bool] = None
+    is_public: Optional[bool] = None
+    icon: Optional[str] = None
+    color: Optional[str] = None
+
+
+class TicketTemplate(TicketTemplateBase):
+    """Schema for ticket template response."""
+    id: int
+    usage_count: int = 0
+    entity_id: Optional[int] = None
+    created_by_id: Optional[int] = None
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class TicketFromTemplate(BaseModel):
+    """Schema for creating a ticket from a template."""
+    template_id: int = Field(..., description="Template ID to use")
+    title: Optional[str] = Field(None, description="Override title (optional)")
+    description: Optional[str] = Field(None, description="Additional description")
+    equipment_id: Optional[int] = Field(None, description="Related equipment")

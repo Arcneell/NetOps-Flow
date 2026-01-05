@@ -1492,3 +1492,225 @@ def check_sla_breaches_task(self):
         return {"status": "error", "message": str(e)}
     finally:
         db.close()
+
+
+# ==================== DATABASE BACKUP TASKS ====================
+
+# Backup Configuration
+BACKUP_DIR = os.environ.get("BACKUP_DIR", "/backups")
+DATABASE_URL = os.environ.get("DATABASE_URL", "postgresql://inframate:inframatepassword@db:5432/inframate")
+BACKUP_RETENTION_DAYS = int(os.environ.get("BACKUP_RETENTION_DAYS", "30"))
+
+
+def parse_database_url(database_url: str) -> dict:
+    """Parse PostgreSQL connection string to extract components."""
+    # Format: postgresql://user:password@host:port/database
+    import re
+    pattern = r"postgresql://(?P<user>[^:]+):(?P<password>[^@]+)@(?P<host>[^:]+):(?P<port>\d+)/(?P<database>.+)"
+    match = re.match(pattern, database_url)
+
+    if not match:
+        raise ValueError(f"Invalid database URL format: {database_url}")
+
+    return match.groupdict()
+
+
+@celery_app.task(bind=True, name="tasks.backup_database")
+def backup_database(self, compress: bool = True):
+    """
+    Create a PostgreSQL database backup using pg_dump.
+
+    Args:
+        compress: Whether to compress the backup with gzip (default True)
+
+    Returns:
+        dict with backup status and file path
+    """
+    log_event("backup_started", compress=compress)
+
+    try:
+        # Parse database URL
+        db_config = parse_database_url(DATABASE_URL)
+
+        # Create backup directory if not exists
+        os.makedirs(BACKUP_DIR, exist_ok=True)
+
+        # Generate filename with timestamp
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"inframate_backup_{timestamp}.sql"
+        if compress:
+            filename += ".gz"
+
+        backup_path = os.path.join(BACKUP_DIR, filename)
+
+        # Build pg_dump command
+        env = os.environ.copy()
+        env["PGPASSWORD"] = db_config["password"]
+
+        pg_dump_cmd = [
+            "pg_dump",
+            "-h", db_config["host"],
+            "-p", db_config["port"],
+            "-U", db_config["user"],
+            "-d", db_config["database"],
+            "--no-owner",
+            "--no-privileges",
+            "-F", "p",  # Plain SQL format
+        ]
+
+        if compress:
+            # Use pipe to gzip
+            with open(backup_path, "wb") as f:
+                pg_dump_proc = subprocess.Popen(
+                    pg_dump_cmd,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    env=env
+                )
+                gzip_proc = subprocess.Popen(
+                    ["gzip", "-c"],
+                    stdin=pg_dump_proc.stdout,
+                    stdout=f,
+                    stderr=subprocess.PIPE
+                )
+                pg_dump_proc.stdout.close()
+                gzip_proc.communicate()
+                _, pg_err = pg_dump_proc.communicate()
+
+                if pg_dump_proc.returncode != 0:
+                    raise Exception(f"pg_dump failed: {pg_err.decode()}")
+                if gzip_proc.returncode != 0:
+                    raise Exception("gzip compression failed")
+        else:
+            # Direct output to file
+            with open(backup_path, "w") as f:
+                result = subprocess.run(
+                    pg_dump_cmd,
+                    stdout=f,
+                    stderr=subprocess.PIPE,
+                    env=env,
+                    check=True
+                )
+
+        # Get file size
+        file_size = os.path.getsize(backup_path)
+        file_size_mb = round(file_size / (1024 * 1024), 2)
+
+        log_event(
+            "backup_completed",
+            filename=filename,
+            size_mb=file_size_mb,
+            path=backup_path
+        )
+
+        return {
+            "status": "success",
+            "filename": filename,
+            "path": backup_path,
+            "size_mb": file_size_mb,
+            "timestamp": timestamp
+        }
+
+    except Exception as e:
+        log_event(
+            "backup_error",
+            error_type=type(e).__name__,
+            error_message=str(e)
+        )
+        return {"status": "error", "message": str(e)}
+
+
+@celery_app.task(bind=True, name="tasks.cleanup_old_backups")
+def cleanup_old_backups(self, retention_days: int = None):
+    """
+    Delete backup files older than retention period.
+
+    Args:
+        retention_days: Number of days to keep backups (default from env)
+
+    Returns:
+        dict with cleanup status and deleted files count
+    """
+    if retention_days is None:
+        retention_days = BACKUP_RETENTION_DAYS
+
+    log_event("backup_cleanup_started", retention_days=retention_days)
+
+    try:
+        if not os.path.exists(BACKUP_DIR):
+            return {"status": "success", "deleted_count": 0, "message": "Backup directory does not exist"}
+
+        cutoff_date = datetime.datetime.now() - datetime.timedelta(days=retention_days)
+        deleted_count = 0
+        deleted_files = []
+
+        for filename in os.listdir(BACKUP_DIR):
+            if not filename.startswith("inframate_backup_"):
+                continue
+
+            filepath = os.path.join(BACKUP_DIR, filename)
+
+            # Check file modification time
+            file_mtime = datetime.datetime.fromtimestamp(os.path.getmtime(filepath))
+
+            if file_mtime < cutoff_date:
+                os.remove(filepath)
+                deleted_files.append(filename)
+                deleted_count += 1
+
+        log_event(
+            "backup_cleanup_completed",
+            deleted_count=deleted_count,
+            deleted_files=deleted_files
+        )
+
+        return {
+            "status": "success",
+            "deleted_count": deleted_count,
+            "deleted_files": deleted_files
+        }
+
+    except Exception as e:
+        log_event(
+            "backup_cleanup_error",
+            error_type=type(e).__name__,
+            error_message=str(e)
+        )
+        return {"status": "error", "message": str(e)}
+
+
+@celery_app.task(bind=True, name="tasks.list_backups")
+def list_backups(self):
+    """
+    List all available database backups.
+
+    Returns:
+        dict with list of backup files and their info
+    """
+    try:
+        if not os.path.exists(BACKUP_DIR):
+            return {"status": "success", "backups": []}
+
+        backups = []
+        for filename in sorted(os.listdir(BACKUP_DIR), reverse=True):
+            if not filename.startswith("inframate_backup_"):
+                continue
+
+            filepath = os.path.join(BACKUP_DIR, filename)
+            stat = os.stat(filepath)
+
+            backups.append({
+                "filename": filename,
+                "size_mb": round(stat.st_size / (1024 * 1024), 2),
+                "created_at": datetime.datetime.fromtimestamp(stat.st_mtime).isoformat(),
+                "compressed": filename.endswith(".gz")
+            })
+
+        return {
+            "status": "success",
+            "backups": backups,
+            "total_count": len(backups)
+        }
+
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
