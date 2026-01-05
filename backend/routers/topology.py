@@ -379,7 +379,7 @@ def get_physical_topology(
         nodes.append({
             "id": rack_node_id,
             "label": rack.name,
-            "sublabel": f"{rack.total_u}U",
+            "sublabel": f"{rack.height_u}U",
             "type": "rack",
             "icon": "pi-server",
             "color": "#8b5cf6",
@@ -387,7 +387,7 @@ def get_physical_topology(
             "data": {
                 "id": rack.id,
                 "name": rack.name,
-                "total_u": rack.total_u,
+                "total_u": rack.height_u,
                 "equipment_count": len(rack_data["equipment"])
             }
         })
