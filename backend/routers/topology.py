@@ -225,6 +225,7 @@ def get_physical_topology(
     # Create nodes for each equipment
     for eq in equipment_list:
         eq_type = eq.model.equipment_type.name if eq.model and eq.model.equipment_type else "Unknown"
+        eq_icon = eq.model.equipment_type.icon if eq.model and eq.model.equipment_type else "pi-box"
         site_name = eq.location.site if eq.location else "Unassigned"
         room = eq.location.room if eq.location else None
 
@@ -238,6 +239,7 @@ def get_physical_topology(
             "sublabel": eq_type,
             "type": "equipment",
             "equipmentType": eq_type.lower().replace(" ", "_"),
+            "icon": eq_icon,
             "shape": "box",
             "color": get_type_color(eq_type),
             "borderColor": STATUS_COLORS.get(eq.status, "#6b7280"),
@@ -378,6 +380,7 @@ def get_site_topology(
 
     for eq in equipment_list:
         eq_type = eq.model.equipment_type.name if eq.model and eq.model.equipment_type else "Unknown"
+        eq_icon = eq.model.equipment_type.icon if eq.model and eq.model.equipment_type else "pi-box"
         room = eq.location.room if eq.location else "Unknown"
 
         nodes.append({
@@ -385,6 +388,7 @@ def get_site_topology(
             "label": eq.name,
             "sublabel": eq_type,
             "type": "equipment",
+            "icon": eq_icon,
             "shape": "box",
             "color": get_type_color(eq_type),
             "size": 28,

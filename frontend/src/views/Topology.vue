@@ -42,13 +42,15 @@
         <div v-if="nodes.length > 0" class="legend-panel">
           <div class="legend-title">{{ t('topology.legend') }}</div>
           <template v-if="viewMode === 'physical'">
-            <div class="legend-item"><span class="legend-color" style="background: #7c3aed;"></span> Router</div>
-            <div class="legend-item"><span class="legend-color" style="background: #2563eb;"></span> Switch</div>
-            <div class="legend-item"><span class="legend-color" style="background: #dc2626;"></span> Firewall</div>
-            <div class="legend-item"><span class="legend-color" style="background: #059669;"></span> Server</div>
-            <div class="legend-item"><span class="legend-color" style="background: #0891b2;"></span> Storage</div>
-            <div class="legend-item"><span class="legend-color" style="background: #f59e0b;"></span> Access Point</div>
+            <div class="legend-section">{{ t('topology.equipmentTypes') }}</div>
+            <div v-for="legendItem in uniqueEquipmentTypes" :key="legendItem.type" class="legend-item">
+              <span class="legend-icon" :style="{ background: legendItem.color }">
+                <i :class="legendItem.icon"></i>
+              </span>
+              {{ legendItem.type }}
+            </div>
             <div class="legend-divider"></div>
+            <div class="legend-section">{{ t('topology.linkSpeeds') }}</div>
             <div class="legend-item"><span class="legend-line thick"></span> 10G+</div>
             <div class="legend-item"><span class="legend-line medium"></span> 1G</div>
             <div class="legend-item"><span class="legend-line thin"></span> &lt;1G</div>
@@ -98,7 +100,7 @@
           <div v-if="selectedNode" class="node-details">
             <div class="node-header">
               <div class="node-icon" :style="{ background: selectedNode.color + '20', color: selectedNode.color }">
-                <i :class="getNodeIcon(selectedNode)"></i>
+                <i :class="selectedNode.icon || getNodeIcon(selectedNode)"></i>
               </div>
               <div>
                 <div class="node-name">{{ selectedNode.label }}</div>
@@ -168,6 +170,58 @@ const siteOptions = computed(() => [
   ...sites.value.map(s => ({ label: `${s.name} (${s.equipment_count})`, value: s.name }))
 ]);
 
+// Get unique equipment types for legend
+const uniqueEquipmentTypes = computed(() => {
+  const types = new Map();
+  nodes.value.forEach(node => {
+    if (node.type === 'equipment' && node.sublabel) {
+      if (!types.has(node.sublabel)) {
+        types.set(node.sublabel, {
+          type: node.sublabel,
+          icon: node.icon || 'pi pi-box',
+          color: node.color
+        });
+      }
+    }
+  });
+  return Array.from(types.values());
+});
+
+// SVG icon paths for PrimeIcons (simplified versions)
+const iconSvgPaths = {
+  'pi-server': 'M4 6h16v4H4zm0 8h16v4H4zm2-6h2v2H6zm0 8h2v2H6z',
+  'pi-desktop': 'M4 4h16v12H4zm4 14h8v2H8zm2-14v10h8V4z',
+  'pi-database': 'M12 2C6.48 2 2 4.02 2 6.5v11C2 19.98 6.48 22 12 22s10-2.02 10-4.5v-11C22 4.02 17.52 2 12 2zm0 2c4.42 0 8 1.79 8 4s-3.58 4-8 4-8-1.79-8-4 3.58-4 8-4zm8 13.5c0 2.21-3.58 4-8 4s-8-1.79-8-4v-3c1.78 1.23 4.61 2 8 2s6.22-.77 8-2v3z',
+  'pi-wifi': 'M12 18c1.1 0 2 .9 2 2s-.9 2-2 2-2-.9-2-2 .9-2 2-2zm-4.24-4.24l1.41 1.41c1.52-1.52 4.14-1.52 5.66 0l1.41-1.41c-2.34-2.34-6.14-2.34-8.48 0zM4.93 10.93l1.41 1.41c3.12-3.12 8.2-3.12 11.32 0l1.41-1.41c-3.9-3.9-10.24-3.9-14.14 0zM1.1 7.1l1.41 1.41c4.69-4.69 12.29-4.69 16.98 0l1.41-1.41C15.22 1.42 5.78 1.42 1.1 7.1z',
+  'pi-shield': 'M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z',
+  'pi-box': 'M21 16.5c0 .38-.21.71-.53.88l-7.9 4.44c-.16.12-.36.18-.57.18s-.41-.06-.57-.18l-7.9-4.44A.991.991 0 013 16.5v-9c0-.38.21-.71.53-.88l7.9-4.44c.16-.12.36-.18.57-.18s.41.06.57.18l7.9 4.44c.32.17.53.5.53.88v9z',
+  'pi-sitemap': 'M22 11V3h-7v3H9V3H2v8h7V8h2v10h4v3h7v-8h-7v3h-2V8h2v3h7z',
+  'pi-bolt': 'M11 21h-1l1-7H7.5c-.58 0-.57-.32-.38-.66.19-.34.05-.08.07-.12C8.48 10.94 10.42 7.54 13 3h1l-1 7h3.5c.49 0 .56.33.47.51l-.07.15C12.96 17.55 11 21 11 21z',
+  'pi-globe': 'M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z',
+  'pi-print': 'M19 8H5c-1.66 0-3 1.34-3 3v6h4v4h12v-4h4v-6c0-1.66-1.34-3-3-3zm-3 11H8v-5h8v5zm3-7c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1zm-1-9H6v4h12V3z',
+  'pi-mobile': 'M17 1.01L7 1c-1.1 0-2 .9-2 2v18c0 1.1.9 2 2 2h10c1.1 0 2-.9 2-2V3c0-1.1-.9-1.99-2-1.99zM17 19H7V5h10v14z',
+  'pi-cog': 'M19.14 12.94c.04-.31.06-.63.06-.94 0-.31-.02-.63-.06-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z',
+  'pi-sliders-h': 'M3 17v2h6v-2H3zM3 5v2h10V5H3zm10 16v-2h8v-2h-8v-2h-2v6h2zM7 9v2H3v2h4v2h2V9H7zm14 4v-2H11v2h10zm-6-4h2V7h4V5h-4V3h-2v6z',
+  'pi-tablet': 'M21 4H3c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h18c1.1 0 1.99-.9 1.99-2L23 6c0-1.1-.9-2-2-2zm-2 14H5V6h14v12z',
+  'pi-video': 'M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z',
+  'pi-share-alt': 'M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92s2.92-1.31 2.92-2.92-1.31-2.92-2.92-2.92z'
+};
+
+// Create SVG data URL for an icon
+const createIconSvg = (iconClass, color) => {
+  const iconName = iconClass.replace('pi ', '').replace('pi-', '');
+  const path = iconSvgPaths[`pi-${iconName}`] || iconSvgPaths['pi-box'];
+
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="48" height="48">
+    <circle cx="12" cy="12" r="11" fill="${color}" stroke="white" stroke-width="1"/>
+    <g transform="translate(4, 4) scale(0.67)">
+      <path d="${path}" fill="white"/>
+    </g>
+  </svg>`;
+
+  return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+};
+
 const loadTopology = async () => {
   loading.value = true;
   selectedNode.value = null;
@@ -209,80 +263,98 @@ const renderNetwork = () => {
   const style = getComputedStyle(document.documentElement);
   const textColor = style.getPropertyValue('--text-main')?.trim() || '#1f2937';
 
-  // Group colors for clustering
-  const groupColors = ['#6366f1', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#3b82f6', '#06b6d4', '#84cc16'];
+  const visNodes = nodes.value.map((node) => {
+    const isEquipment = node.type === 'equipment';
 
-  const visNodes = nodes.value.map((node, idx) => {
-    const groupIndex = groups.value.findIndex(g => g.id === node.group);
-    const groupColor = groupIndex >= 0 ? groupColors[groupIndex % groupColors.length] : null;
-
-    return {
-      id: node.id,
-      label: node.label,
-      title: createTooltip(node),
-      group: node.group,
-      color: {
-        background: node.color + '18',
-        border: node.color,
-        highlight: { background: node.color + '35', border: node.color },
-        hover: { background: node.color + '28', border: node.color }
-      },
-      font: { color: textColor, size: 12 },
-      borderWidth: 2,
-      shape: node.shape || 'box',
-      size: node.size || 25,
-      margin: node.shape === 'box' ? 8 : undefined,
-      _data: node
-    };
+    if (isEquipment) {
+      // Use image shape with SVG icon
+      const iconClass = node.icon || 'pi-box';
+      return {
+        id: node.id,
+        label: node.label,
+        title: createTooltip(node),
+        group: node.group,
+        shape: 'image',
+        image: createIconSvg(iconClass, node.color),
+        size: 24,
+        font: {
+          color: textColor,
+          size: 11,
+          face: 'Inter, system-ui, sans-serif',
+          vadjust: 8
+        },
+        _data: node
+      };
+    } else {
+      // Logical view - keep original shapes
+      return {
+        id: node.id,
+        label: node.label,
+        title: createTooltip(node),
+        group: node.group,
+        color: {
+          background: node.color + '30',
+          border: node.color,
+          highlight: { background: node.color + '50', border: node.color },
+          hover: { background: node.color + '40', border: node.color }
+        },
+        font: { color: textColor, size: 11 },
+        borderWidth: 2,
+        shape: node.shape || 'dot',
+        size: node.size || 20,
+        _data: node
+      };
+    }
   });
 
   const visEdges = edges.value.map(edge => ({
     id: edge.id,
     from: edge.source,
     to: edge.target,
-    color: { color: edge.color || '#94a3b8', highlight: '#3b82f6' },
+    color: { color: edge.color || '#94a3b8', highlight: '#3b82f6', opacity: 0.7 },
     width: edge.width || 1,
     dashes: edge.dashes || false,
-    label: edge.label || undefined,
-    font: { size: 9, color: '#64748b', strokeWidth: 2, strokeColor: '#ffffff' },
     smooth: { type: 'continuous', roundness: 0.2 }
   }));
 
-  // Create group configuration for clustering
-  const groupConfig = {};
-  groups.value.forEach((g, idx) => {
-    groupConfig[g.id] = {
-      color: { background: groupColors[idx % groupColors.length] + '15', border: groupColors[idx % groupColors.length] }
-    };
-  });
-
   const options = {
     nodes: {
-      font: { face: 'Inter, system-ui, sans-serif' },
-      shadow: { enabled: true, color: 'rgba(0,0,0,0.08)', size: 6, x: 1, y: 2 }
+      font: {
+        face: 'Inter, system-ui, sans-serif',
+        strokeWidth: 3,
+        strokeColor: 'rgba(255,255,255,0.95)'
+      },
+      shadow: { enabled: true, color: 'rgba(0,0,0,0.15)', size: 10, x: 0, y: 4 }
     },
     edges: {
-      smooth: { type: 'continuous', roundness: 0.2 }
+      smooth: { type: 'continuous', roundness: 0.2 },
+      arrows: { to: { enabled: false } }
     },
-    groups: groupConfig,
     physics: {
       enabled: true,
       solver: 'forceAtlas2Based',
       forceAtlas2Based: {
-        gravitationalConstant: -80,
-        centralGravity: 0.015,
-        springLength: 120,
-        springConstant: 0.1,
-        damping: 0.5
+        gravitationalConstant: -150,
+        centralGravity: 0.005,
+        springLength: 200,
+        springConstant: 0.04,
+        damping: 0.7,
+        avoidOverlap: 1
       },
-      stabilization: { iterations: 150, fit: true }
+      stabilization: { iterations: 250, fit: true },
+      maxVelocity: 40,
+      minVelocity: 0.2
     },
     interaction: {
       hover: true,
-      tooltipDelay: 100,
+      tooltipDelay: 200,
       dragNodes: true,
       dragView: true,
       zoomView: true
+    },
+    layout: {
+      improvedLayout: true,
+      randomSeed: 42
     }
   };
 
@@ -312,18 +384,19 @@ const renderNetwork = () => {
   });
 
   network.once('stabilizationIterationsDone', () => {
-    network.fit({ animation: { duration: 300 } });
+    network.fit({ animation: { duration: 400 } });
     zoomLevel.value = network.getScale();
   });
 };
 
 const createTooltip = (node) => {
-  let html = `<div style="padding:8px 12px;max-width:220px;">`;
-  html += `<div style="font-weight:600;margin-bottom:4px;">${node.label}</div>`;
-  if (node.sublabel) html += `<div style="color:#64748b;font-size:11px;margin-bottom:6px;">${node.sublabel}</div>`;
+  let html = `<div style="padding:10px 14px;max-width:260px;">`;
+  html += `<div style="font-weight:600;font-size:13px;margin-bottom:4px;">${node.label}</div>`;
+  if (node.sublabel) html += `<div style="color:#64748b;font-size:11px;margin-bottom:8px;">${node.sublabel}</div>`;
   if (node.data) {
-    ['status', 'type', 'site', 'room', 'ip_address', 'cidr'].forEach(key => {
-      if (node.data[key]) html += `<div style="font-size:10px;color:#94a3b8;">${formatKey(key)}: ${node.data[key]}</div>`;
+    const displayKeys = ['status', 'type', 'site', 'room', 'rack', 'ip_address', 'cidr', 'manufacturer', 'model'];
+    displayKeys.forEach(key => {
+      if (node.data[key]) html += `<div style="font-size:11px;color:#64748b;padding:2px 0;"><span style="color:#94a3b8;">${formatKey(key)}:</span> ${node.data[key]}</div>`;
     });
   }
   return html + '</div>';
@@ -337,6 +410,8 @@ const getNodeIcon = (node) => {
   if (type.includes('firewall')) return 'pi pi-shield';
   if (type.includes('server')) return 'pi pi-server';
   if (type.includes('storage')) return 'pi pi-database';
+  if (type.includes('access')) return 'pi pi-wifi';
+  if (type.includes('workstation')) return 'pi pi-desktop';
   if (type === 'gateway') return 'pi pi-globe';
   if (type === 'subnet') return 'pi pi-sitemap';
   return 'pi pi-box';
@@ -424,9 +499,12 @@ onUnmounted(() => network?.destroy());
   background: var(--bg-card);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
-  padding: 0.625rem 0.875rem;
+  padding: 0.75rem 1rem;
   font-size: 0.6875rem;
   z-index: 5;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  max-height: 300px;
+  overflow-y: auto;
 }
 
 .legend-title {
@@ -434,15 +512,37 @@ onUnmounted(() => network?.destroy());
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: var(--text-muted);
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.625rem;
+  font-size: 0.625rem;
+}
+
+.legend-section {
+  font-weight: 500;
+  font-size: 0.625rem;
+  color: var(--text-muted);
+  margin-top: 0.5rem;
+  margin-bottom: 0.375rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
 }
 
 .legend-item {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.625rem;
   color: var(--text-secondary);
-  padding: 0.125rem 0;
+  padding: 0.2rem 0;
+}
+
+.legend-icon {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 9px;
 }
 
 .legend-color {
@@ -471,11 +571,11 @@ onUnmounted(() => network?.destroy());
 .legend-divider {
   height: 1px;
   background: var(--border-color);
-  margin: 0.375rem 0;
+  margin: 0.625rem 0;
 }
 
 .legend-line {
-  width: 20px;
+  width: 24px;
   border-radius: 1px;
 }
 
@@ -496,6 +596,7 @@ onUnmounted(() => network?.destroy());
   font-size: 0.75rem;
   color: var(--text-secondary);
   z-index: 5;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
 }
 
 .details-panel {
@@ -598,9 +699,9 @@ onUnmounted(() => network?.destroy());
 div.vis-tooltip {
   background: var(--bg-card, #fff);
   color: var(--text-main, #1f2937);
-  border-radius: 6px;
+  border-radius: 8px;
   border: 1px solid var(--border-color, #e2e8f0);
-  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.12);
   font-family: Inter, system-ui, sans-serif;
   font-size: 12px;
 }
