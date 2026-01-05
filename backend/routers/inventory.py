@@ -791,7 +791,7 @@ def get_equipment_qrcode(
         )
 
 
-@router.get("/equipment/by-asset-tag/{asset_tag}", response_model=schemas.EquipmentDetail)
+@router.get("/equipment/by-asset-tag/{asset_tag}", response_model=schemas.EquipmentFull)
 def get_equipment_by_asset_tag(
     asset_tag: str,
     db: Session = Depends(get_db),
