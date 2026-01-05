@@ -442,11 +442,10 @@ async def update_setting(
     current_user: models.User = Depends(get_current_superadmin_user)
 ):
     """Update a system setting."""
-    # Rate limiting: 10 modifications per minute per user
+    # Rate limiting using action-based identifier
     rate_limiter = get_rate_limiter()
-    rate_key = f"settings_update:{current_user.id}"
 
-    if not await rate_limiter.is_allowed(rate_key, max_requests=10, window=60):
+    if not rate_limiter.is_allowed(str(current_user.id), action="settings_update"):
         logger.warning(f"Rate limit exceeded for settings update by user {current_user.username}")
         raise HTTPException(
             status_code=429,
@@ -504,11 +503,10 @@ async def create_setting(
     current_user: models.User = Depends(get_current_superadmin_user)
 ):
     """Create a new system setting."""
-    # Rate limiting: 10 modifications per minute per user
+    # Rate limiting using action-based identifier
     rate_limiter = get_rate_limiter()
-    rate_key = f"settings_update:{current_user.id}"
 
-    if not await rate_limiter.is_allowed(rate_key, max_requests=10, window=60):
+    if not rate_limiter.is_allowed(str(current_user.id), action="settings_update"):
         logger.warning(f"Rate limit exceeded for settings creation by user {current_user.username}")
         raise HTTPException(
             status_code=429,
