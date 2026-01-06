@@ -414,6 +414,11 @@ const renderNetwork = () => {
   const textColor = style.getPropertyValue('--text-main')?.trim() || '#1f2937';
   const bgColor = style.getPropertyValue('--bg-card')?.trim() || '#ffffff';
 
+  // Detect dark mode for proper text styling
+  const isDark = document.documentElement.classList.contains('dark');
+  const labelColor = isDark ? '#f1f5f9' : '#1e293b';
+  const labelStrokeColor = isDark ? '#0f172a' : '#ffffff';
+
   const visNodes = nodes.value.map((node) => {
     const isEquipment = node.type === 'equipment';
     const level = getHierarchyLevel(node);
@@ -428,15 +433,14 @@ const renderNetwork = () => {
         level: level,
         shape: 'image',
         image: createIconSvg(iconClass, node.color),
-        size: 32,
+        size: 28,
         font: {
-          color: textColor,
-          size: 13,
+          color: labelColor,
+          size: 12,
           face: 'Inter, system-ui, sans-serif',
-          background: bgColor + 'f5',
-          strokeWidth: 0,
-          vadjust: 6,
-          bold: true
+          strokeWidth: 3,
+          strokeColor: labelStrokeColor,
+          vadjust: 8
         },
         _data: node
       };
@@ -454,17 +458,22 @@ const renderNetwork = () => {
           hover: { background: node.color + '40', border: node.color }
         },
         font: {
-          color: textColor,
-          size: 12,
-          background: bgColor + 'f5'
+          color: labelColor,
+          size: 11,
+          strokeWidth: 2,
+          strokeColor: labelStrokeColor
         },
         borderWidth: 2,
         shape: node.shape || 'dot',
-        size: node.size || 18,
+        size: node.size || 16,
         _data: node
       };
     }
   });
+
+  // Edge colors adapted to theme
+  const edgeColor = isDark ? '#64748b' : '#94a3b8';
+  const edgeHoverColor = isDark ? '#60a5fa' : '#3b82f6';
 
   const visEdges = edges.value.map(edge => {
     const sourceNode = nodes.value.find(n => n.id === edge.source);
@@ -479,15 +488,19 @@ const renderNetwork = () => {
       to: edge.target,
       label: edge.label || '',
       title: tooltipText,
-      color: { color: edge.color || '#64748b', highlight: '#ef4444', hover: '#3b82f6', opacity: 0.9 },
-      width: edge.width || 2.5,
+      color: {
+        color: edge.color || edgeColor,
+        highlight: '#ef4444',
+        hover: edgeHoverColor,
+        opacity: 0.85
+      },
+      width: edge.width || 2,
       dashes: edge.dashes || false,
-      smooth: { type: 'continuous', roundness: 0.2 },
-      hoverWidth: 1.5,
-      selectionWidth: 2,
+      hoverWidth: 1.3,
+      selectionWidth: 1.5,
       chosen: {
         edge: (values) => {
-          values.width = values.width * 1.5;
+          values.width = values.width * 1.4;
           values.color = '#ef4444';
         }
       }
@@ -501,53 +514,56 @@ const renderNetwork = () => {
     nodes: {
       font: {
         face: 'Inter, system-ui, sans-serif',
-        size: 14,
-        strokeWidth: 4,
-        strokeColor: bgColor,
-        color: textColor
+        size: 12,
+        strokeWidth: 3,
+        strokeColor: labelStrokeColor,
+        color: labelColor
       },
-      shadow: { enabled: true, color: 'rgba(0,0,0,0.1)', size: 8, x: 0, y: 3 }
+      shadow: { enabled: true, color: 'rgba(0,0,0,0.08)', size: 6, x: 0, y: 2 }
     },
     edges: {
-      smooth: isPhysical ? { type: 'cubicBezier', forceDirection: 'vertical', roundness: 0.4 } : { type: 'continuous', roundness: 0.15 },
+      smooth: isPhysical
+        ? { type: 'curvedCW', roundness: 0.15 }
+        : { type: 'continuous', roundness: 0.2 },
       arrows: { to: { enabled: false } },
       font: {
-        size: 10,
-        color: textColor,
-        strokeWidth: 3,
-        strokeColor: bgColor,
+        size: 9,
+        color: labelColor,
+        strokeWidth: 2,
+        strokeColor: labelStrokeColor,
         align: 'middle'
       }
     },
     physics: isPhysical ? {
       enabled: true,
       hierarchicalRepulsion: {
-        centralGravity: 0.0,
-        springLength: 150,
-        springConstant: 0.01,
-        nodeDistance: 180,
-        damping: 0.09
+        centralGravity: 0.2,
+        springLength: 120,
+        springConstant: 0.02,
+        nodeDistance: 140,
+        damping: 0.12,
+        avoidOverlap: 0.5
       },
       solver: 'hierarchicalRepulsion',
-      stabilization: { iterations: 200, fit: true }
+      stabilization: { iterations: 150, fit: true }
     } : {
       enabled: true,
       solver: 'forceAtlas2Based',
       forceAtlas2Based: {
-        gravitationalConstant: -200,
-        centralGravity: 0.003,
-        springLength: 280,
-        springConstant: 0.03,
-        damping: 0.8,
-        avoidOverlap: 1
+        gravitationalConstant: -150,
+        centralGravity: 0.005,
+        springLength: 200,
+        springConstant: 0.04,
+        damping: 0.85,
+        avoidOverlap: 0.8
       },
-      stabilization: { iterations: 300, fit: true },
-      maxVelocity: 30,
+      stabilization: { iterations: 200, fit: true },
+      maxVelocity: 25,
       minVelocity: 0.1
     },
     interaction: {
       hover: true,
-      tooltipDelay: 200,
+      tooltipDelay: 150,
       dragNodes: true,
       dragView: true,
       zoomView: true,
@@ -561,13 +577,14 @@ const renderNetwork = () => {
       hierarchical: {
         enabled: true,
         direction: 'UD',
-        sortMethod: 'directed',
-        levelSeparation: 180,
-        nodeSpacing: 250,
-        treeSpacing: 300,
+        sortMethod: 'hubsize',
+        levelSeparation: 120,
+        nodeSpacing: 180,
+        treeSpacing: 200,
         blockShifting: true,
         edgeMinimization: true,
-        parentCentralization: true
+        parentCentralization: true,
+        shakeTowards: 'roots'
       }
     } : {
       improvedLayout: true,
