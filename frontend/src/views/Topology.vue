@@ -428,14 +428,15 @@ const renderNetwork = () => {
         level: level,
         shape: 'image',
         image: createIconSvg(iconClass, node.color),
-        size: 28,
+        size: 32,
         font: {
           color: textColor,
-          size: 14,
+          size: 13,
           face: 'Inter, system-ui, sans-serif',
-          background: bgColor + 'ee',
+          background: bgColor + 'f5',
           strokeWidth: 0,
-          vadjust: 4
+          vadjust: 6,
+          bold: true
         },
         _data: node
       };
@@ -454,8 +455,8 @@ const renderNetwork = () => {
         },
         font: {
           color: textColor,
-          size: 13,
-          background: bgColor + 'ee'
+          size: 12,
+          background: bgColor + 'f5'
         },
         borderWidth: 2,
         shape: node.shape || 'dot',
@@ -465,15 +466,33 @@ const renderNetwork = () => {
     }
   });
 
-  const visEdges = edges.value.map(edge => ({
-    id: edge.id,
-    from: edge.source,
-    to: edge.target,
-    color: { color: edge.color || '#94a3b8', highlight: '#3b82f6', opacity: 0.8 },
-    width: edge.width || 1,
-    dashes: edge.dashes || false,
-    smooth: { type: 'continuous', roundness: 0.15 }
-  }));
+  const visEdges = edges.value.map(edge => {
+    const sourceNode = nodes.value.find(n => n.id === edge.source);
+    const targetNode = nodes.value.find(n => n.id === edge.target);
+    const tooltipText = sourceNode && targetNode
+      ? `${sourceNode.label} ↔ ${targetNode.label}${edge.label ? '\n' + edge.label : ''}\n${t('topology.clickToDelete')}`
+      : '';
+
+    return {
+      id: edge.id,
+      from: edge.source,
+      to: edge.target,
+      label: edge.label || '',
+      title: tooltipText,
+      color: { color: edge.color || '#64748b', highlight: '#ef4444', hover: '#3b82f6', opacity: 0.9 },
+      width: edge.width || 2.5,
+      dashes: edge.dashes || false,
+      smooth: { type: 'continuous', roundness: 0.2 },
+      hoverWidth: 1.5,
+      selectionWidth: 2,
+      chosen: {
+        edge: (values) => {
+          values.width = values.width * 1.5;
+          values.color = '#ef4444';
+        }
+      }
+    };
+  });
 
   // For physical topology, use hierarchical layout
   const isPhysical = viewMode.value === 'physical' || viewMode.value === 'combined';
@@ -533,16 +552,19 @@ const renderNetwork = () => {
       dragView: true,
       zoomView: true,
       hideEdgesOnDrag: false,
-      hideEdgesOnZoom: false
+      hideEdgesOnZoom: false,
+      selectConnectedEdges: false,
+      multiselect: false,
+      selectable: true
     },
     layout: isPhysical ? {
       hierarchical: {
         enabled: true,
         direction: 'UD',
         sortMethod: 'directed',
-        levelSeparation: 150,
-        nodeSpacing: 200,
-        treeSpacing: 250,
+        levelSeparation: 180,
+        nodeSpacing: 250,
+        treeSpacing: 300,
         blockShifting: true,
         edgeMinimization: true,
         parentCentralization: true
@@ -563,6 +585,17 @@ const renderNetwork = () => {
     } else if (params.nodes.length > 0) {
       const node = nodes.value.find(n => n.id === params.nodes[0]);
       selectedNode.value = node || null;
+    } else if (params.edges.length > 0) {
+      // Edge clicked - prompt for deletion
+      const edgeId = params.edges[0];
+      const edge = edges.value.find(e => e.id === edgeId);
+      if (edge) {
+        const sourceNode = nodes.value.find(n => n.id === edge.source);
+        const targetNode = nodes.value.find(n => n.id === edge.target);
+        if (sourceNode && targetNode) {
+          confirmDeleteLink(sourceNode, targetNode);
+        }
+      }
     } else {
       selectedNode.value = null;
     }
@@ -582,6 +615,15 @@ const renderNetwork = () => {
   network.once('stabilizationIterationsDone', () => {
     network.fit({ animation: { duration: 400 } });
     zoomLevel.value = network.getScale();
+  });
+
+  // Change cursor to pointer when hovering over edges
+  network.on('hoverEdge', () => {
+    networkContainer.value.style.cursor = 'pointer';
+  });
+
+  network.on('blurEdge', () => {
+    networkContainer.value.style.cursor = 'default';
   });
 };
 
