@@ -756,7 +756,9 @@ def create_equipment_with_ip(
     vlan: int,
     ip_suffix: int,
     status: str = "in_service",
-    supplier_name: Optional[str] = None
+    supplier_name: Optional[str] = None,
+    warranty_expired: bool = False,
+    warranty_expiring_soon: bool = False
 ) -> Optional[models.Equipment]:
     """Helper to create equipment with IP address assignment."""
     model = store.equipment_models.get(model_key)
@@ -768,6 +770,14 @@ def create_equipment_with_ip(
     height_u = model.specs.get("height_u", 1) if model.specs else 1
 
     supplier = store.suppliers.get(supplier_name) if supplier_name else None
+
+    # Determine warranty expiry based on parameters
+    if warranty_expired:
+        warranty_expiry = datetime.now(timezone.utc) - timedelta(days=random.randint(30, 365))
+    elif warranty_expiring_soon:
+        warranty_expiry = datetime.now(timezone.utc) + timedelta(days=random.randint(7, 30))
+    else:
+        warranty_expiry = datetime.now(timezone.utc) + timedelta(days=random.randint(365, 1825))
 
     equipment = models.Equipment(
         name=name,
@@ -782,7 +792,7 @@ def create_equipment_with_ip(
         position_u=position_u,
         height_u=height_u,
         purchase_date=random_date_past(365, 1095),
-        warranty_expiry=datetime.now(timezone.utc) + timedelta(days=random.randint(365, 1825)),
+        warranty_expiry=warranty_expiry,
     )
     db.add(equipment)
     db.flush()
@@ -850,25 +860,37 @@ def seed_network_infrastructure(db: Session, minimal: bool = False) -> None:
 
 
 def seed_server_infrastructure(db: Session, minimal: bool = False) -> None:
-    """Create server and storage infrastructure."""
+    """Create server and storage infrastructure with varied statuses."""
     print("  Creating server infrastructure...")
 
     # === Virtualization Hosts - Paris DC1 ===
     # ESXi hosts in Server Room A1
     for i in range(1, 5 if not minimal else 3):
-        create_equipment_with_ip(db, f"ESX-PROD-{i:02d}", "hpe_dl380g10", "PAR-A1-R01", 30 - (i-1)*2, 10, 40 + i, supplier_name="Ingram Micro")
+        # ESX-PROD-04 is under maintenance (RAM upgrade)
+        status = "maintenance" if i == 4 else "in_service"
+        warranty_expired = i == 1  # First host has expired warranty
+        create_equipment_with_ip(db, f"ESX-PROD-{i:02d}", "hpe_dl380g10", "PAR-A1-R01", 30 - (i-1)*2, 10, 40 + i,
+                                 status=status, supplier_name="Ingram Micro", warranty_expired=warranty_expired)
 
     # ESXi hosts in Server Room A2 (Dev/Test)
     for i in range(1, 4 if not minimal else 2):
-        create_equipment_with_ip(db, f"ESX-DEV-{i:02d}", "dell_r750", "PAR-A2-R01", 30 - (i-1)*2, 10, 50 + i, supplier_name="TD Synnex")
+        # ESX-DEV-03 is retired (end of life)
+        status = "retired" if i == 3 else "in_service"
+        warranty_expiring = i == 2  # Second host warranty expiring soon
+        create_equipment_with_ip(db, f"ESX-DEV-{i:02d}", "dell_r750", "PAR-A2-R01", 30 - (i-1)*2, 10, 50 + i,
+                                 status=status, supplier_name="TD Synnex", warranty_expiring_soon=warranty_expiring)
 
     # Physical servers
     create_equipment_with_ip(db, "BACKUP-SRV-01", "dell_r650", "PAR-A1-R02", 38, 10, 60, supplier_name="TD Synnex")
-    create_equipment_with_ip(db, "MONITOR-SRV-01", "hpe_dl360g10", "PAR-A1-R02", 36, 10, 61, supplier_name="Ingram Micro")
+    # MONITOR-SRV-01 warranty expiring soon
+    create_equipment_with_ip(db, "MONITOR-SRV-01", "hpe_dl360g10", "PAR-A1-R02", 36, 10, 61,
+                             supplier_name="Ingram Micro", warranty_expiring_soon=True)
 
     # Storage
     create_equipment_with_ip(db, "SAN-PROD-01", "netapp_aff400", "PAR-A1-R02", 30, 50, 10, supplier_name="Ingram Micro")
-    create_equipment_with_ip(db, "SAN-PROD-02", "netapp_aff400", "PAR-A1-R02", 26, 50, 11, supplier_name="Ingram Micro")
+    # SAN-PROD-02 under maintenance (firmware upgrade)
+    create_equipment_with_ip(db, "SAN-PROD-02", "netapp_aff400", "PAR-A1-R02", 26, 50, 11,
+                             status="maintenance", supplier_name="Ingram Micro")
     create_equipment_with_ip(db, "SAN-DEV-01", "dell_unity500", "PAR-A2-R02", 30, 50, 20, supplier_name="TD Synnex")
 
     # Backup Appliance
@@ -876,8 +898,24 @@ def seed_server_infrastructure(db: Session, minimal: bool = False) -> None:
 
     # UPS Units
     create_equipment_with_ip(db, "UPS-A1-R01", "apc_srt10k", "PAR-A1-R01", 1, 10, 100, supplier_name="Arrow ECS")
-    create_equipment_with_ip(db, "UPS-A1-R02", "apc_srt5k", "PAR-A1-R02", 1, 10, 101, supplier_name="Arrow ECS")
+    # UPS-A1-R02 warranty expired
+    create_equipment_with_ip(db, "UPS-A1-R02", "apc_srt5k", "PAR-A1-R02", 1, 10, 101,
+                             supplier_name="Arrow ECS", warranty_expired=True)
     create_equipment_with_ip(db, "UPS-B1-R01", "apc_srt10k", "PAR-B1-R01", 1, 10, 102, supplier_name="Arrow ECS")
+
+    # === Equipment in Stock (spare parts) ===
+    create_equipment_with_ip(db, "SPARE-SRV-01", "hpe_dl360g10", "PAR-A1-R03", 38, 10, 70,
+                             status="stock", supplier_name="Ingram Micro")
+    create_equipment_with_ip(db, "SPARE-SW-01", "cisco_catalyst9300", "PAR-A1-R03", 36, 10, 71,
+                             status="stock", supplier_name="Westcon-Comstor")
+    create_equipment_with_ip(db, "SPARE-SW-02", "aruba_6300", "PAR-A1-R03", 34, 10, 72,
+                             status="stock", supplier_name="Westcon-Comstor")
+
+    # === Retired equipment (decommissioned) ===
+    create_equipment_with_ip(db, "OLD-SRV-01", "dell_r650", "PAR-A2-R02", 38, 10, 80,
+                             status="retired", supplier_name="TD Synnex", warranty_expired=True)
+    create_equipment_with_ip(db, "OLD-SW-01", "cisco_catalyst9300", "PAR-A2-R02", 36, 10, 81,
+                             status="retired", supplier_name="Westcon-Comstor", warranty_expired=True)
 
     if not minimal:
         # Lyon DC2 DR Infrastructure
@@ -891,13 +929,24 @@ def seed_server_infrastructure(db: Session, minimal: bool = False) -> None:
         create_equipment_with_ip(db, "SAN-DR-01", "netapp_aff400", "LYN-D2-R01", 30, 50, 200, supplier_name="Ingram Micro")
         create_equipment_with_ip(db, "BACKUP-DR-01", "dell_dp4400", "LYN-D2-R01", 24, 52, 200, supplier_name="TD Synnex")
 
+        # Lyon spare equipment
+        create_equipment_with_ip(db, "SPARE-DR-SRV-01", "hpe_dl360g10", "LYN-D2-R01", 38, 10, 220,
+                                 status="stock", supplier_name="Ingram Micro")
+
     # Office equipment
     create_equipment_with_ip(db, "SW-HQ-01", "aruba_6300", "HQ-IT-R01", 20, 10, 150, supplier_name="Westcon-Comstor")
     create_equipment_with_ip(db, "SW-LYON-01", "aruba_6300", "LYN-OFF-R01", 10, 10, 151, supplier_name="Westcon-Comstor")
     create_equipment_with_ip(db, "SW-MRS-01", "aruba_6300", "MRS-OFF-R01", 10, 10, 152, supplier_name="Westcon-Comstor")
 
     db.commit()
-    print(f"    Created server infrastructure ({len([e for e in store.equipment.values() if 'ESX' in e.name or 'SAN' in e.name or 'SRV' in e.name or 'UPS' in e.name])} devices)")
+
+    # Count by status
+    status_counts = {}
+    for eq in store.equipment.values():
+        status_counts[eq.status] = status_counts.get(eq.status, 0) + 1
+    print(f"    Created server infrastructure:")
+    for status, count in status_counts.items():
+        print(f"      - {status}: {count} devices")
 
 
 def seed_network_ports_and_connections(db: Session) -> None:
@@ -1152,26 +1201,43 @@ def seed_software(db: Session) -> None:
     db.commit()
     print(f"    Created {len(store.software)} software entries")
 
-    # Create licenses
+    # Create licenses with varied expiration states
     print("  Creating software licenses...")
     license_count = 0
+    expired_count = 0
+    expiring_soon_count = 0
 
+    # License data: (name, type, qty, price, status_modifier)
+    # status_modifier: None=normal, "expired", "expiring_soon"
     license_data = [
-        ("VMware vSphere Enterprise Plus", "perpetual", 16, 85000),
-        ("VMware vCenter Server", "perpetual", 1, 12000),
-        ("Microsoft Windows Server 2022 Datacenter", "perpetual", 8, 48000),
-        ("Red Hat Enterprise Linux", "subscription", 20, 15000),
-        ("Microsoft SQL Server Enterprise", "perpetual", 4, 56000),
-        ("Veeam Backup & Replication", "subscription", 1, 18000),
-        ("Zabbix Enterprise", "subscription", 1, 8000),
-        ("CrowdStrike Falcon", "subscription", 500, 45000),
-        ("Microsoft 365 E5", "subscription", 200, 72000),
+        ("VMware vSphere Enterprise Plus", "perpetual", 16, 85000, None),
+        ("VMware vCenter Server", "perpetual", 1, 12000, None),
+        ("Microsoft Windows Server 2022 Datacenter", "perpetual", 8, 48000, None),
+        ("Red Hat Enterprise Linux", "subscription", 20, 15000, "expiring_soon"),  # Expiring in <30 days
+        ("Microsoft SQL Server Enterprise", "perpetual", 4, 56000, None),
+        ("Veeam Backup & Replication", "subscription", 1, 18000, "expired"),  # Expired
+        ("Zabbix Enterprise", "subscription", 1, 8000, "expiring_soon"),  # Expiring soon
+        ("CrowdStrike Falcon", "subscription", 500, 45000, None),
+        ("Microsoft 365 E5", "subscription", 200, 72000, None),
     ]
 
-    for sw_name, lic_type, qty, price in license_data:
+    for sw_name, lic_type, qty, price, status in license_data:
         software = next((s for s in store.software if s.name == sw_name), None)
         if not software:
             continue
+
+        # Determine expiry date based on status
+        if lic_type == "subscription":
+            if status == "expired":
+                expiry_date = date.today() - timedelta(days=random.randint(15, 45))  # Expired 15-45 days ago
+                expired_count += 1
+            elif status == "expiring_soon":
+                expiry_date = date.today() + timedelta(days=random.randint(7, 25))  # Expires in 7-25 days
+                expiring_soon_count += 1
+            else:
+                expiry_date = random_date_future(90, 365)  # Normal: expires in 90-365 days
+        else:
+            expiry_date = None
 
         license = models.SoftwareLicense(
             software_id=software.id,
@@ -1179,14 +1245,16 @@ def seed_software(db: Session) -> None:
             license_type=lic_type,
             quantity=qty,
             purchase_date=random_date_past(365, 730),
-            expiry_date=random_date_future(180, 730) if lic_type == "subscription" else None,
+            expiry_date=expiry_date,
             purchase_price=price
         )
         db.add(license)
         license_count += 1
 
     db.commit()
-    print(f"    Created {license_count} licenses")
+    print(f"    Created {license_count} licenses:")
+    print(f"      - Expired: {expired_count}")
+    print(f"      - Expiring soon (<30 days): {expiring_soon_count}")
 
     # Create installations
     print("  Creating software installations...")
@@ -1211,10 +1279,14 @@ def seed_software(db: Session) -> None:
 
 
 def seed_contracts(db: Session) -> None:
-    """Create maintenance and service contracts."""
+    """Create maintenance and service contracts with varied expiration states."""
     print("  Creating contracts...")
 
-    for contract_data in CONTRACT_TEMPLATES:
+    expired_count = 0
+    expiring_soon_count = 0
+    active_count = 0
+
+    for i, contract_data in enumerate(CONTRACT_TEMPLATES):
         existing = db.query(models.Contract).filter(models.Contract.name == contract_data["name"]).first()
         if existing:
             store.contracts.append(existing)
@@ -1230,7 +1302,36 @@ def seed_contracts(db: Session) -> None:
         if not supplier:
             supplier = list(store.suppliers.values())[0]
 
-        start_date = random_date_past(365, 730)
+        # Vary contract status: some expired, some expiring soon, most active
+        if i == 0:  # First contract is expired (Cisco SmartNet)
+            start_date = date.today() - timedelta(days=random.randint(730, 1095))
+            end_date = date.today() - timedelta(days=random.randint(15, 60))  # Expired 15-60 days ago
+            status = "expired"
+            expired_count += 1
+        elif i == 1:  # Second contract expires very soon (HPE)
+            start_date = date.today() - timedelta(days=random.randint(300, 350))
+            end_date = date.today() + timedelta(days=random.randint(5, 15))  # Expires in 5-15 days
+            status = "active"  # Still active but needs renewal urgently
+            expiring_soon_count += 1
+        elif i == 2:  # Third contract expiring in 30 days (Dell)
+            start_date = date.today() - timedelta(days=random.randint(300, 350))
+            end_date = date.today() + timedelta(days=random.randint(20, 35))  # Expires in 20-35 days
+            status = "active"
+            expiring_soon_count += 1
+        elif i == 3:  # FortiCare - expired and not renewed
+            start_date = date.today() - timedelta(days=random.randint(400, 500))
+            end_date = date.today() - timedelta(days=random.randint(30, 90))  # Expired 30-90 days ago
+            status = "expired"
+            expired_count += 1
+        else:
+            # Active contracts with various end dates
+            start_date = random_date_past(365, 730)
+            end_date = start_date + timedelta(days=random.choice([365, 730, 1095]))
+            # Make sure they're in the future
+            if end_date < date.today():
+                end_date = date.today() + timedelta(days=random.randint(90, 365))
+            status = "active"
+            active_count += 1
 
         contract = models.Contract(
             name=contract_data["name"],
@@ -1238,14 +1339,19 @@ def seed_contracts(db: Session) -> None:
             contract_number=f"CTR-{random_string(8).upper()}",
             supplier_id=supplier.id,
             start_date=start_date,
-            end_date=start_date + timedelta(days=random.choice([365, 730, 1095])),
+            end_date=end_date,
             annual_cost=contract_data["annual_cost"],
-            renewal_type="auto"
+            renewal_type="auto" if status == "active" else "manual",
+            notes=f"Contract status: {status}" if status != "active" else None
         )
         db.add(contract)
         store.contracts.append(contract)
 
     db.commit()
+    print(f"    Contract status distribution:")
+    print(f"      - Active: {active_count}")
+    print(f"      - Expiring soon (<30 days): {expiring_soon_count}")
+    print(f"      - Expired: {expired_count}")
 
     # Link equipment to contracts
     print("  Linking equipment to contracts...")
@@ -1385,26 +1491,64 @@ def seed_ticket_templates(db: Session) -> None:
     print(f"    Created {len(TICKET_TEMPLATES)} ticket templates")
 
 
-def seed_tickets(db: Session, count: int = 25) -> None:
-    """Create realistic tickets."""
+def seed_tickets(db: Session, count: int = 35) -> None:
+    """Create realistic tickets with SLA breaches and varied states."""
     print("  Creating tickets...")
 
+    # Tickets with various scenarios including SLA breaches
     ticket_scenarios = [
+        # === SLA BREACHED TICKETS ===
+        {"title": "CRITICAL: Core switch CORE-SW-01 down", "type": "incident", "priority": "critical", "category": "Network", "status": "open", "sla_breached": True, "breach_hours": 4},
+        {"title": "Production database unreachable", "type": "incident", "priority": "critical", "category": "Database", "status": "open", "sla_breached": True, "breach_hours": 3},
+        {"title": "Major network outage affecting 50+ users", "type": "incident", "priority": "high", "category": "Network", "status": "open", "sla_breached": True, "breach_hours": 8},
+        {"title": "Email server not responding", "type": "incident", "priority": "high", "category": "Infrastructure", "status": "pending", "sla_breached": True, "breach_hours": 6},
+        {"title": "VPN gateway overloaded - remote workers affected", "type": "incident", "priority": "high", "category": "Network", "status": "open", "sla_breached": True, "breach_hours": 12},
+
+        # === RESOLVED WITHIN SLA ===
         {"title": "Network connectivity issue - Lyon office", "type": "incident", "priority": "high", "category": "Network", "status": "resolved"},
         {"title": "Server ESX-PROD-02 memory alert", "type": "incident", "priority": "medium", "category": "Infrastructure", "status": "closed"},
-        {"title": "VPN connection timeout for remote users", "type": "incident", "priority": "high", "category": "Network", "status": "open"},
-        {"title": "Request: New VM for marketing campaign", "type": "request", "priority": "medium", "category": "Infrastructure", "status": "pending"},
+        {"title": "Certificate expiring on LB-PROD-01", "type": "incident", "priority": "critical", "category": "Security", "status": "resolved"},
         {"title": "Storage capacity warning on SAN-PROD-01", "type": "incident", "priority": "medium", "category": "Storage", "status": "resolved"},
         {"title": "Firewall rule change for new application", "type": "change", "priority": "medium", "category": "Security", "status": "closed"},
+
+        # === OPEN TICKETS (at risk of SLA breach) ===
+        {"title": "VPN connection timeout for remote users", "type": "incident", "priority": "high", "category": "Network", "status": "open", "at_risk": True},
         {"title": "Backup job failed - BACKUP-APP-01", "type": "incident", "priority": "high", "category": "Backup", "status": "open"},
-        {"title": "New employee onboarding - J. Smith", "type": "request", "priority": "low", "category": "Onboarding", "status": "open"},
-        {"title": "Certificate expiring on LB-PROD-01", "type": "incident", "priority": "critical", "category": "Security", "status": "resolved"},
-        {"title": "Performance degradation on database servers", "type": "incident", "priority": "high", "category": "Database", "status": "open"},
-        {"title": "Request: Additional storage for dev environment", "type": "request", "priority": "low", "category": "Storage", "status": "new"},
-        {"title": "VLAN configuration for new department", "type": "change", "priority": "medium", "category": "Network", "status": "pending"},
-        {"title": "Patch deployment - Windows servers", "type": "change", "priority": "medium", "category": "Infrastructure", "status": "new"},
-        {"title": "User password reset - unable to use self-service", "type": "request", "priority": "low", "category": "Access", "status": "closed"},
+        {"title": "Performance degradation on database servers", "type": "incident", "priority": "high", "category": "Database", "status": "open", "at_risk": True},
         {"title": "Monitoring alerts not triggering correctly", "type": "incident", "priority": "medium", "category": "Monitoring", "status": "open"},
+        {"title": "Disk space critical on BACKUP-SRV-01", "type": "incident", "priority": "high", "category": "Storage", "status": "open"},
+
+        # === PENDING TICKETS ===
+        {"title": "Request: New VM for marketing campaign", "type": "request", "priority": "medium", "category": "Infrastructure", "status": "pending"},
+        {"title": "VLAN configuration for new department", "type": "change", "priority": "medium", "category": "Network", "status": "pending"},
+        {"title": "Waiting for vendor - ESX-PROD-04 RAM replacement", "type": "incident", "priority": "medium", "category": "Hardware", "status": "pending"},
+
+        # === NEW TICKETS ===
+        {"title": "Request: Additional storage for dev environment", "type": "request", "priority": "low", "category": "Storage", "status": "new"},
+        {"title": "Patch deployment - Windows servers", "type": "change", "priority": "medium", "category": "Infrastructure", "status": "new"},
+        {"title": "New employee onboarding - A. Martin", "type": "request", "priority": "low", "category": "Onboarding", "status": "new"},
+        {"title": "Access request for new contractor", "type": "request", "priority": "medium", "category": "Access", "status": "new"},
+
+        # === CLOSED TICKETS ===
+        {"title": "User password reset - unable to use self-service", "type": "request", "priority": "low", "category": "Access", "status": "closed"},
+        {"title": "Printer offline in meeting room 3A", "type": "incident", "priority": "low", "category": "Hardware", "status": "closed"},
+        {"title": "Software installation - Adobe Creative Suite", "type": "request", "priority": "low", "category": "Software", "status": "closed"},
+        {"title": "Laptop screen replacement - J. Dupont", "type": "incident", "priority": "medium", "category": "Hardware", "status": "closed"},
+
+        # === MORE INCIDENTS (various states) ===
+        {"title": "WiFi dropping in conference rooms", "type": "incident", "priority": "medium", "category": "Network", "status": "open"},
+        {"title": "Slow response from internal applications", "type": "incident", "priority": "medium", "category": "Infrastructure", "status": "open"},
+        {"title": "Security scan detected vulnerabilities", "type": "incident", "priority": "high", "category": "Security", "status": "open"},
+        {"title": "UPS battery warning - UPS-A1-R02", "type": "incident", "priority": "medium", "category": "Power", "status": "open"},
+
+        # === CHANGE REQUESTS ===
+        {"title": "Scheduled maintenance - Core router firmware", "type": "change", "priority": "high", "category": "Network", "status": "new"},
+        {"title": "Database migration to new cluster", "type": "change", "priority": "high", "category": "Database", "status": "pending"},
+        {"title": "Firewall rule audit and cleanup", "type": "change", "priority": "medium", "category": "Security", "status": "open"},
+
+        # === PROBLEM MANAGEMENT ===
+        {"title": "Recurring network drops in Building B", "type": "problem", "priority": "medium", "category": "Network", "status": "open"},
+        {"title": "Root cause analysis - Recent storage failures", "type": "problem", "priority": "high", "category": "Storage", "status": "open"},
     ]
 
     # Get users by role for assignment
@@ -1412,15 +1556,35 @@ def seed_tickets(db: Session, count: int = 25) -> None:
     helpdesk_users = [u for u in store.users if u.role == "user"]
     all_users = tech_users + helpdesk_users
 
+    sla_breached_count = 0
+    at_risk_count = 0
+    resolved_count = 0
+
     for i, scenario in enumerate(ticket_scenarios[:count]):
         requester = random.choice(all_users)
         assigned_to = random.choice(tech_users) if scenario["status"] not in ["new"] else None
 
-        created_at = random_datetime_past(30)
+        # Determine SLA times based on priority
+        sla_hours = {"critical": 2, "high": 4, "medium": 8, "low": 24}.get(scenario["priority"], 8)
+
+        # Handle SLA breached tickets
+        if scenario.get("sla_breached"):
+            breach_hours = scenario.get("breach_hours", 4)
+            created_at = datetime.now(timezone.utc) - timedelta(hours=sla_hours + breach_hours)
+            sla_due_date = created_at + timedelta(hours=sla_hours)  # SLA already passed
+            sla_breached_count += 1
+        elif scenario.get("at_risk"):
+            # Ticket close to SLA breach (created near the SLA deadline)
+            created_at = datetime.now(timezone.utc) - timedelta(hours=sla_hours - 1)
+            sla_due_date = created_at + timedelta(hours=sla_hours)  # About to breach
+            at_risk_count += 1
+        else:
+            created_at = random_datetime_past(30)
+            sla_due_date = created_at + timedelta(hours=sla_hours)
 
         ticket = models.Ticket(
             title=scenario["title"],
-            description=f"## Issue Description\n\n{scenario['title']}\n\n### Details\n\nThis is a test ticket generated for demonstration purposes.\n\n### Environment\n- Location: Paris DC1\n- Affected users: Multiple",
+            description=f"## Issue Description\n\n{scenario['title']}\n\n### Details\n\nThis is a test ticket generated for demonstration purposes.\n\n### Environment\n- Location: Paris DC1\n- Affected users: {'Critical - 50+' if scenario['priority'] == 'critical' else 'Multiple' if scenario['priority'] == 'high' else 'Limited'}",
             ticket_type=scenario["type"],
             status=scenario["status"],
             priority=scenario["priority"],
@@ -1429,12 +1593,14 @@ def seed_tickets(db: Session, count: int = 25) -> None:
             assigned_to_id=assigned_to.id if assigned_to else None,
             entity_id=store.entities[0].id if store.entities else None,
             created_at=created_at,
-            updated_at=created_at + timedelta(hours=random.randint(1, 48)),
-            sla_due_date=created_at + timedelta(hours={"critical": 2, "high": 4, "medium": 8, "low": 24}.get(scenario["priority"], 8))
+            updated_at=created_at + timedelta(hours=random.randint(1, 48)) if not scenario.get("sla_breached") else datetime.now(timezone.utc) - timedelta(hours=1),
+            sla_due_date=sla_due_date,
+            sla_breached=scenario.get("sla_breached", False)
         )
 
         if scenario["status"] in ["resolved", "closed"]:
-            ticket.resolved_at = created_at + timedelta(hours=random.randint(1, 24))
+            resolved_count += 1
+            ticket.resolved_at = created_at + timedelta(hours=random.randint(1, sla_hours - 1))  # Resolved within SLA
             ticket.resolution = "Issue has been resolved. Root cause identified and fix applied."
 
         if scenario["status"] == "closed":
@@ -1443,16 +1609,27 @@ def seed_tickets(db: Session, count: int = 25) -> None:
         db.add(ticket)
         db.flush()
 
-        # Add comments
+        # Add comments based on status
         if scenario["status"] not in ["new"]:
             comment = models.TicketComment(
                 ticket_id=ticket.id,
                 user_id=(assigned_to or requester).id,
-                content="Initial investigation started. Checking system logs and monitoring dashboards.",
+                content="Initial investigation started. Checking system logs and monitoring dashboards." if not scenario.get("sla_breached") else "URGENT: Escalating to senior team. SLA breach in progress.",
                 is_internal=False,
                 created_at=created_at + timedelta(hours=1)
             )
             db.add(comment)
+
+            if scenario.get("sla_breached"):
+                # Add escalation comment for breached tickets
+                escalation = models.TicketComment(
+                    ticket_id=ticket.id,
+                    user_id=tech_users[0].id,  # Manager
+                    content="SLA BREACH ALERT: This ticket has exceeded the SLA deadline. Management has been notified. Please prioritize resolution.",
+                    is_internal=True,
+                    created_at=sla_due_date + timedelta(minutes=15)
+                )
+                db.add(escalation)
 
             if scenario["status"] in ["resolved", "closed"]:
                 resolution_comment = models.TicketComment(
@@ -1466,7 +1643,10 @@ def seed_tickets(db: Session, count: int = 25) -> None:
                 db.add(resolution_comment)
 
     db.commit()
-    print(f"    Created {min(count, len(ticket_scenarios))} tickets")
+    print(f"    Created {min(count, len(ticket_scenarios))} tickets:")
+    print(f"      - SLA Breached: {sla_breached_count}")
+    print(f"      - At Risk: {at_risk_count}")
+    print(f"      - Resolved/Closed: {resolved_count}")
 
 
 def seed_knowledge_articles(db: Session) -> None:
@@ -1505,31 +1685,131 @@ def seed_knowledge_articles(db: Session) -> None:
 
 
 def seed_notifications(db: Session) -> None:
-    """Create sample notifications."""
+    """Create comprehensive notifications covering all alert types."""
     print("  Creating notifications...")
 
-    notifications_data = [
-        {"type": "warning", "title": "Certificate Expiring", "message": "SSL certificate on LB-PROD-01 expires in 30 days"},
-        {"type": "info", "title": "Backup Completed", "message": "Nightly backup completed successfully"},
-        {"type": "error", "title": "Failed Login Attempts", "message": "Multiple failed login attempts detected from IP 192.168.100.50"},
-        {"type": "success", "title": "Patch Applied", "message": "Security patches applied to all Windows servers"},
-        {"type": "ticket", "title": "New Ticket Assigned", "message": "Ticket #TKT-20240115-0001 has been assigned to you"},
+    # Critical/Urgent notifications (unread, recent)
+    critical_notifications = [
+        {"type": "error", "title": "SLA BREACH: Critical ticket", "message": "Ticket 'CRITICAL: Core switch CORE-SW-01 down' has breached SLA. Immediate action required.", "link_type": "ticket"},
+        {"type": "error", "title": "SLA BREACH: Database unreachable", "message": "Ticket 'Production database unreachable' has exceeded SLA deadline by 3 hours.", "link_type": "ticket"},
+        {"type": "error", "title": "Contract Expired", "message": "Contract 'Cisco SmartNet Total Care' has expired. Equipment at risk without support.", "link_type": "contract"},
+        {"type": "error", "title": "Contract Expired", "message": "Contract 'Fortinet FortiCare Premium' expired. Firewall support coverage ended.", "link_type": "contract"},
+        {"type": "error", "title": "Warranty Expired", "message": "Equipment 'ESX-PROD-01' warranty has expired. Consider renewal or replacement.", "link_type": "equipment"},
+        {"type": "error", "title": "Warranty Expired", "message": "Equipment 'UPS-A1-R02' warranty expired. No support coverage available.", "link_type": "equipment"},
     ]
 
-    for user in store.users[:5]:
-        for notif_data in random.sample(notifications_data, min(3, len(notifications_data))):
+    # Warning notifications (some unread)
+    warning_notifications = [
+        {"type": "warning", "title": "Contract Expiring Soon", "message": "Contract 'HPE Proactive Care 24x7' expires in 12 days. Start renewal process.", "link_type": "contract"},
+        {"type": "warning", "title": "Contract Expiring Soon", "message": "Contract 'Dell ProSupport Plus' expires in 28 days. Contact vendor for renewal.", "link_type": "contract"},
+        {"type": "warning", "title": "Warranty Expiring", "message": "Equipment 'MONITOR-SRV-01' warranty expires in 21 days.", "link_type": "equipment"},
+        {"type": "warning", "title": "Warranty Expiring", "message": "Equipment 'ESX-DEV-02' warranty expiring soon. Schedule replacement planning.", "link_type": "equipment"},
+        {"type": "warning", "title": "License Expiring", "message": "VMware vSphere license expires in 45 days. Contact VMware for renewal.", "link_type": "software"},
+        {"type": "warning", "title": "Certificate Expiring", "message": "SSL certificate on LB-PROD-01 expires in 30 days. Schedule renewal.", "link_type": "equipment"},
+        {"type": "warning", "title": "Storage Warning", "message": "SAN-PROD-01 capacity at 85%. Consider expanding or archiving old data.", "link_type": "equipment"},
+        {"type": "warning", "title": "Equipment in Maintenance", "message": "ESX-PROD-04 scheduled for maintenance (RAM upgrade). Workloads migrated.", "link_type": "equipment"},
+        {"type": "warning", "title": "SLA At Risk", "message": "Ticket 'VPN connection timeout' approaching SLA deadline in 1 hour.", "link_type": "ticket"},
+    ]
+
+    # Info notifications (mostly read)
+    info_notifications = [
+        {"type": "info", "title": "Backup Completed", "message": "Nightly backup completed successfully for all systems.", "link_type": None},
+        {"type": "info", "title": "Scheduled Maintenance", "message": "Core router firmware upgrade scheduled for Sunday 02:00-04:00.", "link_type": "ticket"},
+        {"type": "info", "title": "New Equipment Added", "message": "3 spare devices added to inventory: SPARE-SRV-01, SPARE-SW-01, SPARE-SW-02.", "link_type": "equipment"},
+        {"type": "info", "title": "System Update", "message": "Inframate platform updated to version 2.0.0 with new features.", "link_type": None},
+        {"type": "info", "title": "Weekly Report", "message": "Weekly IT metrics report available. 35 tickets processed, 92% SLA compliance.", "link_type": None},
+    ]
+
+    # Success notifications
+    success_notifications = [
+        {"type": "success", "title": "Patch Applied", "message": "Security patches applied to all Windows servers successfully.", "link_type": None},
+        {"type": "success", "title": "Ticket Resolved", "message": "Ticket 'Network connectivity issue - Lyon office' resolved within SLA.", "link_type": "ticket"},
+        {"type": "success", "title": "Equipment Deployed", "message": "New server ESX-PROD-04 successfully deployed and added to cluster.", "link_type": "equipment"},
+        {"type": "success", "title": "Contract Renewed", "message": "Contract 'VMware Production Support' renewed for 2 years.", "link_type": "contract"},
+    ]
+
+    # Ticket notifications
+    ticket_notifications = [
+        {"type": "ticket", "title": "New Ticket Assigned", "message": "Ticket 'Backup job failed - BACKUP-APP-01' has been assigned to you.", "link_type": "ticket"},
+        {"type": "ticket", "title": "Ticket Updated", "message": "Ticket 'VPN connection timeout for remote users' has new comments.", "link_type": "ticket"},
+        {"type": "ticket", "title": "Ticket Escalated", "message": "Ticket 'Performance degradation on database servers' escalated to you.", "link_type": "ticket"},
+        {"type": "ticket", "title": "High Priority Ticket", "message": "New high-priority ticket: 'Security scan detected vulnerabilities'.", "link_type": "ticket"},
+    ]
+
+    all_notifications = critical_notifications + warning_notifications + info_notifications + success_notifications + ticket_notifications
+
+    # Distribute notifications to users based on role
+    tech_users = [u for u in store.users if u.role in ["tech", "admin", "superadmin"]]
+    all_active_users = [u for u in store.users if u.is_active]
+
+    notification_count = 0
+
+    # Admins/Superadmins get critical notifications
+    for user in [u for u in store.users if u.role in ["admin", "superadmin"]]:
+        for notif_data in critical_notifications:
             notif = models.Notification(
                 user_id=user.id,
                 notification_type=notif_data["type"],
                 title=notif_data["title"],
                 message=notif_data["message"],
-                is_read=random.random() > 0.6,
+                link_type=notif_data.get("link_type"),
+                is_read=False,  # Critical notifications are unread
+                created_at=random_datetime_past(3)  # Recent
+            )
+            db.add(notif)
+            notification_count += 1
+
+    # Tech users get warnings and tickets
+    for user in tech_users:
+        selected_warnings = random.sample(warning_notifications, min(4, len(warning_notifications)))
+        for notif_data in selected_warnings:
+            notif = models.Notification(
+                user_id=user.id,
+                notification_type=notif_data["type"],
+                title=notif_data["title"],
+                message=notif_data["message"],
+                link_type=notif_data.get("link_type"),
+                is_read=random.random() > 0.5,  # 50% unread
                 created_at=random_datetime_past(7)
             )
             db.add(notif)
+            notification_count += 1
+
+        selected_tickets = random.sample(ticket_notifications, min(2, len(ticket_notifications)))
+        for notif_data in selected_tickets:
+            notif = models.Notification(
+                user_id=user.id,
+                notification_type=notif_data["type"],
+                title=notif_data["title"],
+                message=notif_data["message"],
+                link_type=notif_data.get("link_type"),
+                is_read=random.random() > 0.4,  # 40% unread
+                created_at=random_datetime_past(5)
+            )
+            db.add(notif)
+            notification_count += 1
+
+    # All users get info and success notifications
+    for user in all_active_users:
+        selected_info = random.sample(info_notifications + success_notifications, min(3, len(info_notifications) + len(success_notifications)))
+        for notif_data in selected_info:
+            notif = models.Notification(
+                user_id=user.id,
+                notification_type=notif_data["type"],
+                title=notif_data["title"],
+                message=notif_data["message"],
+                link_type=notif_data.get("link_type"),
+                is_read=random.random() > 0.3,  # 30% unread
+                created_at=random_datetime_past(14)
+            )
+            db.add(notif)
+            notification_count += 1
 
     db.commit()
-    print("    Created notifications")
+    print(f"    Created {notification_count} notifications")
+    print(f"      - Critical alerts: {len(critical_notifications)} per admin")
+    print(f"      - Warnings: {len(warning_notifications)} available")
+    print(f"      - Ticket alerts: {len(ticket_notifications)} distributed")
 
 
 def clean_test_data(db: Session) -> None:
