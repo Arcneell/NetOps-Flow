@@ -1252,21 +1252,21 @@ def seed_contracts(db: Session) -> None:
     for contract in store.contracts:
         # Determine which equipment to link based on contract type
         if "Cisco" in contract.name:
-            equipment_list = [e for e in store.equipment.values() if "cisco" in e.model.manufacturer.name.lower() if hasattr(e, 'model') and e.model else False]
+            equipment_list = [e for e in store.equipment.values() if any(x in e.name for x in ["RTR", "SW", "WLC", "CORE", "DIST", "ACC"])]
         elif "HPE" in contract.name:
             equipment_list = [e for e in store.equipment.values() if "ESX" in e.name or "DL" in e.name]
         elif "Dell" in contract.name:
-            equipment_list = [e for e in store.equipment.values() if "dell" in (store.equipment_models.get(e.name, {}) or {}).get("manufacturer", "").lower() or "Dell" in e.name or "SAN-DEV" in e.name or "BACKUP" in e.name]
+            equipment_list = [e for e in store.equipment.values() if "Dell" in e.name or "SAN-DEV" in e.name or "BACKUP" in e.name]
         elif "Fortinet" in contract.name:
             equipment_list = [e for e in store.equipment.values() if "FW" in e.name]
         elif "NetApp" in contract.name:
-            equipment_list = [e for e in store.equipment.values() if "SAN" in e.name and "NetApp" in e.name]
+            equipment_list = [e for e in store.equipment.values() if "SAN-PROD" in e.name]
         else:
             equipment_list = []
 
-        # If no specific match, use model-based matching
-        if not equipment_list and "Cisco" in contract.name:
-            equipment_list = [e for e in store.equipment.values() if any(x in e.name for x in ["RTR", "SW", "WLC"])]
+        # Fallback for other contracts
+        if not equipment_list:
+            equipment_list = list(store.equipment.values())[:5]
 
         for eq in equipment_list[:10]:  # Limit to 10 per contract
             link = models.ContractEquipment(
