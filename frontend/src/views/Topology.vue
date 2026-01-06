@@ -8,6 +8,14 @@
 
         <Dropdown v-if="viewMode === 'physical' && sites.length > 0" v-model="selectedSite" :options="siteOptions"
           optionLabel="label" optionValue="value" :placeholder="t('topology.allSites')" showClear class="w-52" />
+
+        <!-- Link Mode Toggle -->
+        <Button v-if="viewMode === 'physical'"
+          :icon="linkMode ? 'pi pi-times' : 'pi pi-link'"
+          :label="linkMode ? t('topology.cancelLink') : t('topology.createLink')"
+          :severity="linkMode ? 'danger' : 'secondary'"
+          size="small"
+          @click="toggleLinkMode" />
       </div>
 
       <div class="flex items-center gap-2">
@@ -22,9 +30,16 @@
       </div>
     </div>
 
+    <!-- Link Mode Banner -->
+    <div v-if="linkMode" class="link-mode-banner">
+      <i class="pi pi-info-circle"></i>
+      <span v-if="!linkSource">{{ t('topology.selectSource') }}</span>
+      <span v-else>{{ t('topology.selectTarget', { source: linkSource.label }) }}</span>
+    </div>
+
     <div class="flex gap-4 flex-1 min-h-0">
       <!-- Graph -->
-      <div class="graph-container flex-1 relative">
+      <div class="graph-container flex-1 relative" :class="{ 'link-mode-active': linkMode }">
         <div v-if="loading" class="loading-overlay">
           <i class="pi pi-spin pi-spinner text-3xl"></i>
           <span>{{ t('topology.loadingTopology') }}</span>
@@ -39,13 +54,13 @@
         <div ref="networkContainer" class="network-canvas"></div>
 
         <!-- Legend -->
-        <div v-if="nodes.length > 0" class="legend-panel">
+        <div v-if="nodes.length > 0 && !linkMode" class="legend-panel">
           <div class="legend-title">{{ t('topology.legend') }}</div>
           <template v-if="viewMode === 'physical'">
             <div class="legend-section">{{ t('topology.equipmentTypes') }}</div>
             <div v-for="legendItem in uniqueEquipmentTypes" :key="legendItem.type" class="legend-item">
               <span class="legend-icon" :style="{ background: legendItem.color }">
-                <i :class="legendItem.icon"></i>
+                <i :class="formatIconClass(legendItem.icon)"></i>
               </span>
               {{ legendItem.type }}
             </div>
@@ -66,7 +81,7 @@
         <div v-if="nodes.length > 0" class="stats-overlay">
           <span><strong>{{ nodes.length }}</strong> {{ t('topology.nodes') }}</span>
           <span><strong>{{ edges.length }}</strong> {{ t('topology.links') }}</span>
-          <span v-if="groups.length > 0"><strong>{{ groups.length }}</strong> {{ viewMode === 'physical' ? 'Sites' : 'Groups' }}</span>
+          <span v-if="groups.length > 0"><strong>{{ groups.length }}</strong> Sites</span>
         </div>
       </div>
 
@@ -100,7 +115,7 @@
           <div v-if="selectedNode" class="node-details">
             <div class="node-header">
               <div class="node-icon" :style="{ background: selectedNode.color + '20', color: selectedNode.color }">
-                <i :class="selectedNode.icon || getNodeIcon(selectedNode)"></i>
+                <i :class="formatIconClass(selectedNode.icon)"></i>
               </div>
               <div>
                 <div class="node-name">{{ selectedNode.label }}</div>
@@ -109,19 +124,31 @@
             </div>
 
             <div class="node-props">
-              <template v-for="(value, key) in selectedNode.data" :key="key">
-                <div v-if="value != null && value !== ''" class="prop-row">
+              <template v-for="(value, key) in getDisplayProps(selectedNode.data)" :key="key">
+                <div class="prop-row">
                   <span>{{ formatKey(key) }}</span>
                   <span>{{ value }}</span>
                 </div>
               </template>
             </div>
 
+            <!-- Connected Equipment -->
+            <div v-if="selectedNode.type === 'equipment' && getConnectedNodes(selectedNode.id).length > 0" class="connected-section">
+              <div class="connected-title">{{ t('topology.connectedTo') }}</div>
+              <div v-for="conn in getConnectedNodes(selectedNode.id)" :key="conn.id" class="connected-item" @click="selectNodeById(conn.id)">
+                <i :class="formatIconClass(conn.icon)" :style="{ color: conn.color }"></i>
+                <span>{{ conn.label }}</span>
+                <Button icon="pi pi-trash" text severity="danger" size="small"
+                  @click.stop="confirmDeleteLink(selectedNode, conn)"
+                  v-tooltip.top="t('topology.deleteLink')" />
+              </div>
+            </div>
+
             <div class="node-actions">
               <Button v-if="selectedNode.type === 'equipment'" :label="t('topology.viewInventory')" icon="pi pi-box"
                 size="small" outlined @click="goToEquipment" />
-              <Button v-if="selectedNode.type === 'subnet'" :label="t('topology.viewIpam')" icon="pi pi-sitemap"
-                size="small" outlined @click="goToIpam" />
+              <Button v-if="selectedNode.type === 'equipment'" icon="pi pi-link" size="small" outlined
+                @click="startLinkFrom(selectedNode)" v-tooltip.top="t('topology.createLink')" />
             </div>
           </div>
 
@@ -132,6 +159,49 @@
         </div>
       </div>
     </div>
+
+    <!-- Delete Link Confirmation Dialog -->
+    <Dialog v-model:visible="showDeleteDialog" :header="t('topology.deleteLink')" modal :style="{ width: '400px' }">
+      <p>{{ t('topology.confirmDeleteLink', { source: deleteLinkData?.source?.label, target: deleteLinkData?.target?.label }) }}</p>
+      <template #footer>
+        <Button :label="t('common.cancel')" text @click="showDeleteDialog = false" />
+        <Button :label="t('common.delete')" severity="danger" @click="deleteLink" :loading="deletingLink" />
+      </template>
+    </Dialog>
+
+    <!-- Create Link Dialog -->
+    <Dialog v-model:visible="showCreateLinkDialog" :header="t('topology.createLink')" modal :style="{ width: '450px' }">
+      <div class="create-link-content">
+        <div class="link-preview">
+          <div class="link-node">
+            <i :class="formatIconClass(createLinkData?.source?.icon)" :style="{ color: createLinkData?.source?.color }"></i>
+            <span>{{ createLinkData?.source?.label }}</span>
+          </div>
+          <i class="pi pi-arrow-right link-arrow"></i>
+          <div class="link-node">
+            <i :class="formatIconClass(createLinkData?.target?.icon)" :style="{ color: createLinkData?.target?.color }"></i>
+            <span>{{ createLinkData?.target?.label }}</span>
+          </div>
+        </div>
+
+        <div class="link-form">
+          <div class="form-field">
+            <label>{{ t('topology.linkSpeed') }}</label>
+            <Dropdown v-model="newLinkSpeed" :options="speedOptions" optionLabel="label" optionValue="value"
+              :placeholder="t('topology.selectSpeed')" class="w-full" />
+          </div>
+          <div class="form-field">
+            <label>{{ t('topology.linkType') }}</label>
+            <Dropdown v-model="newLinkType" :options="typeOptions" optionLabel="label" optionValue="value"
+              :placeholder="t('topology.selectType')" class="w-full" />
+          </div>
+        </div>
+      </div>
+      <template #footer>
+        <Button :label="t('common.cancel')" text @click="cancelCreateLink" />
+        <Button :label="t('common.create')" severity="primary" @click="createLink" :loading="creatingLink" />
+      </template>
+    </Dialog>
   </div>
 </template>
 
@@ -139,11 +209,13 @@
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
+import { useToast } from 'primevue/usetoast';
 import { Network } from 'vis-network';
 import api from '../api';
 
 const { t } = useI18n();
 const router = useRouter();
+const toast = useToast();
 
 const loading = ref(false);
 const networkContainer = ref(null);
@@ -156,6 +228,20 @@ const selectedSite = ref(null);
 const selectedNode = ref(null);
 const viewMode = ref('physical');
 const zoomLevel = ref(1);
+
+// Link creation state
+const linkMode = ref(false);
+const linkSource = ref(null);
+const showCreateLinkDialog = ref(false);
+const createLinkData = ref(null);
+const newLinkSpeed = ref('1G');
+const newLinkType = ref('ethernet');
+const creatingLink = ref(false);
+
+// Delete link state
+const showDeleteDialog = ref(false);
+const deleteLinkData = ref(null);
+const deletingLink = ref(false);
 
 let network = null;
 
@@ -170,6 +256,29 @@ const siteOptions = computed(() => [
   ...sites.value.map(s => ({ label: `${s.name} (${s.equipment_count})`, value: s.name }))
 ]);
 
+const speedOptions = [
+  { label: '100 Mbps', value: '100M' },
+  { label: '1 Gbps', value: '1G' },
+  { label: '10 Gbps', value: '10G' },
+  { label: '25 Gbps', value: '25G' },
+  { label: '40 Gbps', value: '40G' },
+  { label: '100 Gbps', value: '100G' }
+];
+
+const typeOptions = [
+  { label: 'Ethernet (Copper)', value: 'ethernet' },
+  { label: 'Fiber', value: 'fiber' },
+  { label: 'SFP/SFP+', value: 'sfp' }
+];
+
+// Format icon class - ensure it has 'pi ' prefix
+const formatIconClass = (icon) => {
+  if (!icon) return 'pi pi-box';
+  if (icon.startsWith('pi ')) return icon;
+  if (icon.startsWith('pi-')) return 'pi ' + icon;
+  return 'pi pi-' + icon;
+};
+
 // Get unique equipment types for legend
 const uniqueEquipmentTypes = computed(() => {
   const types = new Map();
@@ -178,7 +287,7 @@ const uniqueEquipmentTypes = computed(() => {
       if (!types.has(node.sublabel)) {
         types.set(node.sublabel, {
           type: node.sublabel,
-          icon: node.icon || 'pi pi-box',
+          icon: node.icon || 'pi-box',
           color: node.color
         });
       }
@@ -187,34 +296,63 @@ const uniqueEquipmentTypes = computed(() => {
   return Array.from(types.values());
 });
 
-// SVG icon paths for PrimeIcons (simplified versions)
+// Get connected nodes for a given node ID
+const getConnectedNodes = (nodeId) => {
+  const connectedIds = new Set();
+  edges.value.forEach(edge => {
+    if (edge.source === nodeId) connectedIds.add(edge.target);
+    if (edge.target === nodeId) connectedIds.add(edge.source);
+  });
+  return nodes.value.filter(n => connectedIds.has(n.id));
+};
+
+// Select a node by ID
+const selectNodeById = (nodeId) => {
+  const node = nodes.value.find(n => n.id === nodeId);
+  if (node) {
+    selectedNode.value = node;
+    network?.selectNodes([nodeId]);
+    network?.focus(nodeId, { animation: { duration: 300 }, scale: 1 });
+  }
+};
+
+// Filter display props
+const getDisplayProps = (data) => {
+  if (!data) return {};
+  const displayKeys = ['status', 'type', 'site', 'room', 'rack', 'ip_address', 'manufacturer', 'model', 'ports_connected', 'ports_total'];
+  const result = {};
+  displayKeys.forEach(key => {
+    if (data[key] != null && data[key] !== '') {
+      result[key] = data[key];
+    }
+  });
+  return result;
+};
+
+// SVG icon paths for vis-network nodes
 const iconSvgPaths = {
-  'pi-server': 'M4 6h16v4H4zm0 8h16v4H4zm2-6h2v2H6zm0 8h2v2H6z',
-  'pi-desktop': 'M4 4h16v12H4zm4 14h8v2H8zm2-14v10h8V4z',
-  'pi-database': 'M12 2C6.48 2 2 4.02 2 6.5v11C2 19.98 6.48 22 12 22s10-2.02 10-4.5v-11C22 4.02 17.52 2 12 2zm0 2c4.42 0 8 1.79 8 4s-3.58 4-8 4-8-1.79-8-4 3.58-4 8-4zm8 13.5c0 2.21-3.58 4-8 4s-8-1.79-8-4v-3c1.78 1.23 4.61 2 8 2s6.22-.77 8-2v3z',
-  'pi-wifi': 'M12 18c1.1 0 2 .9 2 2s-.9 2-2 2-2-.9-2-2 .9-2 2-2zm-4.24-4.24l1.41 1.41c1.52-1.52 4.14-1.52 5.66 0l1.41-1.41c-2.34-2.34-6.14-2.34-8.48 0zM4.93 10.93l1.41 1.41c3.12-3.12 8.2-3.12 11.32 0l1.41-1.41c-3.9-3.9-10.24-3.9-14.14 0zM1.1 7.1l1.41 1.41c4.69-4.69 12.29-4.69 16.98 0l1.41-1.41C15.22 1.42 5.78 1.42 1.1 7.1z',
-  'pi-shield': 'M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z',
-  'pi-box': 'M21 16.5c0 .38-.21.71-.53.88l-7.9 4.44c-.16.12-.36.18-.57.18s-.41-.06-.57-.18l-7.9-4.44A.991.991 0 013 16.5v-9c0-.38.21-.71.53-.88l7.9-4.44c.16-.12.36-.18.57-.18s.41.06.57.18l7.9 4.44c.32.17.53.5.53.88v9z',
-  'pi-sitemap': 'M22 11V3h-7v3H9V3H2v8h7V8h2v10h4v3h7v-8h-7v3h-2V8h2v3h7z',
-  'pi-bolt': 'M11 21h-1l1-7H7.5c-.58 0-.57-.32-.38-.66.19-.34.05-.08.07-.12C8.48 10.94 10.42 7.54 13 3h1l-1 7h3.5c.49 0 .56.33.47.51l-.07.15C12.96 17.55 11 21 11 21z',
-  'pi-globe': 'M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z',
-  'pi-print': 'M19 8H5c-1.66 0-3 1.34-3 3v6h4v4h12v-4h4v-6c0-1.66-1.34-3-3-3zm-3 11H8v-5h8v5zm3-7c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1zm-1-9H6v4h12V3z',
-  'pi-mobile': 'M17 1.01L7 1c-1.1 0-2 .9-2 2v18c0 1.1.9 2 2 2h10c1.1 0 2-.9 2-2V3c0-1.1-.9-1.99-2-1.99zM17 19H7V5h10v14z',
-  'pi-cog': 'M19.14 12.94c.04-.31.06-.63.06-.94 0-.31-.02-.63-.06-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z',
-  'pi-sliders-h': 'M3 17v2h6v-2H3zM3 5v2h10V5H3zm10 16v-2h8v-2h-8v-2h-2v6h2zM7 9v2H3v2h4v2h2V9H7zm14 4v-2H11v2h10zm-6-4h2V7h4V5h-4V3h-2v6z',
-  'pi-tablet': 'M21 4H3c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h18c1.1 0 1.99-.9 1.99-2L23 6c0-1.1-.9-2-2-2zm-2 14H5V6h14v12z',
-  'pi-video': 'M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z',
-  'pi-share-alt': 'M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92s2.92-1.31 2.92-2.92-1.31-2.92-2.92-2.92z'
+  'server': 'M4 6h16v4H4zm0 8h16v4H4zm2-6h2v2H6zm0 8h2v2H6z',
+  'desktop': 'M4 4h16v12H4zm4 14h8v2H8z',
+  'database': 'M12 2C6.48 2 2 4.02 2 6.5v11C2 19.98 6.48 22 12 22s10-2.02 10-4.5v-11C22 4.02 17.52 2 12 2zm0 2c4.42 0 8 1.79 8 4s-3.58 4-8 4-8-1.79-8-4 3.58-4 8-4z',
+  'wifi': 'M12 18c1.1 0 2 .9 2 2s-.9 2-2 2-2-.9-2-2 .9-2 2-2zm-4.24-4.24l1.41 1.41c1.52-1.52 4.14-1.52 5.66 0l1.41-1.41c-2.34-2.34-6.14-2.34-8.48 0zM4.93 10.93l1.41 1.41c3.12-3.12 8.2-3.12 11.32 0l1.41-1.41c-3.9-3.9-10.24-3.9-14.14 0z',
+  'shield': 'M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z',
+  'box': 'M21 16.5c0 .38-.21.71-.53.88l-7.9 4.44c-.16.12-.36.18-.57.18s-.41-.06-.57-.18l-7.9-4.44A.991.991 0 013 16.5v-9c0-.38.21-.71.53-.88l7.9-4.44c.16-.12.36-.18.57-.18s.41.06.57.18l7.9 4.44c.32.17.53.5.53.88v9z',
+  'sitemap': 'M22 11V3h-7v3H9V3H2v8h7V8h2v10h4v3h7v-8h-7v3h-2V8h2v3h7z',
+  'bolt': 'M11 21h-1l1-7H7.5c-.58 0-.57-.32-.38-.66C8.48 10.94 10.42 7.54 13 3h1l-1 7h3.5c.49 0 .56.33.47.51C12.96 17.55 11 21 11 21z',
+  'globe': 'M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93z',
+  'print': 'M19 8H5c-1.66 0-3 1.34-3 3v6h4v4h12v-4h4v-6c0-1.66-1.34-3-3-3zm-3 11H8v-5h8v5zm3-7c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1z',
+  'mobile': 'M17 1.01L7 1c-1.1 0-2 .9-2 2v18c0 1.1.9 2 2 2h10c1.1 0 2-.9 2-2V3c0-1.1-.9-1.99-2-1.99zM17 19H7V5h10v14z',
+  'cog': 'M19.14 12.94c.04-.31.06-.63.06-.94 0-.31-.02-.63-.06-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z'
 };
 
 // Create SVG data URL for an icon
 const createIconSvg = (iconClass, color) => {
-  const iconName = iconClass.replace('pi ', '').replace('pi-', '');
-  const path = iconSvgPaths[`pi-${iconName}`] || iconSvgPaths['pi-box'];
+  const iconName = iconClass.replace(/^pi[- ]?/, '').replace('pi-', '');
+  const path = iconSvgPaths[iconName] || iconSvgPaths['box'];
 
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="48" height="48">
-    <circle cx="12" cy="12" r="11" fill="${color}" stroke="white" stroke-width="1"/>
-    <g transform="translate(4, 4) scale(0.67)">
+    <circle cx="12" cy="12" r="11" fill="${color}" stroke="white" stroke-width="1.5"/>
+    <g transform="translate(5, 5) scale(0.58)">
       <path d="${path}" fill="white"/>
     </g>
   </svg>`;
@@ -225,6 +363,8 @@ const createIconSvg = (iconClass, color) => {
 const loadTopology = async () => {
   loading.value = true;
   selectedNode.value = null;
+  linkMode.value = false;
+  linkSource.value = null;
 
   try {
     const [statsRes, sitesRes] = await Promise.all([
@@ -262,12 +402,12 @@ const renderNetwork = () => {
 
   const style = getComputedStyle(document.documentElement);
   const textColor = style.getPropertyValue('--text-main')?.trim() || '#1f2937';
+  const bgColor = style.getPropertyValue('--bg-card')?.trim() || '#ffffff';
 
   const visNodes = nodes.value.map((node) => {
     const isEquipment = node.type === 'equipment';
 
     if (isEquipment) {
-      // Use image shape with SVG icon
       const iconClass = node.icon || 'pi-box';
       return {
         id: node.id,
@@ -276,17 +416,17 @@ const renderNetwork = () => {
         group: node.group,
         shape: 'image',
         image: createIconSvg(iconClass, node.color),
-        size: 24,
+        size: 22,
         font: {
           color: textColor,
-          size: 11,
+          size: 10,
           face: 'Inter, system-ui, sans-serif',
-          vadjust: 8
+          background: bgColor,
+          strokeWidth: 0
         },
         _data: node
       };
     } else {
-      // Logical view - keep original shapes
       return {
         id: node.id,
         label: node.label,
@@ -298,10 +438,10 @@ const renderNetwork = () => {
           highlight: { background: node.color + '50', border: node.color },
           hover: { background: node.color + '40', border: node.color }
         },
-        font: { color: textColor, size: 11 },
+        font: { color: textColor, size: 10 },
         borderWidth: 2,
         shape: node.shape || 'dot',
-        size: node.size || 20,
+        size: node.size || 18,
         _data: node
       };
     }
@@ -311,39 +451,37 @@ const renderNetwork = () => {
     id: edge.id,
     from: edge.source,
     to: edge.target,
-    color: { color: edge.color || '#94a3b8', highlight: '#3b82f6', opacity: 0.7 },
+    color: { color: edge.color || '#94a3b8', highlight: '#3b82f6', opacity: 0.8 },
     width: edge.width || 1,
     dashes: edge.dashes || false,
-    smooth: { type: 'continuous', roundness: 0.2 }
+    smooth: { type: 'continuous', roundness: 0.15 }
   }));
 
   const options = {
     nodes: {
       font: {
-        face: 'Inter, system-ui, sans-serif',
-        strokeWidth: 3,
-        strokeColor: 'rgba(255,255,255,0.95)'
+        face: 'Inter, system-ui, sans-serif'
       },
-      shadow: { enabled: true, color: 'rgba(0,0,0,0.15)', size: 10, x: 0, y: 4 }
+      shadow: { enabled: true, color: 'rgba(0,0,0,0.1)', size: 8, x: 0, y: 3 }
     },
     edges: {
-      smooth: { type: 'continuous', roundness: 0.2 },
+      smooth: { type: 'continuous', roundness: 0.15 },
       arrows: { to: { enabled: false } }
     },
     physics: {
       enabled: true,
       solver: 'forceAtlas2Based',
       forceAtlas2Based: {
-        gravitationalConstant: -150,
-        centralGravity: 0.005,
-        springLength: 200,
-        springConstant: 0.04,
-        damping: 0.7,
+        gravitationalConstant: -200,
+        centralGravity: 0.003,
+        springLength: 250,
+        springConstant: 0.03,
+        damping: 0.8,
         avoidOverlap: 1
       },
-      stabilization: { iterations: 250, fit: true },
-      maxVelocity: 40,
-      minVelocity: 0.2
+      stabilization: { iterations: 300, fit: true },
+      maxVelocity: 30,
+      minVelocity: 0.1
     },
     interaction: {
       hover: true,
@@ -363,7 +501,9 @@ const renderNetwork = () => {
   network = new Network(networkContainer.value, { nodes: visNodes, edges: visEdges }, options);
 
   network.on('click', params => {
-    if (params.nodes.length > 0) {
+    if (linkMode.value && params.nodes.length > 0) {
+      handleLinkModeClick(params.nodes[0]);
+    } else if (params.nodes.length > 0) {
       const node = nodes.value.find(n => n.id === params.nodes[0]);
       selectedNode.value = node || null;
     } else {
@@ -379,7 +519,6 @@ const renderNetwork = () => {
     if (params.nodes.length > 0) {
       const node = nodes.value.find(n => n.id === params.nodes[0]);
       if (node?.type === 'equipment') goToEquipment(node.data?.id);
-      else if (node?.type === 'subnet') goToIpam();
     }
   });
 
@@ -389,32 +528,118 @@ const renderNetwork = () => {
   });
 };
 
+// Link mode functions
+const toggleLinkMode = () => {
+  linkMode.value = !linkMode.value;
+  linkSource.value = null;
+  if (!linkMode.value) {
+    selectedNode.value = null;
+  }
+};
+
+const startLinkFrom = (node) => {
+  linkMode.value = true;
+  linkSource.value = node;
+};
+
+const handleLinkModeClick = (nodeId) => {
+  const clickedNode = nodes.value.find(n => n.id === nodeId);
+  if (!clickedNode || clickedNode.type !== 'equipment') return;
+
+  if (!linkSource.value) {
+    linkSource.value = clickedNode;
+  } else if (linkSource.value.id !== clickedNode.id) {
+    // Check if link already exists
+    const existingLink = edges.value.find(e =>
+      (e.source === linkSource.value.id && e.target === clickedNode.id) ||
+      (e.target === linkSource.value.id && e.source === clickedNode.id)
+    );
+
+    if (existingLink) {
+      toast.add({ severity: 'warn', summary: t('topology.linkExists'), life: 3000 });
+      return;
+    }
+
+    createLinkData.value = { source: linkSource.value, target: clickedNode };
+    showCreateLinkDialog.value = true;
+  }
+};
+
+const cancelCreateLink = () => {
+  showCreateLinkDialog.value = false;
+  createLinkData.value = null;
+  linkMode.value = false;
+  linkSource.value = null;
+};
+
+const createLink = async () => {
+  if (!createLinkData.value) return;
+
+  creatingLink.value = true;
+  try {
+    await api.post('/topology/link', {
+      source_equipment_id: createLinkData.value.source.data.id,
+      target_equipment_id: createLinkData.value.target.data.id,
+      speed: newLinkSpeed.value,
+      port_type: newLinkType.value
+    });
+
+    toast.add({ severity: 'success', summary: t('topology.linkCreated'), life: 3000 });
+    showCreateLinkDialog.value = false;
+    createLinkData.value = null;
+    linkMode.value = false;
+    linkSource.value = null;
+    newLinkSpeed.value = '1G';
+    newLinkType.value = 'ethernet';
+
+    await loadTopology();
+  } catch (error) {
+    toast.add({ severity: 'error', summary: t('common.error'), detail: error.response?.data?.detail || error.message, life: 5000 });
+  } finally {
+    creatingLink.value = false;
+  }
+};
+
+const confirmDeleteLink = (source, target) => {
+  deleteLinkData.value = { source, target };
+  showDeleteDialog.value = true;
+};
+
+const deleteLink = async () => {
+  if (!deleteLinkData.value) return;
+
+  deletingLink.value = true;
+  try {
+    await api.delete('/topology/link', {
+      data: {
+        source_equipment_id: deleteLinkData.value.source.data.id,
+        target_equipment_id: deleteLinkData.value.target.data.id
+      }
+    });
+
+    toast.add({ severity: 'success', summary: t('topology.linkDeleted'), life: 3000 });
+    showDeleteDialog.value = false;
+    deleteLinkData.value = null;
+
+    await loadTopology();
+  } catch (error) {
+    toast.add({ severity: 'error', summary: t('common.error'), detail: error.response?.data?.detail || error.message, life: 5000 });
+  } finally {
+    deletingLink.value = false;
+  }
+};
+
 const createTooltip = (node) => {
   let html = `<div style="padding:10px 14px;max-width:260px;">`;
   html += `<div style="font-weight:600;font-size:13px;margin-bottom:4px;">${node.label}</div>`;
   if (node.sublabel) html += `<div style="color:#64748b;font-size:11px;margin-bottom:8px;">${node.sublabel}</div>`;
   if (node.data) {
-    const displayKeys = ['status', 'type', 'site', 'room', 'rack', 'ip_address', 'cidr', 'manufacturer', 'model'];
+    const displayKeys = ['status', 'site', 'room', 'rack', 'ip_address'];
     displayKeys.forEach(key => {
-      if (node.data[key]) html += `<div style="font-size:11px;color:#64748b;padding:2px 0;"><span style="color:#94a3b8;">${formatKey(key)}:</span> ${node.data[key]}</div>`;
+      if (node.data[key]) html += `<div style="font-size:11px;color:#64748b;"><span style="color:#94a3b8;">${formatKey(key)}:</span> ${node.data[key]}</div>`;
     });
   }
   return html + '</div>';
-};
-
-const getNodeIcon = (node) => {
-  if (!node) return 'pi pi-circle';
-  const type = (node.equipmentType || node.type || '').toLowerCase();
-  if (type.includes('router')) return 'pi pi-share-alt';
-  if (type.includes('switch')) return 'pi pi-sitemap';
-  if (type.includes('firewall')) return 'pi pi-shield';
-  if (type.includes('server')) return 'pi pi-server';
-  if (type.includes('storage')) return 'pi pi-database';
-  if (type.includes('access')) return 'pi pi-wifi';
-  if (type.includes('workstation')) return 'pi pi-desktop';
-  if (type === 'gateway') return 'pi pi-globe';
-  if (type === 'subnet') return 'pi pi-sitemap';
-  return 'pi pi-box';
 };
 
 const formatKey = (key) => key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
@@ -427,8 +652,6 @@ const goToEquipment = (id) => {
   const eqId = id || selectedNode.value?.data?.id;
   if (eqId) router.push({ path: '/inventory', query: { equipment: eqId } });
 };
-
-const goToIpam = () => router.push('/ipam');
 
 const exportImage = () => {
   const canvas = networkContainer.value?.querySelector('canvas');
@@ -454,6 +677,11 @@ onUnmounted(() => network?.destroy());
   overflow: hidden;
   min-height: 500px;
   position: relative;
+  transition: box-shadow 0.2s;
+}
+
+.graph-container.link-mode-active {
+  box-shadow: inset 0 0 0 2px var(--primary-color);
 }
 
 .network-canvas {
@@ -475,6 +703,17 @@ onUnmounted(() => network?.destroy());
 
 .empty-state h3 { font-size: 1rem; font-weight: 600; color: var(--text-main); margin: 0; }
 .empty-state p { font-size: 0.8125rem; max-width: 280px; text-align: center; margin: 0; }
+
+.link-mode-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.625rem 1rem;
+  background: var(--primary-color);
+  color: white;
+  border-radius: var(--radius-md);
+  font-size: 0.8125rem;
+}
 
 .zoom-controls {
   display: flex;
@@ -654,7 +893,7 @@ onUnmounted(() => network?.destroy());
 .node-icon {
   width: 36px;
   height: 36px;
-  border-radius: var(--radius-md);
+  border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -675,6 +914,41 @@ onUnmounted(() => network?.destroy());
 .prop-row span:first-child { color: var(--text-muted); }
 .prop-row span:last-child { color: var(--text-main); font-weight: 500; text-align: right; max-width: 60%; word-break: break-word; }
 
+.connected-section {
+  padding-top: 0.625rem;
+  border-top: 1px solid var(--border-color);
+}
+
+.connected-title {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 0.5rem;
+}
+
+.connected-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.375rem 0.5rem;
+  margin: 0.25rem 0;
+  background: var(--bg-secondary);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 0.75rem;
+  transition: background 0.15s;
+}
+
+.connected-item:hover {
+  background: var(--bg-hover);
+}
+
+.connected-item span {
+  flex: 1;
+  color: var(--text-main);
+}
+
 .node-actions {
   display: flex;
   gap: 0.5rem;
@@ -693,6 +967,63 @@ onUnmounted(() => network?.destroy());
 
 .no-selection i { font-size: 1.5rem; margin-bottom: 0.5rem; opacity: 0.5; }
 .no-selection p { font-size: 0.8125rem; margin: 0; }
+
+/* Create Link Dialog */
+.create-link-content {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.link-preview {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  padding: 1rem;
+  background: var(--bg-secondary);
+  border-radius: var(--radius-md);
+}
+
+.link-node {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.link-node i {
+  font-size: 1.5rem;
+}
+
+.link-node span {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--text-main);
+}
+
+.link-arrow {
+  color: var(--text-muted);
+  font-size: 1.25rem;
+}
+
+.link-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+.form-field label {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
 </style>
 
 <style>

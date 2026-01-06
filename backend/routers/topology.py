@@ -1,17 +1,32 @@
 """
 Topology Router - Network topology visualization.
 Shows all equipment organized by location/rack, with port connections as links.
+Supports creating and deleting links between equipment.
 """
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func
 from typing import Optional
+from pydantic import BaseModel
 import logging
 
 from backend.core.database import get_db
 from backend.core.security import get_current_active_user, has_permission
-from backend.core.cache import cache_get, cache_set, build_cache_key
+from backend.core.cache import cache_get, cache_set, cache_delete, build_cache_key
 from backend import models
+
+
+# Pydantic schemas for link operations
+class CreateLinkRequest(BaseModel):
+    source_equipment_id: int
+    target_equipment_id: int
+    speed: str = "1G"
+    port_type: str = "ethernet"
+
+
+class DeleteLinkRequest(BaseModel):
+    source_equipment_id: int
+    target_equipment_id: int
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/topology", tags=["Topology"])
@@ -43,6 +58,13 @@ STATUS_COLORS = {
 def check_topology_permission(current_user: models.User):
     if not has_permission(current_user, "topology"):
         raise HTTPException(status_code=403, detail="Permission denied")
+
+
+def invalidate_topology_cache():
+    """Invalidate all topology caches after modifications."""
+    cache_delete(build_cache_key("topology", "physical"))
+    cache_delete(build_cache_key("topology", "combined"))
+    cache_delete(build_cache_key("topology", "stats"))
 
 
 def get_type_color(eq_type: str) -> str:
@@ -482,3 +504,183 @@ def get_topology_legacy(
     if include_physical:
         return get_combined_topology(db=db, current_user=current_user)
     return get_logical_topology(db=db, current_user=current_user)
+
+
+# ==================== LINK MANAGEMENT ====================
+
+@router.post("/link")
+def create_link(
+    request: CreateLinkRequest,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user)
+):
+    """
+    Create a network link between two equipment.
+    This will auto-create ports on both equipment and connect them.
+    """
+    check_topology_permission(current_user)
+
+    if request.source_equipment_id == request.target_equipment_id:
+        raise HTTPException(status_code=400, detail="Cannot create link to same equipment")
+
+    # Verify both equipment exist
+    source_eq = db.query(models.Equipment).filter(
+        models.Equipment.id == request.source_equipment_id
+    ).first()
+    if not source_eq:
+        raise HTTPException(status_code=404, detail="Source equipment not found")
+
+    target_eq = db.query(models.Equipment).filter(
+        models.Equipment.id == request.target_equipment_id
+    ).first()
+    if not target_eq:
+        raise HTTPException(status_code=404, detail="Target equipment not found")
+
+    # Check if a link already exists between these equipment
+    existing_source_ports = db.query(models.NetworkPort).filter(
+        models.NetworkPort.equipment_id == request.source_equipment_id,
+        models.NetworkPort.connected_to_id.isnot(None)
+    ).all()
+
+    for port in existing_source_ports:
+        target_port = db.query(models.NetworkPort).filter(
+            models.NetworkPort.id == port.connected_to_id
+        ).first()
+        if target_port and target_port.equipment_id == request.target_equipment_id:
+            raise HTTPException(
+                status_code=400,
+                detail="Link already exists between these equipment"
+            )
+
+    # Generate unique port names
+    source_port_count = db.query(models.NetworkPort).filter(
+        models.NetworkPort.equipment_id == request.source_equipment_id
+    ).count()
+    target_port_count = db.query(models.NetworkPort).filter(
+        models.NetworkPort.equipment_id == request.target_equipment_id
+    ).count()
+
+    # Create ports on both equipment
+    source_port = models.NetworkPort(
+        equipment_id=request.source_equipment_id,
+        name=f"port{source_port_count + 1}",
+        port_type=request.port_type,
+        speed=request.speed,
+        notes=f"Auto-created link to {target_eq.name}"
+    )
+    db.add(source_port)
+    db.flush()  # Get the ID
+
+    target_port = models.NetworkPort(
+        equipment_id=request.target_equipment_id,
+        name=f"port{target_port_count + 1}",
+        port_type=request.port_type,
+        speed=request.speed,
+        notes=f"Auto-created link to {source_eq.name}"
+    )
+    db.add(target_port)
+    db.flush()
+
+    # Create bidirectional connection
+    source_port.connected_to_id = target_port.id
+    target_port.connected_to_id = source_port.id
+
+    db.commit()
+
+    # Invalidate cache
+    invalidate_topology_cache()
+
+    logger.info(
+        f"Link created: {source_eq.name}:{source_port.name} <-> "
+        f"{target_eq.name}:{target_port.name} by '{current_user.username}'"
+    )
+
+    return {
+        "ok": True,
+        "link": {
+            "source": {
+                "equipment_id": source_eq.id,
+                "equipment_name": source_eq.name,
+                "port_id": source_port.id,
+                "port_name": source_port.name
+            },
+            "target": {
+                "equipment_id": target_eq.id,
+                "equipment_name": target_eq.name,
+                "port_id": target_port.id,
+                "port_name": target_port.name
+            },
+            "speed": request.speed,
+            "port_type": request.port_type
+        }
+    }
+
+
+@router.delete("/link")
+def delete_link(
+    request: DeleteLinkRequest,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user)
+):
+    """
+    Delete a network link between two equipment.
+    This will disconnect and delete the ports that were auto-created.
+    """
+    check_topology_permission(current_user)
+
+    # Find the connection between these two equipment
+    source_ports = db.query(models.NetworkPort).filter(
+        models.NetworkPort.equipment_id == request.source_equipment_id,
+        models.NetworkPort.connected_to_id.isnot(None)
+    ).all()
+
+    link_found = False
+    deleted_ports = []
+
+    for source_port in source_ports:
+        target_port = db.query(models.NetworkPort).filter(
+            models.NetworkPort.id == source_port.connected_to_id
+        ).first()
+
+        if target_port and target_port.equipment_id == request.target_equipment_id:
+            link_found = True
+
+            # Store info for logging
+            deleted_ports.append({
+                "source_port": source_port.name,
+                "target_port": target_port.name
+            })
+
+            # Delete both ports (this removes the connection)
+            db.delete(source_port)
+            db.delete(target_port)
+
+    if not link_found:
+        raise HTTPException(
+            status_code=404,
+            detail="No link found between these equipment"
+        )
+
+    db.commit()
+
+    # Invalidate cache
+    invalidate_topology_cache()
+
+    # Get equipment names for logging
+    source_eq = db.query(models.Equipment).filter(
+        models.Equipment.id == request.source_equipment_id
+    ).first()
+    target_eq = db.query(models.Equipment).filter(
+        models.Equipment.id == request.target_equipment_id
+    ).first()
+
+    logger.info(
+        f"Link deleted: {source_eq.name if source_eq else 'Unknown'} <-> "
+        f"{target_eq.name if target_eq else 'Unknown'} by '{current_user.username}'"
+    )
+
+    return {
+        "ok": True,
+        "deleted_count": len(deleted_ports),
+        "deleted_ports": deleted_ports
+    }

@@ -788,6 +788,27 @@
     "links": "Links",
     "allSites": "All Sites",
     "equipmentTypes": "Equipment Types",
-    "linkSpeeds": "Link Speeds"
+    "linkSpeeds": "Link Speeds",
+    "linkMode": "Link Mode",
+    "enableLinkMode": "Enable Link Mode",
+    "disableLinkMode": "Exit Link Mode",
+    "linkModeActive": "Link Mode Active",
+    "linkModeInstructions": "Click on an equipment to select it as source, then click on another to create a link.",
+    "selectSource": "Select source equipment",
+    "selectTarget": "Now click on target equipment",
+    "createLink": "Create Link",
+    "cancelLink": "Cancel",
+    "linkSpeed": "Link Speed",
+    "linkType": "Link Type",
+    "connectedTo": "Connected to",
+    "deleteLink": "Delete Link",
+    "confirmDeleteLink": "Are you sure you want to delete this link?",
+    "deleteLinkWith": "Delete link with",
+    "linkCreated": "Link created successfully",
+    "linkDeleted": "Link deleted successfully",
+    "linkExists": "A link already exists between these equipment",
+    "noLinks": "No connections",
+    "ethernet": "Ethernet",
+    "sfp": "SFP/SFP+"
   }
 }

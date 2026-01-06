@@ -788,6 +788,27 @@
     "links": "Liens",
     "allSites": "Tous les sites",
     "equipmentTypes": "Types d'équipements",
-    "linkSpeeds": "Débits des liens"
+    "linkSpeeds": "Débits des liens",
+    "linkMode": "Mode Lien",
+    "enableLinkMode": "Activer le Mode Lien",
+    "disableLinkMode": "Quitter le Mode Lien",
+    "linkModeActive": "Mode Lien Actif",
+    "linkModeInstructions": "Cliquez sur un équipement pour le sélectionner comme source, puis cliquez sur un autre pour créer un lien.",
+    "selectSource": "Sélectionnez l'équipement source",
+    "selectTarget": "Cliquez maintenant sur l'équipement cible",
+    "createLink": "Créer le Lien",
+    "cancelLink": "Annuler",
+    "linkSpeed": "Débit du Lien",
+    "linkType": "Type de Lien",
+    "connectedTo": "Connecté à",
+    "deleteLink": "Supprimer le Lien",
+    "confirmDeleteLink": "Êtes-vous sûr de vouloir supprimer ce lien ?",
+    "deleteLinkWith": "Supprimer le lien avec",
+    "linkCreated": "Lien créé avec succès",
+    "linkDeleted": "Lien supprimé avec succès",
+    "linkExists": "Un lien existe déjà entre ces équipements",
+    "noLinks": "Aucune connexion",
+    "ethernet": "Ethernet",
+    "sfp": "SFP/SFP+"
   }
 }
