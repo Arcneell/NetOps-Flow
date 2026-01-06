@@ -2,13 +2,16 @@
 Topology Router - Network topology visualization.
 Shows all equipment organized by location/rack, with port connections as links.
 Supports creating and deleting links between equipment.
+Includes layout persistence, loop detection, and VLAN filtering.
 """
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func
-from typing import Optional
+from typing import Optional, Dict, Any
 from pydantic import BaseModel
+from collections import deque
 import logging
+import json
 
 from backend.core.database import get_db
 from backend.core.security import get_current_active_user, has_permission
@@ -25,6 +28,20 @@ class CreateLinkRequest(BaseModel):
 
 
 class DeleteLinkRequest(BaseModel):
+    source_equipment_id: int
+    target_equipment_id: int
+
+
+class LayoutPosition(BaseModel):
+    x: float
+    y: float
+
+
+class SaveLayoutRequest(BaseModel):
+    positions: Dict[str, LayoutPosition]
+
+
+class CheckLoopRequest(BaseModel):
     source_equipment_id: int
     target_equipment_id: int
 
@@ -121,7 +138,7 @@ def get_logical_topology(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_active_user)
 ):
-    """Logical topology: Subnets and their active IPs."""
+    """Logical topology: Subnets and their active IPs with VLAN information."""
     check_topology_permission(current_user)
 
     cache_key = build_cache_key("topology", "logical")
@@ -138,12 +155,19 @@ def get_logical_topology(
         "shape": "diamond",
         "color": "#6366f1",
         "size": 45,
+        "vlan": None,
     }]
     edges = []
+    vlans = set()
 
     for subnet in subnets:
         subnet_id = f"subnet_{subnet.id}"
         active_ips = [ip for ip in subnet.ips if ip.status == "active"]
+
+        # Extract VLAN from subnet (assuming vlan_id field or from name/description)
+        vlan_id = getattr(subnet, 'vlan_id', None)
+        if vlan_id:
+            vlans.add(vlan_id)
 
         nodes.append({
             "id": subnet_id,
@@ -153,10 +177,12 @@ def get_logical_topology(
             "shape": "box",
             "color": "#3b82f6",
             "size": 35,
+            "vlan": vlan_id,
             "data": {
                 "id": subnet.id,
                 "cidr": str(subnet.cidr),
                 "name": subnet.name,
+                "vlan_id": vlan_id,
                 "active_ips": len(active_ips),
                 "total_ips": len(subnet.ips),
             }
@@ -168,6 +194,7 @@ def get_logical_topology(
             "target": subnet_id,
             "color": "#6366f1",
             "width": 2,
+            "vlan": vlan_id,
         })
 
         # Show only active IPs
@@ -181,11 +208,13 @@ def get_logical_topology(
                 "shape": "dot",
                 "color": "#10b981",
                 "size": 12,
+                "vlan": vlan_id,
                 "data": {
                     "id": ip.id,
                     "address": str(ip.address),
                     "hostname": ip.hostname,
                     "status": ip.status,
+                    "vlan_id": vlan_id,
                 }
             })
             edges.append({
@@ -194,9 +223,14 @@ def get_logical_topology(
                 "target": ip_id,
                 "color": "#94a3b8",
                 "width": 1,
+                "vlan": vlan_id,
             })
 
-    result = {"nodes": nodes, "edges": edges}
+    result = {
+        "nodes": nodes,
+        "edges": edges,
+        "vlans": sorted([v for v in vlans if v is not None])
+    }
     cache_set(cache_key, result, TOPOLOGY_CACHE_TTL)
     return result
 
@@ -690,4 +724,193 @@ def delete_link(
         "ok": True,
         "disconnected_count": len(disconnected_ports),
         "disconnected_ports": disconnected_ports
+    }
+
+
+# ==================== LAYOUT PERSISTENCE ====================
+
+@router.get("/layout")
+def get_layout(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user)
+):
+    """
+    Get saved layout positions for all equipment nodes.
+    Returns a dictionary of equipment_id -> {x, y} positions.
+    """
+    check_topology_permission(current_user)
+
+    # Get layout from system_settings
+    setting = db.query(models.SystemSetting).filter(
+        models.SystemSetting.key == "topology_layout"
+    ).first()
+
+    if not setting or not setting.value:
+        return {"positions": {}}
+
+    try:
+        positions = json.loads(setting.value) if isinstance(setting.value, str) else setting.value
+        return {"positions": positions}
+    except (json.JSONDecodeError, TypeError):
+        return {"positions": {}}
+
+
+@router.post("/layout")
+def save_layout(
+    request: SaveLayoutRequest,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user)
+):
+    """
+    Save layout positions for equipment nodes.
+    Stores positions in system_settings table.
+    """
+    check_topology_permission(current_user)
+
+    # Convert positions to serializable format
+    positions_dict = {
+        k: {"x": v.x, "y": v.y} for k, v in request.positions.items()
+    }
+
+    # Get or create the setting
+    setting = db.query(models.SystemSetting).filter(
+        models.SystemSetting.key == "topology_layout"
+    ).first()
+
+    if setting:
+        setting.value = json.dumps(positions_dict)
+    else:
+        setting = models.SystemSetting(
+            key="topology_layout",
+            value=json.dumps(positions_dict),
+            category="topology",
+            is_sensitive=False
+        )
+        db.add(setting)
+
+    db.commit()
+
+    logger.info(f"Topology layout saved by '{current_user.username}' ({len(positions_dict)} nodes)")
+
+    return {"ok": True, "saved_count": len(positions_dict)}
+
+
+# ==================== LOOP DETECTION ====================
+
+def build_adjacency_list(db: Session) -> Dict[int, set]:
+    """Build adjacency list from all network port connections."""
+    adjacency = {}
+
+    # Get all connected ports
+    ports = db.query(models.NetworkPort).filter(
+        models.NetworkPort.connected_to_id.isnot(None)
+    ).all()
+
+    for port in ports:
+        eq_id = port.equipment_id
+        if eq_id not in adjacency:
+            adjacency[eq_id] = set()
+
+        # Find target equipment
+        target_port = db.query(models.NetworkPort).filter(
+            models.NetworkPort.id == port.connected_to_id
+        ).first()
+
+        if target_port:
+            target_eq_id = target_port.equipment_id
+            adjacency[eq_id].add(target_eq_id)
+
+            if target_eq_id not in adjacency:
+                adjacency[target_eq_id] = set()
+            adjacency[target_eq_id].add(eq_id)
+
+    return adjacency
+
+
+def detect_loop_with_new_link(adjacency: Dict[int, set], source_id: int, target_id: int) -> bool:
+    """
+    Detect if adding a link between source and target would create a loop.
+    Uses BFS to check if target is already reachable from source.
+    """
+    if source_id == target_id:
+        return True
+
+    # If they're already connected, adding another link creates a parallel link, not a loop
+    if source_id in adjacency and target_id in adjacency.get(source_id, set()):
+        return False
+
+    # BFS from source to see if we can reach target
+    if source_id not in adjacency and target_id not in adjacency:
+        return False  # Both isolated, no loop possible
+
+    visited = set()
+    queue = deque([source_id])
+    visited.add(source_id)
+
+    while queue:
+        current = queue.popleft()
+        neighbors = adjacency.get(current, set())
+
+        for neighbor in neighbors:
+            if neighbor == target_id:
+                return True  # Found a path, adding link creates loop
+            if neighbor not in visited:
+                visited.add(neighbor)
+                queue.append(neighbor)
+
+    return False
+
+
+@router.post("/check-loop")
+def check_loop(
+    request: CheckLoopRequest,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user)
+):
+    """
+    Check if creating a link between two equipment would create a network loop.
+    Returns warning if loop detected.
+    """
+    check_topology_permission(current_user)
+
+    if request.source_equipment_id == request.target_equipment_id:
+        return {
+            "would_create_loop": True,
+            "message": "Cannot create link to same equipment"
+        }
+
+    # Verify both equipment exist
+    source_eq = db.query(models.Equipment).filter(
+        models.Equipment.id == request.source_equipment_id
+    ).first()
+    if not source_eq:
+        raise HTTPException(status_code=404, detail="Source equipment not found")
+
+    target_eq = db.query(models.Equipment).filter(
+        models.Equipment.id == request.target_equipment_id
+    ).first()
+    if not target_eq:
+        raise HTTPException(status_code=404, detail="Target equipment not found")
+
+    # Build adjacency list and check for loop
+    adjacency = build_adjacency_list(db)
+    would_loop = detect_loop_with_new_link(
+        adjacency,
+        request.source_equipment_id,
+        request.target_equipment_id
+    )
+
+    if would_loop:
+        return {
+            "would_create_loop": True,
+            "message": f"Creating a link between '{source_eq.name}' and '{target_eq.name}' would create a network loop",
+            "source": {"id": source_eq.id, "name": source_eq.name},
+            "target": {"id": target_eq.id, "name": target_eq.name}
+        }
+
+    return {
+        "would_create_loop": False,
+        "message": "No loop detected",
+        "source": {"id": source_eq.id, "name": source_eq.name},
+        "target": {"id": target_eq.id, "name": target_eq.name}
     }

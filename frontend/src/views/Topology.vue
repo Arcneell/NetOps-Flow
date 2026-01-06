@@ -9,6 +9,14 @@
         <Dropdown v-if="viewMode === 'physical' && sites.length > 0" v-model="selectedSite" :options="siteOptions"
           optionLabel="label" optionValue="value" :placeholder="t('topology.allSites')" showClear class="w-52" />
 
+        <!-- VLAN Filter (Logical view only) -->
+        <Dropdown v-if="viewMode === 'logical' && availableVlans.length > 0" v-model="selectedVlan" :options="vlanOptions"
+          optionLabel="label" optionValue="value" :placeholder="t('topology.allVlans')" showClear class="w-40" />
+
+        <!-- Clustering Toggle (Physical view) -->
+        <Dropdown v-if="viewMode === 'physical'" v-model="clusteringMode" :options="clusteringOptions"
+          optionLabel="label" optionValue="value" class="w-40" />
+
         <!-- Link Mode Toggle -->
         <Button v-if="viewMode === 'physical'"
           :icon="linkMode ? 'pi pi-times' : 'pi pi-link'"
@@ -19,6 +27,30 @@
       </div>
 
       <div class="flex items-center gap-2">
+        <!-- Search Bar -->
+        <span class="p-input-icon-left search-container">
+          <i class="pi pi-search" />
+          <InputText v-model="searchQuery" :placeholder="t('topology.searchNodes')"
+            class="search-input" @input="onSearchInput" />
+          <div v-if="searchResults.length > 0" class="search-results">
+            <div v-for="result in searchResults" :key="result.id" class="search-result-item"
+              @click="focusOnNode(result)">
+              <i :class="formatIconClass(result.icon)" :style="{ color: result.color }"></i>
+              <span>{{ result.label }}</span>
+              <span class="result-type">{{ result.sublabel || result.type }}</span>
+            </div>
+          </div>
+        </span>
+
+        <!-- Pathfinding Button -->
+        <Button v-if="viewMode === 'physical'"
+          :icon="pathfindingMode ? 'pi pi-times' : 'pi pi-directions'"
+          :label="pathfindingMode ? t('topology.cancelPathfinding') : t('topology.findPath')"
+          :severity="pathfindingMode ? 'warning' : 'secondary'"
+          size="small"
+          @click="togglePathfindingMode"
+          v-tooltip.top="t('topology.pathfindingHint')" />
+
         <div class="zoom-controls">
           <Button icon="pi pi-minus" text size="small" @click="zoomOut" />
           <span class="zoom-level">{{ Math.round(zoomLevel * 100) }}%</span>
@@ -26,7 +58,15 @@
         </div>
         <Button icon="pi pi-arrows-alt" text @click="fitToScreen" v-tooltip.top="t('topology.fitToScreen')" />
         <Button icon="pi pi-refresh" text @click="loadTopology" :loading="loading" v-tooltip.top="t('common.refresh')" />
-        <Button icon="pi pi-download" text @click="exportImage" v-tooltip.top="t('topology.exportImage')" />
+
+        <!-- Export Dropdown -->
+        <SplitButton :label="t('topology.export')" icon="pi pi-download" @click="exportImage('png')"
+          :model="exportOptions" size="small" />
+
+        <!-- Save Layout Button -->
+        <Button v-if="viewMode === 'physical'" icon="pi pi-save" text
+          @click="saveLayout" :loading="savingLayout"
+          v-tooltip.top="t('topology.saveLayout')" />
       </div>
     </div>
 
@@ -37,9 +77,19 @@
       <span v-else>{{ t('topology.selectTarget', { source: linkSource.label }) }}</span>
     </div>
 
+    <!-- Pathfinding Mode Banner -->
+    <div v-if="pathfindingMode" class="pathfinding-mode-banner">
+      <i class="pi pi-directions"></i>
+      <span v-if="!pathfindingSource">{{ t('topology.selectPathSource') }}</span>
+      <span v-else-if="!pathfindingTarget">{{ t('topology.selectPathTarget', { source: pathfindingSource.label }) }}</span>
+      <span v-else>{{ t('topology.pathFound', { from: pathfindingSource.label, to: pathfindingTarget.label }) }}</span>
+      <Button v-if="highlightedPath.length > 0" icon="pi pi-times" text size="small"
+        :label="t('topology.clearPath')" @click="clearPath" class="ml-auto" />
+    </div>
+
     <div class="flex gap-4 flex-1 min-h-0">
       <!-- Graph -->
-      <div class="graph-container flex-1 relative" :class="{ 'link-mode-active': linkMode }">
+      <div class="graph-container flex-1 relative" :class="{ 'link-mode-active': linkMode, 'pathfinding-mode-active': pathfindingMode }">
         <div v-if="loading" class="loading-overlay">
           <i class="pi pi-spin pi-spinner text-3xl"></i>
           <span>{{ t('topology.loadingTopology') }}</span>
@@ -53,8 +103,22 @@
 
         <div ref="networkContainer" class="network-canvas"></div>
 
+        <!-- Mini-Map Overview -->
+        <div v-if="nodes.length > 0 && showMiniMap" ref="miniMapContainer" class="mini-map">
+          <div class="mini-map-header">
+            <span>{{ t('topology.overview') }}</span>
+            <Button icon="pi pi-times" text size="small" @click="showMiniMap = false" />
+          </div>
+          <div ref="miniMapCanvas" class="mini-map-canvas"></div>
+        </div>
+
+        <!-- Mini-Map Toggle Button -->
+        <Button v-if="nodes.length > 0 && !showMiniMap" icon="pi pi-map" text
+          class="mini-map-toggle" @click="showMiniMap = true"
+          v-tooltip.left="t('topology.showMiniMap')" />
+
         <!-- Legend -->
-        <div v-if="nodes.length > 0 && !linkMode" class="legend-panel">
+        <div v-if="nodes.length > 0 && !linkMode && !pathfindingMode" class="legend-panel">
           <div class="legend-title">{{ t('topology.legend') }}</div>
           <template v-if="viewMode === 'physical'">
             <div class="legend-section">{{ t('topology.equipmentTypes') }}</div>
@@ -69,6 +133,11 @@
             <div class="legend-item"><span class="legend-line thick"></span> 10G+</div>
             <div class="legend-item"><span class="legend-line medium"></span> 1G</div>
             <div class="legend-item"><span class="legend-line thin"></span> &lt;1G</div>
+            <div class="legend-divider"></div>
+            <div class="legend-section">{{ t('topology.nodeStatus') }}</div>
+            <div class="legend-item"><span class="legend-status online"></span> {{ t('topology.online') }}</div>
+            <div class="legend-item"><span class="legend-status offline"></span> {{ t('topology.offline') }}</div>
+            <div class="legend-item"><span class="legend-status aggregated"></span> {{ t('topology.aggregatedLink') }}</div>
           </template>
           <template v-else>
             <div class="legend-item"><span class="legend-shape diamond"></span> {{ t('topology.gateway') }}</div>
@@ -82,6 +151,9 @@
           <span><strong>{{ nodes.length }}</strong> {{ t('topology.nodes') }}</span>
           <span><strong>{{ edges.length }}</strong> {{ t('topology.links') }}</span>
           <span v-if="groups.length > 0"><strong>{{ groups.length }}</strong> Sites</span>
+          <span v-if="highlightedPath.length > 0" class="path-info">
+            <i class="pi pi-directions"></i> {{ t('topology.pathHops', { count: highlightedPath.length - 1 }) }}
+          </span>
         </div>
       </div>
 
@@ -121,6 +193,12 @@
                 <div class="node-name">{{ selectedNode.label }}</div>
                 <div class="node-type">{{ selectedNode.sublabel || selectedNode.type }}</div>
               </div>
+              <!-- Online Status Indicator -->
+              <span v-if="selectedNode.type === 'equipment'"
+                class="status-badge"
+                :class="getOnlineStatus(selectedNode) ? 'online' : 'offline'">
+                {{ getOnlineStatus(selectedNode) ? t('topology.online') : t('topology.offline') }}
+              </span>
             </div>
 
             <div class="node-props">
@@ -149,6 +227,8 @@
                 size="small" outlined @click="goToEquipment" />
               <Button v-if="selectedNode.type === 'equipment'" icon="pi pi-link" size="small" outlined
                 @click="startLinkFrom(selectedNode)" v-tooltip.top="t('topology.createLink')" />
+              <Button v-if="selectedNode.type === 'equipment' && !pathfindingMode" icon="pi pi-directions" size="small" outlined
+                @click="startPathfindingFrom(selectedNode)" v-tooltip.top="t('topology.findPath')" />
             </div>
           </div>
 
@@ -184,6 +264,12 @@
           </div>
         </div>
 
+        <!-- Loop Warning -->
+        <Message v-if="loopWarning" severity="warn" :closable="false" class="mt-3">
+          <i class="pi pi-exclamation-triangle mr-2"></i>
+          {{ t('topology.loopWarning') }}
+        </Message>
+
         <div class="link-form">
           <div class="form-field">
             <label>{{ t('topology.linkSpeed') }}</label>
@@ -206,7 +292,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
+import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
 import { useToast } from 'primevue/usetoast';
@@ -219,6 +305,8 @@ const toast = useToast();
 
 const loading = ref(false);
 const networkContainer = ref(null);
+const miniMapContainer = ref(null);
+const miniMapCanvas = ref(null);
 const nodes = ref([]);
 const edges = ref([]);
 const groups = ref([]);
@@ -237,13 +325,39 @@ const createLinkData = ref(null);
 const newLinkSpeed = ref('1G');
 const newLinkType = ref('ethernet');
 const creatingLink = ref(false);
+const loopWarning = ref(false);
 
 // Delete link state
 const showDeleteDialog = ref(false);
 const deleteLinkData = ref(null);
 const deletingLink = ref(false);
 
+// Search state
+const searchQuery = ref('');
+const searchResults = ref([]);
+
+// Pathfinding state
+const pathfindingMode = ref(false);
+const pathfindingSource = ref(null);
+const pathfindingTarget = ref(null);
+const highlightedPath = ref([]);
+
+// Mini-map state
+const showMiniMap = ref(true);
+
+// VLAN filter state
+const selectedVlan = ref(null);
+const availableVlans = ref([]);
+
+// Clustering state
+const clusteringMode = ref('none');
+
+// Layout persistence
+const savingLayout = ref(false);
+const savedPositions = ref({});
+
 let network = null;
+let miniMapNetwork = null;
 
 const viewModes = computed(() => [
   { label: t('topology.logical'), value: 'logical' },
@@ -254,6 +368,17 @@ const viewModes = computed(() => [
 const siteOptions = computed(() => [
   { label: t('topology.allSites'), value: null },
   ...sites.value.map(s => ({ label: `${s.name} (${s.equipment_count})`, value: s.name }))
+]);
+
+const vlanOptions = computed(() => [
+  { label: t('topology.allVlans'), value: null },
+  ...availableVlans.value.map(v => ({ label: `VLAN ${v}`, value: v }))
+]);
+
+const clusteringOptions = computed(() => [
+  { label: t('topology.noGrouping'), value: 'none' },
+  { label: t('topology.groupBySite'), value: 'site' },
+  { label: t('topology.groupByRack'), value: 'rack' }
 ]);
 
 const speedOptions = [
@@ -269,6 +394,12 @@ const typeOptions = computed(() => [
   { label: t('topology.ethernet') + ' (' + t('topology.copper') + ')', value: 'ethernet' },
   { label: t('topology.fiber'), value: 'fiber' },
   { label: t('topology.sfp'), value: 'sfp' }
+]);
+
+const exportOptions = computed(() => [
+  { label: 'PNG', icon: 'pi pi-image', command: () => exportImage('png') },
+  { label: 'SVG', icon: 'pi pi-file', command: () => exportImage('svg') },
+  { label: 'JSON', icon: 'pi pi-file-export', command: () => exportJSON() }
 ]);
 
 // Format icon class - ensure it has 'pi ' prefix
@@ -319,7 +450,7 @@ const selectNodeById = (nodeId) => {
 // Filter display props
 const getDisplayProps = (data) => {
   if (!data) return {};
-  const displayKeys = ['status', 'type', 'site', 'room', 'rack', 'ip_address', 'manufacturer', 'model', 'ports_connected', 'ports_total'];
+  const displayKeys = ['status', 'type', 'site', 'room', 'rack', 'ip_address', 'manufacturer', 'model', 'ports_connected', 'ports_total', 'vlan'];
   const result = {};
   displayKeys.forEach(key => {
     if (data[key] != null && data[key] !== '') {
@@ -327,6 +458,12 @@ const getDisplayProps = (data) => {
     }
   });
   return result;
+};
+
+// Get online status based on equipment status
+const getOnlineStatus = (node) => {
+  if (!node?.data?.status) return true;
+  return !['retired', 'maintenance'].includes(node.data.status);
 };
 
 // SVG icon paths for vis-network nodes
@@ -346,9 +483,14 @@ const iconSvgPaths = {
 };
 
 // Create SVG data URL for an icon - improved with shadow and better visibility
-const createIconSvg = (iconClass, color) => {
+const createIconSvg = (iconClass, color, isOffline = false) => {
   const iconName = iconClass.replace(/^pi[- ]?/, '').replace('pi-', '');
   const path = iconSvgPaths[iconName] || iconSvgPaths['box'];
+
+  // Add pulsation animation for offline nodes
+  const pulseAnimation = isOffline ? `
+    <animate attributeName="opacity" values="1;0.5;1" dur="2s" repeatCount="indefinite"/>
+  ` : '';
 
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 56 56" width="56" height="56">
     <defs>
@@ -360,7 +502,9 @@ const createIconSvg = (iconClass, color) => {
         <stop offset="100%" style="stop-color:${adjustColor(color, -20)};stop-opacity:1"/>
       </linearGradient>
     </defs>
-    <circle cx="28" cy="28" r="24" fill="url(#grad)" stroke="white" stroke-width="2.5" filter="url(#shadow)"/>
+    <circle cx="28" cy="28" r="24" fill="url(#grad)" stroke="${isOffline ? '#ef4444' : 'white'}" stroke-width="${isOffline ? '3' : '2.5'}" filter="url(#shadow)">
+      ${pulseAnimation}
+    </circle>
     <g transform="translate(14, 14) scale(1.17)">
       <path d="${path}" fill="white" fill-opacity="0.95"/>
     </g>
@@ -382,20 +526,298 @@ const adjustColor = (color, amount) => {
   return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
 };
 
+// Search functionality
+const onSearchInput = () => {
+  if (searchQuery.value.length < 2) {
+    searchResults.value = [];
+    return;
+  }
+
+  const query = searchQuery.value.toLowerCase();
+  searchResults.value = nodes.value
+    .filter(n =>
+      n.label?.toLowerCase().includes(query) ||
+      n.data?.ip_address?.toLowerCase().includes(query) ||
+      n.data?.serial_number?.toLowerCase().includes(query) ||
+      n.data?.asset_tag?.toLowerCase().includes(query)
+    )
+    .slice(0, 10);
+};
+
+const focusOnNode = (node) => {
+  searchQuery.value = '';
+  searchResults.value = [];
+  selectedNode.value = node;
+  network?.selectNodes([node.id]);
+  network?.focus(node.id, { animation: { duration: 500 }, scale: 1.2 });
+};
+
+// Pathfinding functionality using BFS
+const togglePathfindingMode = () => {
+  pathfindingMode.value = !pathfindingMode.value;
+  if (!pathfindingMode.value) {
+    clearPath();
+  }
+};
+
+const startPathfindingFrom = (node) => {
+  pathfindingMode.value = true;
+  pathfindingSource.value = node;
+  pathfindingTarget.value = null;
+  highlightedPath.value = [];
+};
+
+const clearPath = () => {
+  pathfindingSource.value = null;
+  pathfindingTarget.value = null;
+  highlightedPath.value = [];
+  pathfindingMode.value = false;
+  // Re-render to clear highlights
+  if (network) {
+    renderNetwork();
+  }
+};
+
+/**
+ * Find shortest path between two nodes using BFS algorithm.
+ * Traverses the network via port connections.
+ * @param {string} startId - Starting node ID
+ * @param {string} endId - Target node ID
+ * @returns {string[]} Array of node IDs forming the path, empty if no path found
+ */
+const findShortestPath = (startId, endId) => {
+  if (startId === endId) return [startId];
+
+  // Build adjacency list from edges
+  const adjacencyList = new Map();
+  nodes.value.forEach(n => adjacencyList.set(n.id, []));
+
+  edges.value.forEach(edge => {
+    if (adjacencyList.has(edge.source) && adjacencyList.has(edge.target)) {
+      adjacencyList.get(edge.source).push(edge.target);
+      adjacencyList.get(edge.target).push(edge.source);
+    }
+  });
+
+  // BFS
+  const queue = [[startId]];
+  const visited = new Set([startId]);
+
+  while (queue.length > 0) {
+    const path = queue.shift();
+    const currentNode = path[path.length - 1];
+
+    const neighbors = adjacencyList.get(currentNode) || [];
+    for (const neighbor of neighbors) {
+      if (neighbor === endId) {
+        return [...path, neighbor];
+      }
+
+      if (!visited.has(neighbor)) {
+        visited.add(neighbor);
+        queue.push([...path, neighbor]);
+      }
+    }
+  }
+
+  return []; // No path found
+};
+
+const handlePathfindingClick = (nodeId) => {
+  const clickedNode = nodes.value.find(n => n.id === nodeId);
+  if (!clickedNode || clickedNode.type !== 'equipment') return;
+
+  if (!pathfindingSource.value) {
+    pathfindingSource.value = clickedNode;
+  } else {
+    pathfindingTarget.value = clickedNode;
+
+    // Calculate path
+    const path = findShortestPath(pathfindingSource.value.id, pathfindingTarget.value.id);
+
+    if (path.length > 0) {
+      highlightedPath.value = path;
+      toast.add({ severity: 'success', summary: t('topology.pathFound'), detail: t('topology.pathHops', { count: path.length - 1 }), life: 3000 });
+      // Re-render to show highlighted path
+      renderNetwork();
+    } else {
+      toast.add({ severity: 'warn', summary: t('topology.noPathFound'), life: 3000 });
+    }
+  }
+};
+
+// Layout persistence
+const saveLayout = async () => {
+  if (!network) return;
+
+  savingLayout.value = true;
+  try {
+    const positions = network.getPositions();
+    const layoutData = {};
+
+    nodes.value.forEach(node => {
+      if (node.type === 'equipment' && positions[node.id]) {
+        const equipmentId = node.data?.id;
+        if (equipmentId) {
+          layoutData[equipmentId] = {
+            x: Math.round(positions[node.id].x),
+            y: Math.round(positions[node.id].y)
+          };
+        }
+      }
+    });
+
+    await api.post('/topology/layout', { positions: layoutData });
+    savedPositions.value = layoutData;
+    toast.add({ severity: 'success', summary: t('topology.layoutSaved'), life: 3000 });
+  } catch (error) {
+    toast.add({ severity: 'error', summary: t('common.error'), detail: error.response?.data?.detail || error.message, life: 5000 });
+  } finally {
+    savingLayout.value = false;
+  }
+};
+
+const loadSavedLayout = async () => {
+  try {
+    const res = await api.get('/topology/layout');
+    savedPositions.value = res.data?.positions || {};
+  } catch {
+    savedPositions.value = {};
+  }
+};
+
+// Export functions
+const exportImage = (format) => {
+  const canvas = networkContainer.value?.querySelector('canvas');
+  if (!canvas) return;
+
+  const filename = `topology-${viewMode.value}-${new Date().toISOString().split('T')[0]}`;
+
+  if (format === 'png') {
+    const link = document.createElement('a');
+    link.download = `${filename}.png`;
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+  } else if (format === 'svg') {
+    // Generate SVG from canvas data
+    const svgData = generateSVG();
+    const blob = new Blob([svgData], { type: 'image/svg+xml' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.download = `${filename}.svg`;
+    link.href = url;
+    link.click();
+    URL.revokeObjectURL(url);
+  }
+};
+
+const generateSVG = () => {
+  if (!network) return '';
+
+  const positions = network.getPositions();
+  const scale = network.getScale();
+  const viewPosition = network.getViewPosition();
+
+  // Calculate bounds
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  Object.values(positions).forEach(pos => {
+    minX = Math.min(minX, pos.x);
+    maxX = Math.max(maxX, pos.x);
+    minY = Math.min(minY, pos.y);
+    maxY = Math.max(maxY, pos.y);
+  });
+
+  const padding = 100;
+  const width = maxX - minX + padding * 2;
+  const height = maxY - minY + padding * 2;
+
+  let svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${minX - padding} ${minY - padding} ${width} ${height}" width="${width}" height="${height}">`;
+  svg += `<rect x="${minX - padding}" y="${minY - padding}" width="${width}" height="${height}" fill="#0f172a"/>`;
+
+  // Draw edges
+  edges.value.forEach(edge => {
+    const fromPos = positions[edge.source];
+    const toPos = positions[edge.target];
+    if (fromPos && toPos) {
+      const isHighlighted = highlightedPath.value.includes(edge.source) && highlightedPath.value.includes(edge.target);
+      const strokeColor = isHighlighted ? '#22c55e' : (edge.color || '#64748b');
+      const strokeWidth = isHighlighted ? 4 : (edge.width || 2);
+      svg += `<line x1="${fromPos.x}" y1="${fromPos.y}" x2="${toPos.x}" y2="${toPos.y}" stroke="${strokeColor}" stroke-width="${strokeWidth}" ${edge.dashes ? 'stroke-dasharray="5,5"' : ''}/>`;
+    }
+  });
+
+  // Draw nodes
+  nodes.value.forEach(node => {
+    const pos = positions[node.id];
+    if (pos) {
+      svg += `<circle cx="${pos.x}" cy="${pos.y}" r="20" fill="${node.color || '#64748b'}"/>`;
+      svg += `<text x="${pos.x}" y="${pos.y + 35}" text-anchor="middle" fill="#f8fafc" font-size="12" font-family="Inter, sans-serif">${node.label}</text>`;
+    }
+  });
+
+  svg += '</svg>';
+  return svg;
+};
+
+const exportJSON = () => {
+  const data = {
+    viewMode: viewMode.value,
+    exportDate: new Date().toISOString(),
+    nodes: nodes.value.map(n => ({
+      id: n.id,
+      label: n.label,
+      type: n.type,
+      data: n.data,
+      position: network?.getPosition(n.id)
+    })),
+    edges: edges.value.map(e => ({
+      source: e.source,
+      target: e.target,
+      label: e.label,
+      data: e.data
+    })),
+    groups: groups.value
+  };
+
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.download = `topology-${viewMode.value}-${new Date().toISOString().split('T')[0]}.json`;
+  link.href = url;
+  link.click();
+  URL.revokeObjectURL(url);
+};
+
+// Check for loops (backend will also check, this is for UI warning)
+const checkForLoop = async (sourceId, targetId) => {
+  try {
+    const res = await api.post('/topology/check-loop', {
+      source_equipment_id: sourceId,
+      target_equipment_id: targetId
+    });
+    return res.data?.has_loop || false;
+  } catch {
+    return false;
+  }
+};
+
 const loadTopology = async () => {
   loading.value = true;
   selectedNode.value = null;
   linkMode.value = false;
   linkSource.value = null;
+  clearPath();
 
   try {
-    const [statsRes, sitesRes] = await Promise.all([
+    const [statsRes, sitesRes, layoutRes] = await Promise.all([
       api.get('/topology/stats'),
-      viewMode.value === 'physical' ? api.get('/topology/sites').catch(() => ({ data: [] })) : Promise.resolve({ data: [] })
+      viewMode.value === 'physical' ? api.get('/topology/sites').catch(() => ({ data: [] })) : Promise.resolve({ data: [] }),
+      viewMode.value === 'physical' ? api.get('/topology/layout').catch(() => ({ data: { positions: {} } })) : Promise.resolve({ data: { positions: {} } })
     ]);
 
     stats.value = statsRes.data;
     sites.value = sitesRes.data || [];
+    savedPositions.value = layoutRes.data?.positions || {};
 
     let endpoint = '/topology/logical';
     if (viewMode.value === 'physical') {
@@ -408,6 +830,15 @@ const loadTopology = async () => {
     nodes.value = res.data.nodes || [];
     edges.value = res.data.edges || [];
     groups.value = res.data.groups || [];
+
+    // Extract VLANs for filtering
+    if (viewMode.value === 'logical') {
+      const vlans = new Set();
+      nodes.value.forEach(n => {
+        if (n.data?.vlan) vlans.add(n.data.vlan);
+      });
+      availableVlans.value = Array.from(vlans).sort((a, b) => a - b);
+    }
 
     renderNetwork();
   } catch {
@@ -452,20 +883,39 @@ const renderNetwork = () => {
   const levelSpacing = 150; // Vertical spacing between levels
   const nodeSpacing = 200;  // Horizontal spacing between nodes
 
-  const visNodes = nodes.value.map((node) => {
+  // Filter nodes by VLAN if selected
+  let filteredNodes = nodes.value;
+  if (selectedVlan.value && viewMode.value === 'logical') {
+    filteredNodes = nodes.value.filter(n =>
+      n.type !== 'ip' || n.data?.vlan === selectedVlan.value
+    );
+  }
+
+  // Aggregate multiple links between same equipment (LACP visualization)
+  const aggregatedEdges = aggregateLinks(edges.value);
+
+  const visNodes = filteredNodes.map((node) => {
     const isEquipment = node.type === 'equipment';
     const level = getHierarchyLevel(node);
+    const isOffline = isEquipment && !getOnlineStatus(node);
+    const isInPath = highlightedPath.value.includes(node.id);
 
-    // Calculate fixed position for hierarchical layout
+    // Use saved position if available, otherwise calculate
     let x, y;
     if (isPhysical) {
-      const levelIndex = sortedLevels.indexOf(level);
-      const nodesInLevel = levelNodes[level];
-      const nodeIndex = nodesInLevel.indexOf(node);
-      const levelWidth = nodesInLevel.length * nodeSpacing;
+      const savedPos = savedPositions.value[node.data?.id];
+      if (savedPos) {
+        x = savedPos.x;
+        y = savedPos.y;
+      } else {
+        const levelIndex = sortedLevels.indexOf(level);
+        const nodesInLevel = levelNodes[level];
+        const nodeIndex = nodesInLevel.indexOf(node);
+        const levelWidth = nodesInLevel.length * nodeSpacing;
 
-      x = (nodeIndex * nodeSpacing) - (levelWidth / 2) + (nodeSpacing / 2);
-      y = levelIndex * levelSpacing;
+        x = (nodeIndex * nodeSpacing) - (levelWidth / 2) + (nodeSpacing / 2);
+        y = levelIndex * levelSpacing;
+      }
     }
 
     if (isEquipment) {
@@ -480,17 +930,20 @@ const renderNetwork = () => {
         y: isPhysical ? y : undefined,
         fixed: isPhysical ? { x: false, y: false } : undefined,
         shape: 'image',
-        image: createIconSvg(iconClass, node.color),
-        size: 30,
+        image: createIconSvg(iconClass, node.color, isOffline),
+        size: isInPath ? 35 : 30,
         font: {
-          color: labelColor,
+          color: isInPath ? '#22c55e' : labelColor,
           size: 13,
           face: 'Inter, system-ui, sans-serif',
           strokeWidth: 4,
           strokeColor: labelStrokeColor,
           vadjust: 10,
-          bold: true
+          bold: isInPath
         },
+        borderWidth: isInPath ? 3 : 0,
+        borderWidthSelected: 3,
+        color: isInPath ? { border: '#22c55e' } : undefined,
         _data: node
       };
     } else {
@@ -504,7 +957,7 @@ const renderNetwork = () => {
         y: isPhysical ? y : undefined,
         color: {
           background: node.color + '30',
-          border: node.color,
+          border: isInPath ? '#22c55e' : node.color,
           highlight: { background: node.color + '50', border: node.color },
           hover: { background: node.color + '40', border: node.color }
         },
@@ -514,7 +967,7 @@ const renderNetwork = () => {
           strokeWidth: 3,
           strokeColor: labelStrokeColor
         },
-        borderWidth: 2,
+        borderWidth: isInPath ? 3 : 2,
         shape: node.shape || 'dot',
         size: node.size || 18,
         _data: node
@@ -526,16 +979,27 @@ const renderNetwork = () => {
   const edgeColor = isDark ? '#475569' : '#94a3b8';
   const edgeHoverColor = isDark ? '#60a5fa' : '#3b82f6';
 
-  const visEdges = edges.value.map(edge => {
+  const visEdges = aggregatedEdges.map(edge => {
     const sourceNode = nodes.value.find(n => n.id === edge.source);
     const targetNode = nodes.value.find(n => n.id === edge.target);
     const tooltipText = sourceNode && targetNode
-      ? `${sourceNode.label} ↔ ${targetNode.label}${edge.label ? '\n' + edge.label : ''}\n${t('topology.clickToDelete')}`
+      ? `${sourceNode.label} ↔ ${targetNode.label}${edge.label ? '\n' + edge.label : ''}${edge.aggregated ? '\n' + t('topology.aggregatedLinks', { count: edge.linkCount }) : ''}\n${t('topology.clickToDelete')}`
       : '';
 
-    // Determine edge width based on speed
+    // Check if edge is part of highlighted path
+    const isInPath = highlightedPath.value.length > 1 &&
+      highlightedPath.value.some((nodeId, idx) => {
+        if (idx === highlightedPath.value.length - 1) return false;
+        const nextNodeId = highlightedPath.value[idx + 1];
+        return (edge.source === nodeId && edge.target === nextNodeId) ||
+               (edge.target === nodeId && edge.source === nextNodeId);
+      });
+
+    // Determine edge width based on speed and aggregation
     let width = 2;
-    if (edge.label) {
+    if (edge.aggregated) {
+      width = Math.min(8, 2 + edge.linkCount * 2); // Thicker for aggregated links
+    } else if (edge.label) {
       if (edge.label.includes('10G') || edge.label.includes('25G') || edge.label.includes('40G') || edge.label.includes('100G')) {
         width = 4;
       } else if (edge.label.includes('1G')) {
@@ -547,22 +1011,23 @@ const renderNetwork = () => {
       id: edge.id,
       from: edge.source,
       to: edge.target,
-      label: edge.label || '',
+      label: edge.aggregated ? `${edge.linkCount}x ${edge.label}` : (edge.label || ''),
       title: tooltipText,
       color: {
-        color: edge.color || edgeColor,
-        highlight: '#ef4444',
-        hover: edgeHoverColor,
+        color: isInPath ? '#22c55e' : (edge.color || edgeColor),
+        highlight: isInPath ? '#16a34a' : '#ef4444',
+        hover: isInPath ? '#22c55e' : edgeHoverColor,
         opacity: 0.9
       },
-      width: edge.width || width,
+      width: isInPath ? width + 2 : width,
       dashes: edge.dashes || false,
       hoverWidth: 1.5,
       selectionWidth: 2,
+      smooth: edge.aggregated ? { type: 'curvedCW', roundness: 0.2 } : undefined,
       chosen: {
         edge: (values) => {
           values.width = values.width * 1.5;
-          values.color = '#ef4444';
+          values.color = isInPath ? '#16a34a' : '#ef4444';
         }
       }
     };
@@ -690,7 +1155,9 @@ const renderNetwork = () => {
   network = new Network(networkContainer.value, { nodes: visNodes, edges: visEdges }, options);
 
   network.on('click', params => {
-    if (linkMode.value && params.nodes.length > 0) {
+    if (pathfindingMode.value && params.nodes.length > 0) {
+      handlePathfindingClick(params.nodes[0]);
+    } else if (linkMode.value && params.nodes.length > 0) {
       handleLinkModeClick(params.nodes[0]);
     } else if (params.nodes.length > 0) {
       const node = nodes.value.find(n => n.id === params.nodes[0]);
@@ -713,12 +1180,21 @@ const renderNetwork = () => {
 
   network.on('zoom', params => {
     zoomLevel.value = params.scale;
+    updateMiniMap();
   });
 
   network.on('doubleClick', params => {
     if (params.nodes.length > 0) {
       const node = nodes.value.find(n => n.id === params.nodes[0]);
       if (node?.type === 'equipment') goToEquipment(node.data?.id);
+    }
+  });
+
+  // Handle stabilization progress - disable physics at 90%
+  network.on('stabilizationProgress', (params) => {
+    const progress = Math.round((params.iterations / params.total) * 100);
+    if (progress >= 90) {
+      network.setOptions({ physics: { enabled: false } });
     }
   });
 
@@ -729,15 +1205,8 @@ const renderNetwork = () => {
     network.fit({ animation: { duration: 300, easingFunction: 'easeInOutQuad' } });
     setTimeout(() => {
       zoomLevel.value = network.getScale();
+      initMiniMap();
     }, 350);
-  });
-
-  // Show stabilization progress (optional visual feedback)
-  network.on('stabilizationProgress', (params) => {
-    const progress = Math.round((params.iterations / params.total) * 100);
-    if (progress % 25 === 0) {
-      console.debug(`Topology stabilization: ${progress}%`);
-    }
   });
 
   // Change cursor to pointer when hovering over edges
@@ -770,7 +1239,106 @@ const renderNetwork = () => {
   network.on('dragEnd', () => {
     setTimeout(() => {
       network.setOptions({ physics: { enabled: false } });
+      updateMiniMap();
     }, 500);
+  });
+
+  // Update mini-map on view changes
+  network.on('dragEnd', updateMiniMap);
+};
+
+// Aggregate multiple links between same equipment pairs (LACP visualization)
+const aggregateLinks = (edgeList) => {
+  const linkMap = new Map();
+
+  edgeList.forEach(edge => {
+    // Create a consistent key for the equipment pair
+    const key = [edge.source, edge.target].sort().join('-');
+
+    if (linkMap.has(key)) {
+      const existing = linkMap.get(key);
+      existing.linkCount++;
+      existing.aggregated = true;
+      // Keep the highest speed label
+      if (compareSpeed(edge.label, existing.label) > 0) {
+        existing.label = edge.label;
+      }
+    } else {
+      linkMap.set(key, {
+        ...edge,
+        linkCount: 1,
+        aggregated: false
+      });
+    }
+  });
+
+  return Array.from(linkMap.values());
+};
+
+// Compare speed labels (return positive if a > b)
+const compareSpeed = (a, b) => {
+  const speedOrder = { '100M': 1, '1G': 2, '10G': 3, '25G': 4, '40G': 5, '100G': 6 };
+  return (speedOrder[a] || 0) - (speedOrder[b] || 0);
+};
+
+// Mini-map functions
+const initMiniMap = () => {
+  if (!showMiniMap.value || !miniMapCanvas.value || !network) return;
+
+  nextTick(() => {
+    if (miniMapNetwork) miniMapNetwork.destroy();
+
+    const miniNodes = nodes.value.map(n => ({
+      id: n.id,
+      color: n.color,
+      size: 5,
+      shape: 'dot'
+    }));
+
+    const miniEdges = edges.value.map(e => ({
+      from: e.source,
+      to: e.target,
+      color: { color: '#475569', opacity: 0.5 },
+      width: 1
+    }));
+
+    miniMapNetwork = new Network(miniMapCanvas.value,
+      { nodes: miniNodes, edges: miniEdges },
+      {
+        interaction: { dragNodes: false, dragView: false, zoomView: false },
+        physics: { enabled: false },
+        nodes: { borderWidth: 0 },
+        edges: { smooth: false }
+      }
+    );
+
+    // Copy positions from main network
+    const positions = network.getPositions();
+    Object.entries(positions).forEach(([id, pos]) => {
+      miniMapNetwork.moveNode(id, pos.x, pos.y);
+    });
+
+    miniMapNetwork.fit();
+
+    // Click on mini-map to navigate
+    miniMapNetwork.on('click', params => {
+      if (params.nodes.length > 0) {
+        network.focus(params.nodes[0], { animation: true, scale: 1 });
+      }
+    });
+  });
+};
+
+const updateMiniMap = () => {
+  if (!showMiniMap.value || !miniMapNetwork || !network) return;
+
+  const positions = network.getPositions();
+  Object.entries(positions).forEach(([id, pos]) => {
+    try {
+      miniMapNetwork.moveNode(id, pos.x, pos.y);
+    } catch {
+      // Node might not exist in mini-map
+    }
   });
 };
 
@@ -788,7 +1356,7 @@ const startLinkFrom = (node) => {
   linkSource.value = node;
 };
 
-const handleLinkModeClick = (nodeId) => {
+const handleLinkModeClick = async (nodeId) => {
   const clickedNode = nodes.value.find(n => n.id === nodeId);
   if (!clickedNode || clickedNode.type !== 'equipment') return;
 
@@ -806,6 +1374,10 @@ const handleLinkModeClick = (nodeId) => {
       return;
     }
 
+    // Check for potential loop
+    const hasLoop = await checkForLoop(linkSource.value.data.id, clickedNode.data.id);
+    loopWarning.value = hasLoop;
+
     createLinkData.value = { source: linkSource.value, target: clickedNode };
     showCreateLinkDialog.value = true;
   }
@@ -816,6 +1388,7 @@ const cancelCreateLink = () => {
   createLinkData.value = null;
   linkMode.value = false;
   linkSource.value = null;
+  loopWarning.value = false;
 };
 
 const createLink = async () => {
@@ -837,6 +1410,7 @@ const createLink = async () => {
     linkSource.value = null;
     newLinkSpeed.value = '1G';
     newLinkType.value = 'ethernet';
+    loopWarning.value = false;
 
     await loadTopology();
   } catch (error) {
@@ -918,21 +1492,16 @@ const goToEquipment = (id) => {
   if (eqId) router.push({ path: '/inventory', query: { equipment: eqId } });
 };
 
-const exportImage = () => {
-  const canvas = networkContainer.value?.querySelector('canvas');
-  if (canvas) {
-    const link = document.createElement('a');
-    link.download = `topology-${viewMode.value}-${new Date().toISOString().split('T')[0]}.png`;
-    link.href = canvas.toDataURL('image/png');
-    link.click();
-  }
-};
-
-watch(viewMode, () => { selectedSite.value = null; loadTopology(); });
+watch(viewMode, () => { selectedSite.value = null; selectedVlan.value = null; loadTopology(); });
 watch(selectedSite, loadTopology);
+watch(selectedVlan, () => { if (viewMode.value === 'logical') renderNetwork(); });
+watch(showMiniMap, (val) => { if (val) nextTick(initMiniMap); });
 
 onMounted(loadTopology);
-onUnmounted(() => network?.destroy());
+onUnmounted(() => {
+  network?.destroy();
+  miniMapNetwork?.destroy();
+});
 </script>
 
 <style scoped>
@@ -949,6 +1518,11 @@ onUnmounted(() => network?.destroy());
 .graph-container.link-mode-active {
   box-shadow: inset 0 0 0 2px var(--primary-color), 0 0 20px rgba(14, 165, 233, 0.15);
   border-color: var(--primary-color);
+}
+
+.graph-container.pathfinding-mode-active {
+  box-shadow: inset 0 0 0 2px #f59e0b, 0 0 20px rgba(245, 158, 11, 0.15);
+  border-color: #f59e0b;
 }
 
 .network-canvas {
@@ -982,6 +1556,101 @@ onUnmounted(() => network?.destroy());
   color: white;
   border-radius: var(--radius-md);
   font-size: 0.8125rem;
+}
+
+.pathfinding-mode-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.625rem 1rem;
+  background: #f59e0b;
+  color: white;
+  border-radius: var(--radius-md);
+  font-size: 0.8125rem;
+}
+
+/* Search */
+.search-container {
+  position: relative;
+}
+
+.search-input {
+  width: 200px;
+  padding-left: 2.25rem;
+}
+
+.search-results {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  z-index: 100;
+  max-height: 300px;
+  overflow-y: auto;
+  margin-top: 4px;
+}
+
+.search-result-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  cursor: pointer;
+  font-size: 0.8125rem;
+  transition: background 0.15s;
+}
+
+.search-result-item:hover {
+  background: var(--bg-hover);
+}
+
+.search-result-item .result-type {
+  margin-left: auto;
+  color: var(--text-muted);
+  font-size: 0.6875rem;
+}
+
+/* Mini-map */
+.mini-map {
+  position: absolute;
+  bottom: 1rem;
+  right: 1rem;
+  width: 200px;
+  height: 150px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  z-index: 10;
+  overflow: hidden;
+}
+
+.mini-map-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.25rem 0.5rem;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-color);
+  font-size: 0.6875rem;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+.mini-map-canvas {
+  width: 100%;
+  height: calc(100% - 24px);
+}
+
+.mini-map-toggle {
+  position: absolute;
+  bottom: 1rem;
+  right: 1rem;
+  z-index: 5;
 }
 
 .zoom-controls {
@@ -1076,6 +1745,27 @@ onUnmounted(() => network?.destroy());
   border-radius: 2px;
 }
 
+.legend-status {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.legend-status.online {
+  background: #22c55e;
+}
+
+.legend-status.offline {
+  background: #ef4444;
+  animation: pulse 2s infinite;
+}
+
+.legend-status.aggregated {
+  background: linear-gradient(45deg, #3b82f6, #8b5cf6);
+  width: 16px;
+  border-radius: 2px;
+}
+
 .legend-divider {
   height: 1px;
   background: var(--border-color);
@@ -1105,6 +1795,11 @@ onUnmounted(() => network?.destroy());
   color: var(--text-secondary);
   z-index: 5;
   box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+}
+
+.path-info {
+  color: #22c55e;
+  font-weight: 500;
 }
 
 .details-panel {
@@ -1172,6 +1867,31 @@ onUnmounted(() => network?.destroy());
 .node-name { font-weight: 600; font-size: 0.875rem; color: var(--text-main); }
 .node-type { font-size: 0.6875rem; color: var(--text-muted); }
 
+.status-badge {
+  margin-left: auto;
+  font-size: 0.625rem;
+  font-weight: 500;
+  padding: 0.25rem 0.5rem;
+  border-radius: var(--radius-sm);
+  text-transform: uppercase;
+}
+
+.status-badge.online {
+  background: rgba(34, 197, 94, 0.15);
+  color: #22c55e;
+}
+
+.status-badge.offline {
+  background: rgba(239, 68, 68, 0.15);
+  color: #ef4444;
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
 .node-props { display: flex; flex-direction: column; gap: 0.375rem; }
 
 .prop-row {
@@ -1223,6 +1943,7 @@ onUnmounted(() => network?.destroy());
   gap: 0.5rem;
   padding-top: 0.625rem;
   border-top: 1px solid var(--border-color);
+  flex-wrap: wrap;
 }
 
 .no-selection {
