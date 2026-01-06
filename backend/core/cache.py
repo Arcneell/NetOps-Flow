@@ -148,6 +148,16 @@ def invalidate_ticket_cache():
     cache_delete_pattern("tickets:*")
 
 
+def invalidate_inventory_cache():
+    """Invalidate all inventory-related caches."""
+    cache_delete_pattern("inventory:*")
+
+
+def invalidate_equipment_cache():
+    """Invalidate equipment cache (subset of inventory)."""
+    cache_delete_pattern("inventory:equipment*")
+
+
 # Cache key builders
 def build_cache_key(prefix: str, *args, **kwargs) -> str:
     """

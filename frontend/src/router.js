@@ -1,25 +1,30 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import Dashboard from './views/Dashboard.vue'
-import Ipam from './views/Ipam.vue'
-import ScriptRunner from './views/ScriptRunner.vue'
-import Topology from './views/Topology.vue'
-import Login from './views/Login.vue'
-import Settings from './views/Settings.vue'
-import UserManagement from './views/UserManagement.vue'
-import Unauthorized from './views/Unauthorized.vue'
-import Inventory from './views/Inventory.vue'
-import Dcim from './views/Dcim.vue'
-import Contracts from './views/Contracts.vue'
-import Software from './views/Software.vue'
-import Tickets from './views/Tickets.vue'
-import Knowledge from './views/Knowledge.vue'
-import Administration from './views/Administration.vue'
 import {
   getCurrentUser,
   hasRole,
   hasPermission,
   isSuperadmin
 } from './utils/permissions'
+
+// Eagerly loaded routes (critical path for initial page load)
+import Login from './views/Login.vue'
+import Dashboard from './views/Dashboard.vue'
+import Unauthorized from './views/Unauthorized.vue'
+
+// Lazily loaded routes (code splitting for performance)
+// These routes will be loaded on-demand when the user navigates to them
+const Ipam = () => import(/* webpackChunkName: "ipam" */ './views/Ipam.vue')
+const ScriptRunner = () => import(/* webpackChunkName: "scripts" */ './views/ScriptRunner.vue')
+const Topology = () => import(/* webpackChunkName: "topology" */ './views/Topology.vue')
+const Settings = () => import(/* webpackChunkName: "settings" */ './views/Settings.vue')
+const UserManagement = () => import(/* webpackChunkName: "users" */ './views/UserManagement.vue')
+const Inventory = () => import(/* webpackChunkName: "inventory" */ './views/Inventory.vue')
+const Dcim = () => import(/* webpackChunkName: "dcim" */ './views/Dcim.vue')
+const Contracts = () => import(/* webpackChunkName: "contracts" */ './views/Contracts.vue')
+const Software = () => import(/* webpackChunkName: "software" */ './views/Software.vue')
+const Tickets = () => import(/* webpackChunkName: "tickets" */ './views/Tickets.vue')
+const Knowledge = () => import(/* webpackChunkName: "knowledge" */ './views/Knowledge.vue')
+const Administration = () => import(/* webpackChunkName: "admin" */ './views/Administration.vue')
 
 const routes = [
   // Public routes

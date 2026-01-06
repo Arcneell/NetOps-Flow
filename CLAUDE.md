@@ -35,11 +35,11 @@ Plateforme de gestion IT complète (ITSM/ITAM) auto-hébergée, entièrement gé
 frontend/          # Vue.js 3 SPA
 ├── src/
 │   ├── components/shared/   # Composants réutilisables (StatusTag, NotificationBell)
-│   ├── stores/              # Pinia stores (auth, ui, dcim, contracts, software, networkPorts, attachments, tickets, notifications)
+│   ├── stores/              # Pinia stores (auth, ui, dcim, contracts, software, networkPorts, attachments, tickets, notifications, inventory)
 │   ├── views/               # Pages principales (Tickets.vue, Knowledge.vue, Administration.vue)
 │   ├── i18n/                # Traductions EN/FR
 │   ├── api.js               # Client Axios
-│   ├── router.js            # Routes avec guards de permissions (role hierarchy + granular permissions)
+│   ├── router.js            # Routes avec guards de permissions (lazy loading, code splitting)
 │   └── style.css            # Design System Modern Slate (Anthracite, Zinc, Bleu électrique)
 
 backend/           # FastAPI API
@@ -49,8 +49,8 @@ backend/           # FastAPI API
 │   ├── security.py         # JWT, bcrypt, Fernet encryption, TOTP (pyotp), refresh tokens, password strength validation (regex)
 │   ├── rate_limiter.py     # Rate limiting Redis (login, MFA, settings)
 │   ├── logging.py          # Logging structuré JSON/Text
-│   ├── cache.py            # Cache Redis pour dashboard/topology/tickets (TTL 2-5min)
-│   ├── middleware.py       # Audit middleware (log auto POST/PUT/DELETE, enhanced metadata for critical ops)
+│   ├── cache.py            # Cache Redis pour dashboard/topology/tickets/inventory (TTL 2-5min, invalidation intelligente)
+│   ├── middleware.py       # Audit middleware (log auto POST/PUT/DELETE, optimisé avec JWT claims)
 │   └── sla.py              # Calcul SLA avec heures ouvrées (BusinessHoursCalculator)
 ├── routers/
 │   ├── auth.py             # POST /token, GET /me, MFA, refresh tokens (/refresh, /logout, /logout-all)
@@ -58,7 +58,7 @@ backend/           # FastAPI API
 │   ├── ipam.py             # Subnets, IPs, scan nmap (paginé)
 │   ├── topology.py         # Données visualisation réseau + topologie physique (caché)
 │   ├── scripts.py          # Upload (validation MIME), exécution scripts (sandbox Docker obligatoire)
-│   ├── inventory.py        # Équipements, fabricants, fournisseurs (auto-encryption passwords)
+│   ├── inventory.py        # Équipements, fabricants, fournisseurs (joinedload optimisé, cache Redis, auto-encryption)
 │   ├── dashboard.py        # Statistiques (caché Redis)
 │   ├── dcim.py             # Gestion Racks et PDUs (optimisé avec joinedload)
 │   ├── contracts.py        # Contrats de maintenance/assurance (paginé)
@@ -66,7 +66,7 @@ backend/           # FastAPI API
 │   ├── network_ports.py    # Ports réseau et connexions physiques
 │   ├── attachments.py      # Pièces jointes (documents)
 │   ├── entities.py         # Entités multi-tenant
-│   ├── tickets.py          # Système de tickets helpdesk (ITIL workflow, SLA business hours, auto ticket_number via hook)
+│   ├── tickets.py          # Système de tickets helpdesk (ITIL workflow, SLA business hours, ticket_number atomique via advisory lock)
 │   ├── notifications.py    # Notifications in-app (polling, mark read, broadcast)
 │   ├── knowledge.py        # Base de connaissances (articles, catégories, feedback)
 │   ├── export.py           # Export CSV (équipements, tickets, contrats, logiciels, IPs, audit)
@@ -228,6 +228,27 @@ frontend/src/utils/
 - Mode maintenance : activation, message personnalisé, rétention audit logs
 - **Backups PostgreSQL** : Sauvegarde automatique via Celery (pg_dump, compression gzip optionnelle)
 - **Nettoyage backups** : Suppression automatique des anciens backups (rétention configurable)
+
+## Optimisations de Performance
+
+### Backend
+- **N+1 Queries Prevention** : Utilisation systématique de `joinedload()` et `selectinload()` dans tous les routers (inventory, dcim, topology, tickets)
+- **Cache Redis** : TTL 2-5 minutes pour dashboard, topology, tickets stats, et inventory avec invalidation intelligente lors des mutations
+- **Audit Middleware Optimisé** : Extraction des infos utilisateur depuis JWT claims (user_id, role) sans requête DB supplémentaire
+- **Ticket Number Generation** : Utilisation de `pg_advisory_xact_lock` pour garantir l'atomicité sous forte charge
+- **Index de Performance** :
+  - Index basiques : `ix_ip_addresses_hostname`, `ix_ip_addresses_status`, `ix_ip_addresses_subnet_id`
+  - Index GIN sur colonnes JSON : `permissions`, `specs`, `tags`, `events`, `changes`, `extra_data`
+  - Index partiels : équipements actifs, notifications non-lues, tickets ouverts
+  - Index composites pour requêtes fréquentes
+
+### Frontend
+- **Lazy Loading Routes** : Code splitting avec `import()` dynamique pour toutes les routes sauf Login/Dashboard/Unauthorized
+- **Pinia Stores avec Cache Local** : TTL 2 minutes côté client, debounce des appels, mises à jour optimistes
+- **Invalidation Intelligente** : Cache invalidé automatiquement lors des mutations (create, update, delete)
+
+### Fichier de Migration
+- `backend/migrations/001_performance_indexes.sql` : Script SQL à exécuter pour ajouter tous les index de performance
 
 ## Sécurité
 

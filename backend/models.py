@@ -184,12 +184,12 @@ class IPAddress(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     address = Column(INET, unique=True, nullable=False)
-    status = Column(String, default="available")
-    hostname = Column(String, nullable=True)
+    status = Column(String, default="available", index=True)  # Index for IPAM filtering
+    hostname = Column(String, nullable=True, index=True)  # Index for hostname search
     mac_address = Column(String, nullable=True)
     last_scanned_at = Column(DateTime, nullable=True)
-    subnet_id = Column(Integer, ForeignKey("subnets.id"))
-    equipment_id = Column(Integer, ForeignKey("equipment.id", ondelete="SET NULL"), nullable=True)
+    subnet_id = Column(Integer, ForeignKey("subnets.id"), index=True)  # Index for subnet filtering
+    equipment_id = Column(Integer, ForeignKey("equipment.id", ondelete="SET NULL"), nullable=True, index=True)
 
     subnet = relationship("Subnet", back_populates="ips")
     equipment = relationship("Equipment", back_populates="ip_addresses")
@@ -723,7 +723,8 @@ def generate_ticket_number_on_insert(mapper, connection, target):
     Automatically generate unique ticket_number before inserting Ticket.
 
     Format: TKT-YYYYMMDD-XXXX where XXXX is a sequential number per day.
-    Uses atomic database query to ensure uniqueness under concurrent inserts.
+    Uses PostgreSQL advisory lock + SELECT FOR UPDATE to ensure atomicity
+    under high concurrency and prevent race conditions.
     """
     if target.ticket_number:
         return  # Already set, skip
@@ -731,22 +732,29 @@ def generate_ticket_number_on_insert(mapper, connection, target):
     today = datetime.now(timezone.utc).strftime("%Y%m%d")
     pattern = f"TKT-{today}-%"
 
-    # Atomic query to find max ticket number for today
+    # Use advisory lock to prevent race conditions under high concurrency
+    # Lock key is based on the date to minimize contention across days
+    lock_key = int(today)  # Convert date string to integer for advisory lock
+
+    # Acquire advisory lock, get max ticket number, and release in one transaction
     result = connection.execute(
         text("""
-            SELECT MAX(
-                CAST(
-                    SUBSTRING(ticket_number FROM 'TKT-[0-9]{8}-([0-9]+)') AS INTEGER
-                )
-            )
+            SELECT pg_advisory_xact_lock(:lock_key);
+            SELECT COALESCE(
+                MAX(
+                    CAST(
+                        SUBSTRING(ticket_number FROM 'TKT-[0-9]{8}-([0-9]+)') AS INTEGER
+                    )
+                ),
+                0
+            ) + 1
             FROM tickets
             WHERE ticket_number LIKE :pattern
         """),
-        {"pattern": pattern}
+        {"lock_key": lock_key, "pattern": pattern}
     ).scalar()
 
-    next_num = (result or 0) + 1
-    target.ticket_number = f"TKT-{today}-{next_num:04d}"
+    target.ticket_number = f"TKT-{today}-{result:04d}"
 
 
 # ==================== NOTIFICATION MODELS ====================

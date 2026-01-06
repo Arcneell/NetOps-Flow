@@ -1,5 +1,6 @@
 """
 Inventory Router - Equipment management.
+Includes Redis caching for list endpoints with smart invalidation.
 """
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import Response
@@ -18,12 +19,22 @@ from backend.core.security import (
     has_permission,
 )
 from backend.core.config import get_settings
+from backend.core.cache import (
+    cache_get,
+    cache_set,
+    build_cache_key,
+    invalidate_equipment_cache,
+    invalidate_topology_cache,
+)
 from backend import models, schemas
 
 settings = get_settings()
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/inventory", tags=["Inventory"])
+
+# Cache TTL in seconds (2 minutes for equipment list)
+EQUIPMENT_CACHE_TTL = 120
 
 
 def check_inventory_permission(current_user: models.User):
@@ -444,8 +455,23 @@ def list_equipment(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_active_user)
 ):
+    """
+    List equipment with optimized eager loading to prevent N+1 queries.
+    Uses joinedload for all relationships used in EquipmentFull schema.
+    """
+    from sqlalchemy.orm import joinedload
+
     check_inventory_permission(current_user)
-    query = db.query(models.Equipment)
+
+    # Eager load all relationships to prevent N+1 queries
+    query = db.query(models.Equipment).options(
+        joinedload(models.Equipment.model).joinedload(models.EquipmentModel.manufacturer),
+        joinedload(models.Equipment.model).joinedload(models.EquipmentModel.equipment_type),
+        joinedload(models.Equipment.location),
+        joinedload(models.Equipment.supplier),
+        joinedload(models.Equipment.rack),
+        joinedload(models.Equipment.ip_addresses)
+    )
 
     # Apply entity filter for multi-tenant isolation
     entity_filter = get_user_entity_filter(current_user)
@@ -455,8 +481,13 @@ def list_equipment(
     if status:
         query = query.filter(models.Equipment.status == status)
     if type_id:
-        query = query.join(models.EquipmentModel).filter(
-            models.EquipmentModel.equipment_type_id == type_id
+        # Use subquery to avoid cartesian product with joinedload
+        query = query.filter(
+            models.Equipment.model_id.in_(
+                db.query(models.EquipmentModel.id).filter(
+                    models.EquipmentModel.equipment_type_id == type_id
+                )
+            )
         )
     if location_id:
         query = query.filter(models.Equipment.location_id == location_id)
@@ -470,12 +501,22 @@ def list_executable_equipment(
     current_user: models.User = Depends(get_current_active_user)
 ):
     """Get equipment configured for remote execution (inventory permission required)."""
+    from sqlalchemy.orm import joinedload, contains_eager
+
     check_inventory_permission(current_user)
 
+    # Use contains_eager for filtered joins, joinedload for other relations
     query = db.query(models.Equipment).join(
         models.EquipmentModel
     ).join(
         models.EquipmentType
+    ).options(
+        contains_eager(models.Equipment.model).contains_eager(models.EquipmentModel.manufacturer),
+        contains_eager(models.Equipment.model).contains_eager(models.EquipmentModel.equipment_type),
+        joinedload(models.Equipment.location),
+        joinedload(models.Equipment.supplier),
+        joinedload(models.Equipment.rack),
+        joinedload(models.Equipment.ip_addresses)
     ).filter(
         models.EquipmentType.supports_remote_execution == True,
         models.Equipment.remote_ip != None,
@@ -496,8 +537,18 @@ def get_equipment(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_active_user)
 ):
+    """Get single equipment with all relationships eagerly loaded."""
+    from sqlalchemy.orm import joinedload
+
     check_inventory_permission(current_user)
-    equipment = db.query(models.Equipment).filter(
+    equipment = db.query(models.Equipment).options(
+        joinedload(models.Equipment.model).joinedload(models.EquipmentModel.manufacturer),
+        joinedload(models.Equipment.model).joinedload(models.EquipmentModel.equipment_type),
+        joinedload(models.Equipment.location),
+        joinedload(models.Equipment.supplier),
+        joinedload(models.Equipment.rack),
+        joinedload(models.Equipment.ip_addresses)
+    ).filter(
         models.Equipment.id == equipment_id
     ).first()
     if not equipment:
@@ -552,6 +603,10 @@ def create_equipment(
     db.commit()
     db.refresh(db_equipment)
 
+    # Invalidate caches (equipment affects inventory and topology)
+    invalidate_equipment_cache()
+    invalidate_topology_cache()
+
     logger.info(f"Equipment '{equipment.name}' created by '{current_user.username}'")
     return db_equipment
 
@@ -584,6 +639,10 @@ def update_equipment(
     db.commit()
     db.refresh(db_equipment)
 
+    # Invalidate caches (equipment affects inventory and topology)
+    invalidate_equipment_cache()
+    invalidate_topology_cache()
+
     logger.info(f"Equipment '{db_equipment.name}' updated by '{current_user.username}'")
     return db_equipment
 
@@ -608,6 +667,10 @@ def delete_equipment(
 
     db.delete(db_equipment)
     db.commit()
+
+    # Invalidate caches (equipment affects inventory and topology)
+    invalidate_equipment_cache()
+    invalidate_topology_cache()
 
     logger.info(f"Equipment '{db_equipment.name}' deleted by '{current_user.username}'")
     return {"ok": True}

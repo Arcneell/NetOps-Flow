@@ -113,7 +113,12 @@ async def login_for_access_token(
         }
 
     # No MFA - generate tokens directly
-    access_token = create_access_token(data={"sub": user.username})
+    # Include user_id and role in JWT for audit middleware optimization (avoids DB lookup)
+    access_token = create_access_token(data={
+        "sub": user.username,
+        "user_id": user.id,
+        "role": user.role
+    })
     refresh_token = generate_refresh_token()
     user_agent = request.headers.get("User-Agent", "Unknown")
 
@@ -387,7 +392,12 @@ async def verify_mfa(
         )
 
     # MFA successful - generate tokens
-    access_token = create_access_token(data={"sub": user.username})
+    # Include user_id and role in JWT for audit middleware optimization (avoids DB lookup)
+    access_token = create_access_token(data={
+        "sub": user.username,
+        "user_id": user.id,
+        "role": user.role
+    })
     refresh_token = generate_refresh_token()
     user_agent = request.headers.get("User-Agent", "Unknown")
 
@@ -587,7 +597,12 @@ async def refresh_access_token(
     revoke_refresh_token(db, token_request.refresh_token)
 
     # Generate new tokens
-    access_token = create_access_token(data={"sub": user.username})
+    # Include user_id and role in JWT for audit middleware optimization (avoids DB lookup)
+    access_token = create_access_token(data={
+        "sub": user.username,
+        "user_id": user.id,
+        "role": user.role
+    })
     new_refresh_token = generate_refresh_token()
     user_agent = request.headers.get("User-Agent", "Unknown")
 

@@ -190,6 +190,8 @@ class AuditLoggingMiddleware(BaseHTTPMiddleware):
                     break
 
             # Get username from JWT token if available
+            # Optimized: Extract user info directly from JWT claims without DB lookup
+            # The token already contains user_id and role from authentication
             username = None
             user_id = None
             user_role = None
@@ -207,19 +209,9 @@ class AuditLoggingMiddleware(BaseHTTPMiddleware):
                         algorithms=[settings.jwt_algorithm]
                     )
                     username = payload.get("sub")
-
-                    # Look up user ID and role
-                    if username:
-                        db = SessionLocal()
-                        try:
-                            user = db.query(models.User).filter(
-                                models.User.username == username
-                            ).first()
-                            if user:
-                                user_id = user.id
-                                user_role = user.role
-                        finally:
-                            db.close()
+                    # Get user_id and role from JWT claims (added during token creation)
+                    user_id = payload.get("user_id")
+                    user_role = payload.get("role")
                 except Exception:
                     pass  # Token invalid or expired, log without user info
 
