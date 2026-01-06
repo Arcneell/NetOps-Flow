@@ -345,19 +345,41 @@ const iconSvgPaths = {
   'cog': 'M19.14 12.94c.04-.31.06-.63.06-.94 0-.31-.02-.63-.06-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z'
 };
 
-// Create SVG data URL for an icon
+// Create SVG data URL for an icon - improved with shadow and better visibility
 const createIconSvg = (iconClass, color) => {
   const iconName = iconClass.replace(/^pi[- ]?/, '').replace('pi-', '');
   const path = iconSvgPaths[iconName] || iconSvgPaths['box'];
 
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="48" height="48">
-    <circle cx="12" cy="12" r="11" fill="${color}" stroke="white" stroke-width="1.5"/>
-    <g transform="translate(5, 5) scale(0.58)">
-      <path d="${path}" fill="white"/>
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 56 56" width="56" height="56">
+    <defs>
+      <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+        <feDropShadow dx="0" dy="2" stdDeviation="2" flood-opacity="0.3"/>
+      </filter>
+      <linearGradient id="grad" x1="0%" y1="0%" x2="0%" y2="100%">
+        <stop offset="0%" style="stop-color:${color};stop-opacity:1"/>
+        <stop offset="100%" style="stop-color:${adjustColor(color, -20)};stop-opacity:1"/>
+      </linearGradient>
+    </defs>
+    <circle cx="28" cy="28" r="24" fill="url(#grad)" stroke="white" stroke-width="2.5" filter="url(#shadow)"/>
+    <g transform="translate(14, 14) scale(1.17)">
+      <path d="${path}" fill="white" fill-opacity="0.95"/>
     </g>
   </svg>`;
 
   return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+};
+
+// Helper function to darken/lighten a color
+const adjustColor = (color, amount) => {
+  const clamp = (val) => Math.min(255, Math.max(0, val));
+  let hex = color.replace('#', '');
+  if (hex.length === 3) {
+    hex = hex.split('').map(c => c + c).join('');
+  }
+  const r = clamp(parseInt(hex.slice(0, 2), 16) + amount);
+  const g = clamp(parseInt(hex.slice(2, 4), 16) + amount);
+  const b = clamp(parseInt(hex.slice(4, 6), 16) + amount);
+  return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
 };
 
 const loadTopology = async () => {
@@ -410,18 +432,41 @@ const getHierarchyLevel = (node) => {
 const renderNetwork = () => {
   if (!networkContainer.value || nodes.value.length === 0) return;
 
-  const style = getComputedStyle(document.documentElement);
-  const textColor = style.getPropertyValue('--text-main')?.trim() || '#1f2937';
-  const bgColor = style.getPropertyValue('--bg-card')?.trim() || '#ffffff';
-
   // Detect dark mode for proper text styling
   const isDark = document.documentElement.classList.contains('dark');
   const labelColor = isDark ? '#f1f5f9' : '#1e293b';
   const labelStrokeColor = isDark ? '#0f172a' : '#ffffff';
 
+  // For physical topology, use hierarchical layout
+  const isPhysical = viewMode.value === 'physical' || viewMode.value === 'combined';
+
+  // Pre-calculate positions for hierarchical layout to avoid slow physics
+  const levelNodes = {};
+  nodes.value.forEach(node => {
+    const level = getHierarchyLevel(node);
+    if (!levelNodes[level]) levelNodes[level] = [];
+    levelNodes[level].push(node);
+  });
+
+  const sortedLevels = Object.keys(levelNodes).map(Number).sort((a, b) => a - b);
+  const levelSpacing = 150; // Vertical spacing between levels
+  const nodeSpacing = 200;  // Horizontal spacing between nodes
+
   const visNodes = nodes.value.map((node) => {
     const isEquipment = node.type === 'equipment';
     const level = getHierarchyLevel(node);
+
+    // Calculate fixed position for hierarchical layout
+    let x, y;
+    if (isPhysical) {
+      const levelIndex = sortedLevels.indexOf(level);
+      const nodesInLevel = levelNodes[level];
+      const nodeIndex = nodesInLevel.indexOf(node);
+      const levelWidth = nodesInLevel.length * nodeSpacing;
+
+      x = (nodeIndex * nodeSpacing) - (levelWidth / 2) + (nodeSpacing / 2);
+      y = levelIndex * levelSpacing;
+    }
 
     if (isEquipment) {
       const iconClass = node.icon || 'pi-box';
@@ -431,16 +476,20 @@ const renderNetwork = () => {
         title: createTooltip(node),
         group: node.group,
         level: level,
+        x: isPhysical ? x : undefined,
+        y: isPhysical ? y : undefined,
+        fixed: isPhysical ? { x: false, y: false } : undefined,
         shape: 'image',
         image: createIconSvg(iconClass, node.color),
-        size: 28,
+        size: 30,
         font: {
           color: labelColor,
-          size: 12,
+          size: 13,
           face: 'Inter, system-ui, sans-serif',
-          strokeWidth: 3,
+          strokeWidth: 4,
           strokeColor: labelStrokeColor,
-          vadjust: 8
+          vadjust: 10,
+          bold: true
         },
         _data: node
       };
@@ -451,6 +500,8 @@ const renderNetwork = () => {
         title: createTooltip(node),
         group: node.group,
         level: level,
+        x: isPhysical ? x : undefined,
+        y: isPhysical ? y : undefined,
         color: {
           background: node.color + '30',
           border: node.color,
@@ -459,20 +510,20 @@ const renderNetwork = () => {
         },
         font: {
           color: labelColor,
-          size: 11,
-          strokeWidth: 2,
+          size: 12,
+          strokeWidth: 3,
           strokeColor: labelStrokeColor
         },
         borderWidth: 2,
         shape: node.shape || 'dot',
-        size: node.size || 16,
+        size: node.size || 18,
         _data: node
       };
     }
   });
 
   // Edge colors adapted to theme
-  const edgeColor = isDark ? '#64748b' : '#94a3b8';
+  const edgeColor = isDark ? '#475569' : '#94a3b8';
   const edgeHoverColor = isDark ? '#60a5fa' : '#3b82f6';
 
   const visEdges = edges.value.map(edge => {
@@ -481,6 +532,16 @@ const renderNetwork = () => {
     const tooltipText = sourceNode && targetNode
       ? `${sourceNode.label} ↔ ${targetNode.label}${edge.label ? '\n' + edge.label : ''}\n${t('topology.clickToDelete')}`
       : '';
+
+    // Determine edge width based on speed
+    let width = 2;
+    if (edge.label) {
+      if (edge.label.includes('10G') || edge.label.includes('25G') || edge.label.includes('40G') || edge.label.includes('100G')) {
+        width = 4;
+      } else if (edge.label.includes('1G')) {
+        width = 2.5;
+      }
+    }
 
     return {
       id: edge.id,
@@ -492,95 +553,126 @@ const renderNetwork = () => {
         color: edge.color || edgeColor,
         highlight: '#ef4444',
         hover: edgeHoverColor,
-        opacity: 0.85
+        opacity: 0.9
       },
-      width: edge.width || 2,
+      width: edge.width || width,
       dashes: edge.dashes || false,
-      hoverWidth: 1.3,
-      selectionWidth: 1.5,
+      hoverWidth: 1.5,
+      selectionWidth: 2,
       chosen: {
         edge: (values) => {
-          values.width = values.width * 1.4;
+          values.width = values.width * 1.5;
           values.color = '#ef4444';
         }
       }
     };
   });
 
-  // For physical topology, use hierarchical layout
-  const isPhysical = viewMode.value === 'physical' || viewMode.value === 'combined';
-
   const options = {
     nodes: {
       font: {
         face: 'Inter, system-ui, sans-serif',
-        size: 12,
-        strokeWidth: 3,
+        size: 13,
+        strokeWidth: 4,
         strokeColor: labelStrokeColor,
         color: labelColor
       },
-      shadow: { enabled: true, color: 'rgba(0,0,0,0.08)', size: 6, x: 0, y: 2 }
+      shadow: {
+        enabled: true,
+        color: 'rgba(0,0,0,0.15)',
+        size: 8,
+        x: 0,
+        y: 3
+      }
     },
     edges: {
       smooth: isPhysical
-        ? { type: 'curvedCW', roundness: 0.15 }
-        : { type: 'continuous', roundness: 0.2 },
+        ? { type: 'cubicBezier', forceDirection: 'vertical', roundness: 0.4 }
+        : { type: 'dynamic', roundness: 0.5 },
       arrows: { to: { enabled: false } },
       font: {
-        size: 9,
+        size: 10,
         color: labelColor,
-        strokeWidth: 2,
+        strokeWidth: 3,
         strokeColor: labelStrokeColor,
-        align: 'middle'
+        align: 'middle',
+        background: isDark ? 'rgba(15, 23, 42, 0.8)' : 'rgba(255, 255, 255, 0.8)'
+      },
+      shadow: {
+        enabled: true,
+        color: 'rgba(0,0,0,0.1)',
+        size: 4,
+        x: 0,
+        y: 2
       }
     },
     physics: isPhysical ? {
+      // Minimal physics for hierarchical - just prevent overlap
       enabled: true,
-      hierarchicalRepulsion: {
-        centralGravity: 0.2,
-        springLength: 120,
-        springConstant: 0.02,
-        nodeDistance: 140,
-        damping: 0.12,
+      solver: 'repulsion',
+      repulsion: {
+        centralGravity: 0.0,
+        springLength: 200,
+        springConstant: 0.05,
+        nodeDistance: 150,
+        damping: 0.9
+      },
+      stabilization: {
+        enabled: true,
+        iterations: 50,
+        updateInterval: 10,
+        fit: true
+      },
+      maxVelocity: 50,
+      minVelocity: 0.75,
+      timestep: 0.5
+    } : {
+      // Logical view - force-directed with fast stabilization
+      enabled: true,
+      solver: 'barnesHut',
+      barnesHut: {
+        gravitationalConstant: -3000,
+        centralGravity: 0.3,
+        springLength: 150,
+        springConstant: 0.04,
+        damping: 0.9,
         avoidOverlap: 0.5
       },
-      solver: 'hierarchicalRepulsion',
-      stabilization: { iterations: 150, fit: true }
-    } : {
-      enabled: true,
-      solver: 'forceAtlas2Based',
-      forceAtlas2Based: {
-        gravitationalConstant: -150,
-        centralGravity: 0.005,
-        springLength: 200,
-        springConstant: 0.04,
-        damping: 0.85,
-        avoidOverlap: 0.8
+      stabilization: {
+        enabled: true,
+        iterations: 100,
+        updateInterval: 10,
+        fit: true
       },
-      stabilization: { iterations: 200, fit: true },
-      maxVelocity: 25,
-      minVelocity: 0.1
+      maxVelocity: 50,
+      minVelocity: 0.75,
+      timestep: 0.5
     },
     interaction: {
       hover: true,
-      tooltipDelay: 150,
+      tooltipDelay: 100,
       dragNodes: true,
       dragView: true,
       zoomView: true,
       hideEdgesOnDrag: false,
       hideEdgesOnZoom: false,
-      selectConnectedEdges: false,
+      selectConnectedEdges: true,
       multiselect: false,
-      selectable: true
+      selectable: true,
+      navigationButtons: false,
+      keyboard: {
+        enabled: true,
+        speed: { x: 10, y: 10, zoom: 0.05 }
+      }
     },
     layout: isPhysical ? {
       hierarchical: {
         enabled: true,
         direction: 'UD',
-        sortMethod: 'hubsize',
-        levelSeparation: 120,
-        nodeSpacing: 180,
-        treeSpacing: 200,
+        sortMethod: 'directed',
+        levelSeparation: levelSpacing,
+        nodeSpacing: nodeSpacing,
+        treeSpacing: 250,
         blockShifting: true,
         edgeMinimization: true,
         parentCentralization: true,
@@ -588,6 +680,7 @@ const renderNetwork = () => {
       }
     } : {
       improvedLayout: true,
+      clusterThreshold: 150,
       randomSeed: 42
     }
   };
@@ -629,9 +722,22 @@ const renderNetwork = () => {
     }
   });
 
+  // Handle stabilization completion
   network.once('stabilizationIterationsDone', () => {
-    network.fit({ animation: { duration: 400 } });
-    zoomLevel.value = network.getScale();
+    // Disable physics after stabilization for better performance
+    network.setOptions({ physics: { enabled: false } });
+    network.fit({ animation: { duration: 300, easingFunction: 'easeInOutQuad' } });
+    setTimeout(() => {
+      zoomLevel.value = network.getScale();
+    }, 350);
+  });
+
+  // Show stabilization progress (optional visual feedback)
+  network.on('stabilizationProgress', (params) => {
+    const progress = Math.round((params.iterations / params.total) * 100);
+    if (progress % 25 === 0) {
+      console.debug(`Topology stabilization: ${progress}%`);
+    }
   });
 
   // Change cursor to pointer when hovering over edges
@@ -641,6 +747,30 @@ const renderNetwork = () => {
 
   network.on('blurEdge', () => {
     networkContainer.value.style.cursor = 'default';
+  });
+
+  // Re-enable physics temporarily when dragging nodes for better repositioning
+  network.on('dragStart', () => {
+    network.setOptions({
+      physics: {
+        enabled: true,
+        solver: 'repulsion',
+        repulsion: {
+          centralGravity: 0.0,
+          springLength: 200,
+          springConstant: 0.05,
+          nodeDistance: 150,
+          damping: 0.9
+        }
+      }
+    });
+  });
+
+  // Disable physics after drag ends and stabilize
+  network.on('dragEnd', () => {
+    setTimeout(() => {
+      network.setOptions({ physics: { enabled: false } });
+    }, 500);
   });
 };
 
@@ -807,21 +937,24 @@ onUnmounted(() => network?.destroy());
 
 <style scoped>
 .graph-container {
-  background: var(--bg-secondary);
+  background: linear-gradient(135deg, var(--bg-secondary) 0%, var(--bg-card) 100%);
   border-radius: var(--radius-lg);
   overflow: hidden;
   min-height: 500px;
   position: relative;
-  transition: box-shadow 0.2s;
+  transition: box-shadow 0.2s, border-color 0.2s;
+  border: 1px solid var(--border-color);
 }
 
 .graph-container.link-mode-active {
-  box-shadow: inset 0 0 0 2px var(--primary-color);
+  box-shadow: inset 0 0 0 2px var(--primary-color), 0 0 20px rgba(14, 165, 233, 0.15);
+  border-color: var(--primary-color);
 }
 
 .network-canvas {
   width: 100%;
   height: 100%;
+  background: radial-gradient(circle at 50% 50%, transparent 0%, var(--bg-secondary) 100%);
 }
 
 .loading-overlay, .empty-state {
@@ -834,6 +967,7 @@ onUnmounted(() => network?.destroy());
   gap: 0.75rem;
   color: var(--text-muted);
   background: var(--bg-secondary);
+  backdrop-filter: blur(4px);
 }
 
 .empty-state h3 { font-size: 1rem; font-weight: 600; color: var(--text-main); margin: 0; }
