@@ -51,9 +51,6 @@
           <DataTable
             :value="filteredRacks"
             stripedRows
-            scrollable
-            scrollHeight="100%"
-            :virtualScrollerOptions="{ itemSize: 64, delay: 50 }"
             paginator
             :rows="20"
             class="text-sm"
@@ -101,9 +98,6 @@
           <DataTable
             :value="pdus"
             stripedRows
-            scrollable
-            scrollHeight="100%"
-            :virtualScrollerOptions="{ itemSize: 60, delay: 50 }"
             paginator
             :rows="20"
             class="text-sm"

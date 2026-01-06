@@ -79,9 +79,6 @@
           <DataTable
             :value="filteredEquipment"
             stripedRows
-            scrollable
-            scrollHeight="100%"
-            :virtualScrollerOptions="{ itemSize: 68, delay: 50 }"
             paginator
             :rows="25"
             v-model:expandedRows="expandedRows"
