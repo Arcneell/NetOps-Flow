@@ -11,11 +11,14 @@ This simulates a real company "TechCorp" with:
 - Realistic contracts, software, and helpdesk data
 
 Usage:
-    python test/seed_realistic_data.py [--clean] [--minimal]
+    python tests/seed_realistic_data.py [--clean] [--minimal] [--massive]
 
 Options:
     --clean     Remove existing test data before seeding
     --minimal   Generate minimal data set (single DC)
+    --massive   Generate massive data set for performance testing (~500+ equipment, 1000+ IPs, 200+ tickets)
+
+Note: Redis cache is automatically invalidated after seeding for immediate data visibility.
 """
 
 import os
@@ -32,11 +35,58 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 # Set environment variables before imports
 os.environ.setdefault("DATABASE_URL", "postgresql://inframate:inframatepassword@localhost:5432/inframate")
+os.environ.setdefault("REDIS_URL", "redis://localhost:6379/0")
 
+import redis
 from sqlalchemy.orm import Session
 from backend.core.database import SessionLocal, engine
 from backend.core.security import get_password_hash
 from backend import models
+
+
+# =============================================================================
+# Redis Cache Invalidation
+# =============================================================================
+
+def invalidate_redis_cache() -> None:
+    """Clear all Redis cache keys to ensure fresh data appears immediately."""
+    print("\nInvalidating Redis cache...")
+    try:
+        redis_url = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
+        r = redis.from_url(redis_url)
+
+        # Clear all cache keys used by the application
+        cache_patterns = [
+            "dashboard:*",
+            "topology:*",
+            "tickets:*",
+            "inventory:*",
+            "contracts:*",
+            "equipment:*",
+            "software:*",
+            "ipam:*",
+            "dcim:*",
+        ]
+
+        total_deleted = 0
+        for pattern in cache_patterns:
+            keys = r.keys(pattern)
+            if keys:
+                deleted = r.delete(*keys)
+                total_deleted += deleted
+                print(f"  Deleted {deleted} keys matching '{pattern}'")
+
+        # Also flush the entire database if no specific keys found
+        if total_deleted == 0:
+            r.flushdb()
+            print("  Flushed entire Redis database")
+        else:
+            print(f"  Total cache keys invalidated: {total_deleted}")
+
+        print("  Cache invalidation complete!")
+    except Exception as e:
+        print(f"  Warning: Could not invalidate Redis cache: {e}")
+        print("  Data will appear after cache TTL expires (2-5 minutes)")
 
 
 # =============================================================================
@@ -1812,6 +1862,617 @@ def seed_notifications(db: Session) -> None:
     print(f"      - Ticket alerts: {len(ticket_notifications)} distributed")
 
 
+# =============================================================================
+# Massive Data Generation (Performance Testing)
+# =============================================================================
+
+MASSIVE_LOCATIONS = [
+    # Additional datacenters
+    {"site": "Bordeaux DC3", "building": "Data Hall", "room": "Server Room 1", "description": "Southwest datacenter"},
+    {"site": "Bordeaux DC3", "building": "Data Hall", "room": "Server Room 2", "description": "Southwest datacenter - DR"},
+    {"site": "Lille DC4", "building": "Main Hall", "room": "Production", "description": "North datacenter"},
+    {"site": "Lille DC4", "building": "Main Hall", "room": "Network Core", "description": "North datacenter network"},
+    {"site": "Toulouse DC5", "building": "Building A", "room": "Compute", "description": "Aerospace sector DC"},
+    {"site": "Toulouse DC5", "building": "Building A", "room": "Storage", "description": "Aerospace sector storage"},
+    {"site": "Strasbourg DC6", "building": "EU East", "room": "EU Compliance", "description": "EU data residency"},
+    {"site": "Strasbourg DC6", "building": "EU East", "room": "Backup", "description": "EU backup site"},
+    {"site": "Nantes DC7", "building": "West Hall", "room": "Main", "description": "Western region DC"},
+    {"site": "Nice DC8", "building": "Côte d'Azur", "room": "Production", "description": "Southern coastal DC"},
+    # Additional offices
+    {"site": "Bordeaux Office", "building": "Centre", "room": "IT Room", "description": "Southwest office"},
+    {"site": "Lille Office", "building": "Tour Nord", "room": "Floor 5", "description": "North office"},
+    {"site": "Toulouse Office", "building": "Aerospace Park", "room": "IT", "description": "Aerospace office"},
+    {"site": "Strasbourg Office", "building": "Euro Tower", "room": "IT Closet", "description": "Eastern office"},
+    {"site": "Nantes Office", "building": "Atlantique", "room": "Comms", "description": "Western office"},
+    {"site": "Nice Office", "building": "Promenade", "room": "Server", "description": "Southern office"},
+    {"site": "Rennes Office", "building": "Tech Hub", "room": "IT", "description": "Brittany office"},
+    {"site": "Montpellier Office", "building": "Antigone", "room": "Network", "description": "Mediterranean office"},
+]
+
+MASSIVE_ADDITIONAL_VLANS = {
+    # More production VLANs
+    23: {"name": "PROD-CACHE", "cidr": "10.0.23.0/24", "description": "Production - Cache servers", "gateway": "10.0.23.1"},
+    24: {"name": "PROD-MSG", "cidr": "10.0.24.0/24", "description": "Production - Message queues", "gateway": "10.0.24.1"},
+    25: {"name": "PROD-SEARCH", "cidr": "10.0.25.0/24", "description": "Production - Search cluster", "gateway": "10.0.25.1"},
+    # More dev/test
+    32: {"name": "STAGING", "cidr": "10.0.32.0/24", "description": "Staging environment", "gateway": "10.0.32.1"},
+    33: {"name": "QA", "cidr": "10.0.33.0/24", "description": "QA environment", "gateway": "10.0.33.1"},
+    34: {"name": "PERF-TEST", "cidr": "10.0.34.0/24", "description": "Performance testing", "gateway": "10.0.34.1"},
+    # Container networks
+    60: {"name": "K8S-PODS", "cidr": "10.0.60.0/22", "description": "Kubernetes pods", "gateway": "10.0.60.1"},
+    64: {"name": "K8S-SERVICES", "cidr": "10.0.64.0/24", "description": "Kubernetes services", "gateway": "10.0.64.1"},
+    65: {"name": "DOCKER", "cidr": "10.0.65.0/24", "description": "Docker hosts", "gateway": "10.0.65.1"},
+    # Additional user networks
+    103: {"name": "USERS-BORDEAUX", "cidr": "192.168.103.0/24", "description": "Bordeaux users", "gateway": "192.168.103.1"},
+    104: {"name": "USERS-LILLE", "cidr": "192.168.104.0/24", "description": "Lille users", "gateway": "192.168.104.1"},
+    105: {"name": "USERS-TOULOUSE", "cidr": "192.168.105.0/24", "description": "Toulouse users", "gateway": "192.168.105.1"},
+    106: {"name": "USERS-STRASBOURG", "cidr": "192.168.106.0/24", "description": "Strasbourg users", "gateway": "192.168.106.1"},
+    107: {"name": "USERS-NANTES", "cidr": "192.168.107.0/24", "description": "Nantes users", "gateway": "192.168.107.1"},
+    108: {"name": "USERS-NICE", "cidr": "192.168.108.0/24", "description": "Nice users", "gateway": "192.168.108.1"},
+    # Management networks per DC
+    11: {"name": "MGMT-DC2", "cidr": "10.1.10.0/24", "description": "Management DC2", "gateway": "10.1.10.1"},
+    12: {"name": "MGMT-DC3", "cidr": "10.2.10.0/24", "description": "Management DC3", "gateway": "10.2.10.1"},
+    13: {"name": "MGMT-DC4", "cidr": "10.3.10.0/24", "description": "Management DC4", "gateway": "10.3.10.1"},
+    14: {"name": "MGMT-DC5", "cidr": "10.4.10.0/24", "description": "Management DC5", "gateway": "10.4.10.1"},
+    # Security zones
+    42: {"name": "DMZ-WAF", "cidr": "172.16.42.0/24", "description": "DMZ - WAF tier", "gateway": "172.16.42.1"},
+    43: {"name": "DMZ-API", "cidr": "172.16.43.0/24", "description": "DMZ - API Gateway", "gateway": "172.16.43.1"},
+    44: {"name": "SEC-SIEM", "cidr": "172.16.44.0/24", "description": "Security - SIEM", "gateway": "172.16.44.1"},
+    45: {"name": "SEC-SCAN", "cidr": "172.16.45.0/24", "description": "Security - Scanners", "gateway": "172.16.45.1"},
+}
+
+MASSIVE_ADDITIONAL_TICKETS = [
+    # More incidents
+    {"title": "API Gateway timeout errors", "type": "incident", "priority": "high", "category": "Application", "status": "open"},
+    {"title": "Database replication lag detected", "type": "incident", "priority": "critical", "category": "Database", "status": "open"},
+    {"title": "Memory leak in payment service", "type": "incident", "priority": "critical", "category": "Application", "status": "open"},
+    {"title": "SSL certificate expired on staging", "type": "incident", "priority": "medium", "category": "Security", "status": "resolved"},
+    {"title": "Kubernetes pod crash loop", "type": "incident", "priority": "high", "category": "Infrastructure", "status": "open"},
+    {"title": "Redis cluster node failure", "type": "incident", "priority": "high", "category": "Infrastructure", "status": "pending"},
+    {"title": "Elasticsearch indexing slow", "type": "incident", "priority": "medium", "category": "Application", "status": "open"},
+    {"title": "CDN cache invalidation issue", "type": "incident", "priority": "medium", "category": "Infrastructure", "status": "resolved"},
+    {"title": "DNS propagation delay", "type": "incident", "priority": "high", "category": "Network", "status": "closed"},
+    {"title": "Load balancer health check failures", "type": "incident", "priority": "high", "category": "Network", "status": "open"},
+    # More requests
+    {"title": "New Kubernetes namespace for team Alpha", "type": "request", "priority": "medium", "category": "Infrastructure", "status": "new"},
+    {"title": "VPN access for contractor team", "type": "request", "priority": "low", "category": "Access", "status": "pending"},
+    {"title": "Database migration to PostgreSQL 16", "type": "request", "priority": "medium", "category": "Database", "status": "new"},
+    {"title": "New monitoring dashboard for SRE", "type": "request", "priority": "low", "category": "Monitoring", "status": "open"},
+    {"title": "Increase S3 bucket storage quota", "type": "request", "priority": "low", "category": "Storage", "status": "closed"},
+    {"title": "New SSL certificate for api.techcorp.com", "type": "request", "priority": "medium", "category": "Security", "status": "resolved"},
+    {"title": "Additional compute nodes for ML training", "type": "request", "priority": "high", "category": "Infrastructure", "status": "pending"},
+    {"title": "Upgrade GitLab to latest version", "type": "request", "priority": "medium", "category": "DevOps", "status": "new"},
+    # More changes
+    {"title": "Network segmentation for PCI compliance", "type": "change", "priority": "high", "category": "Security", "status": "pending"},
+    {"title": "Migrate to IPv6 dual-stack", "type": "change", "priority": "medium", "category": "Network", "status": "new"},
+    {"title": "Implement zero-trust network access", "type": "change", "priority": "high", "category": "Security", "status": "open"},
+    {"title": "Upgrade all switches to latest firmware", "type": "change", "priority": "medium", "category": "Network", "status": "pending"},
+    {"title": "Consolidate monitoring tools", "type": "change", "priority": "low", "category": "Monitoring", "status": "new"},
+    {"title": "Implement GitOps workflow", "type": "change", "priority": "medium", "category": "DevOps", "status": "open"},
+    # More problems
+    {"title": "Recurring memory issues on production servers", "type": "problem", "priority": "high", "category": "Infrastructure", "status": "open"},
+    {"title": "Intermittent authentication failures", "type": "problem", "priority": "high", "category": "Security", "status": "open"},
+    {"title": "Slow query performance pattern analysis", "type": "problem", "priority": "medium", "category": "Database", "status": "pending"},
+]
+
+MASSIVE_ADDITIONAL_SOFTWARE = [
+    {"name": "Kubernetes", "publisher": "CNCF", "category": "Container Orchestration", "version": "1.29"},
+    {"name": "Docker Enterprise", "publisher": "Mirantis", "category": "Containers", "version": "24.0"},
+    {"name": "Prometheus", "publisher": "CNCF", "category": "Monitoring", "version": "2.48"},
+    {"name": "ArgoCD", "publisher": "CNCF", "category": "GitOps", "version": "2.9"},
+    {"name": "HashiCorp Vault", "publisher": "HashiCorp", "category": "Secrets Management", "version": "1.15"},
+    {"name": "Consul", "publisher": "HashiCorp", "category": "Service Mesh", "version": "1.17"},
+    {"name": "Elasticsearch", "publisher": "Elastic", "category": "Search", "version": "8.12"},
+    {"name": "Kibana", "publisher": "Elastic", "category": "Visualization", "version": "8.12"},
+    {"name": "Jenkins", "publisher": "Jenkins", "category": "CI/CD", "version": "2.440"},
+    {"name": "SonarQube", "publisher": "SonarSource", "category": "Code Quality", "version": "10.3"},
+    {"name": "Nexus Repository", "publisher": "Sonatype", "category": "Artifact Management", "version": "3.65"},
+    {"name": "Datadog", "publisher": "Datadog", "category": "APM", "version": "2024"},
+    {"name": "PagerDuty", "publisher": "PagerDuty", "category": "Incident Management", "version": "2024"},
+    {"name": "Okta", "publisher": "Okta", "category": "Identity", "version": "2024"},
+    {"name": "Cloudflare", "publisher": "Cloudflare", "category": "CDN/Security", "version": "2024"},
+    {"name": "Snyk", "publisher": "Snyk", "category": "Security Scanning", "version": "2024"},
+    {"name": "MongoDB Enterprise", "publisher": "MongoDB", "category": "Database", "version": "7.0"},
+    {"name": "Cassandra", "publisher": "Apache", "category": "Database", "version": "4.1"},
+    {"name": "RabbitMQ", "publisher": "VMware", "category": "Message Queue", "version": "3.12"},
+    {"name": "Apache Kafka", "publisher": "Apache", "category": "Event Streaming", "version": "3.6"},
+]
+
+MASSIVE_CONTRACTS = [
+    {"name": "AWS Enterprise Support", "type": "support", "vendor": "Amazon", "annual_cost": 150000},
+    {"name": "Azure Enterprise Agreement", "type": "service", "vendor": "Microsoft", "annual_cost": 200000},
+    {"name": "GCP Premium Support", "type": "support", "vendor": "Google", "annual_cost": 120000},
+    {"name": "Cloudflare Enterprise", "type": "service", "vendor": "Cloudflare", "annual_cost": 45000},
+    {"name": "Datadog Enterprise", "type": "service", "vendor": "Datadog", "annual_cost": 85000},
+    {"name": "MongoDB Atlas Enterprise", "type": "service", "vendor": "MongoDB", "annual_cost": 55000},
+    {"name": "Elastic Cloud Enterprise", "type": "service", "vendor": "Elastic", "annual_cost": 42000},
+    {"name": "PagerDuty Enterprise", "type": "service", "vendor": "PagerDuty", "annual_cost": 28000},
+    {"name": "Okta Workforce Identity", "type": "service", "vendor": "Okta", "annual_cost": 95000},
+    {"name": "Snyk Enterprise", "type": "service", "vendor": "Snyk", "annual_cost": 35000},
+    {"name": "JetBrains All Products Pack", "type": "license", "vendor": "JetBrains", "annual_cost": 25000},
+    {"name": "GitHub Enterprise", "type": "service", "vendor": "GitHub", "annual_cost": 48000},
+    {"name": "Confluence/Jira Enterprise", "type": "service", "vendor": "Atlassian", "annual_cost": 52000},
+    {"name": "Slack Enterprise Grid", "type": "service", "vendor": "Salesforce", "annual_cost": 38000},
+    {"name": "Zoom Enterprise", "type": "service", "vendor": "Zoom", "annual_cost": 32000},
+]
+
+
+def seed_massive_locations(db: Session) -> None:
+    """Add additional locations for massive mode."""
+    print("  Creating additional locations for massive mode...")
+
+    for loc_data in MASSIVE_LOCATIONS:
+        key = f"{loc_data['site']}-{loc_data['room']}"
+        if key in store.locations:
+            continue
+
+        existing = db.query(models.Location).filter(
+            models.Location.site == loc_data["site"],
+            models.Location.room == loc_data["room"]
+        ).first()
+        if existing:
+            store.locations[key] = existing
+            continue
+
+        location = models.Location(
+            site=loc_data["site"],
+            building=loc_data.get("building"),
+            room=loc_data.get("room")
+        )
+        db.add(location)
+        store.locations[key] = location
+
+    db.commit()
+    print(f"    Added {len(MASSIVE_LOCATIONS)} additional locations")
+
+
+def seed_massive_racks(db: Session) -> None:
+    """Create many more racks for performance testing."""
+    print("  Creating additional racks for massive mode...")
+
+    additional_racks = [
+        # Bordeaux DC3
+        {"name": "BDX-D1-R01", "location": "Bordeaux DC3-Server Room 1", "height": 42},
+        {"name": "BDX-D1-R02", "location": "Bordeaux DC3-Server Room 1", "height": 42},
+        {"name": "BDX-D1-R03", "location": "Bordeaux DC3-Server Room 1", "height": 42},
+        {"name": "BDX-D2-R01", "location": "Bordeaux DC3-Server Room 2", "height": 42},
+        {"name": "BDX-D2-R02", "location": "Bordeaux DC3-Server Room 2", "height": 42},
+        # Lille DC4
+        {"name": "LIL-P1-R01", "location": "Lille DC4-Production", "height": 42},
+        {"name": "LIL-P1-R02", "location": "Lille DC4-Production", "height": 42},
+        {"name": "LIL-P1-R03", "location": "Lille DC4-Production", "height": 42},
+        {"name": "LIL-P1-R04", "location": "Lille DC4-Production", "height": 42},
+        {"name": "LIL-N1-R01", "location": "Lille DC4-Network Core", "height": 42},
+        # Toulouse DC5
+        {"name": "TLS-C1-R01", "location": "Toulouse DC5-Compute", "height": 42},
+        {"name": "TLS-C1-R02", "location": "Toulouse DC5-Compute", "height": 42},
+        {"name": "TLS-C1-R03", "location": "Toulouse DC5-Compute", "height": 42},
+        {"name": "TLS-S1-R01", "location": "Toulouse DC5-Storage", "height": 42},
+        {"name": "TLS-S1-R02", "location": "Toulouse DC5-Storage", "height": 42},
+        # Strasbourg DC6
+        {"name": "STR-E1-R01", "location": "Strasbourg DC6-EU Compliance", "height": 42},
+        {"name": "STR-E1-R02", "location": "Strasbourg DC6-EU Compliance", "height": 42},
+        {"name": "STR-B1-R01", "location": "Strasbourg DC6-Backup", "height": 42},
+        # Nantes DC7
+        {"name": "NTS-W1-R01", "location": "Nantes DC7-Main", "height": 42},
+        {"name": "NTS-W1-R02", "location": "Nantes DC7-Main", "height": 42},
+        # Nice DC8
+        {"name": "NCE-P1-R01", "location": "Nice DC8-Production", "height": 42},
+        {"name": "NCE-P1-R02", "location": "Nice DC8-Production", "height": 42},
+        # Office racks
+        {"name": "BDX-OFF-R01", "location": "Bordeaux Office-IT Room", "height": 12},
+        {"name": "LIL-OFF-R01", "location": "Lille Office-Floor 5", "height": 12},
+        {"name": "TLS-OFF-R01", "location": "Toulouse Office-IT", "height": 12},
+        {"name": "STR-OFF-R01", "location": "Strasbourg Office-IT Closet", "height": 12},
+        {"name": "NTS-OFF-R01", "location": "Nantes Office-Comms", "height": 12},
+        {"name": "NCE-OFF-R01", "location": "Nice Office-Server", "height": 12},
+        {"name": "REN-OFF-R01", "location": "Rennes Office-IT", "height": 12},
+        {"name": "MPL-OFF-R01", "location": "Montpellier Office-Network", "height": 12},
+    ]
+
+    for rack_data in additional_racks:
+        if rack_data["name"] in store.racks:
+            continue
+
+        existing = db.query(models.Rack).filter(models.Rack.name == rack_data["name"]).first()
+        if existing:
+            store.racks[rack_data["name"]] = existing
+            continue
+
+        location = store.locations.get(rack_data["location"])
+        if not location:
+            continue
+
+        rack = models.Rack(
+            name=rack_data["name"],
+            location_id=location.id,
+            height_u=rack_data["height"],
+            width_mm=600,
+            depth_mm=1200,
+            max_power_kw=15.0
+        )
+        db.add(rack)
+        store.racks[rack_data["name"]] = rack
+
+    db.commit()
+    print(f"    Added {len(additional_racks)} additional racks")
+
+
+def seed_massive_subnets(db: Session) -> None:
+    """Add more subnets for massive mode."""
+    print("  Creating additional subnets for massive mode...")
+
+    for vlan_id, vlan_data in MASSIVE_ADDITIONAL_VLANS.items():
+        if vlan_id in store.subnets:
+            continue
+
+        existing = db.query(models.Subnet).filter(models.Subnet.cidr == vlan_data["cidr"]).first()
+        if existing:
+            store.subnets[vlan_id] = existing
+            continue
+
+        subnet = models.Subnet(
+            cidr=vlan_data["cidr"],
+            name=f"VLAN {vlan_id} - {vlan_data['name']}",
+            description=vlan_data["description"]
+        )
+        db.add(subnet)
+        store.subnets[vlan_id] = subnet
+
+    db.commit()
+    print(f"    Added {len(MASSIVE_ADDITIONAL_VLANS)} additional subnets")
+
+
+def seed_massive_equipment(db: Session) -> None:
+    """Generate hundreds of equipment items for performance testing."""
+    print("  Creating massive equipment set...")
+
+    equipment_count = 0
+
+    # Equipment templates for mass generation
+    dc_prefixes = ["BDX", "LIL", "TLS", "STR", "NTS", "NCE"]
+    rack_suffixes = {
+        "BDX": ["BDX-D1-R01", "BDX-D1-R02", "BDX-D1-R03", "BDX-D2-R01", "BDX-D2-R02"],
+        "LIL": ["LIL-P1-R01", "LIL-P1-R02", "LIL-P1-R03", "LIL-P1-R04", "LIL-N1-R01"],
+        "TLS": ["TLS-C1-R01", "TLS-C1-R02", "TLS-C1-R03", "TLS-S1-R01", "TLS-S1-R02"],
+        "STR": ["STR-E1-R01", "STR-E1-R02", "STR-B1-R01"],
+        "NTS": ["NTS-W1-R01", "NTS-W1-R02"],
+        "NCE": ["NCE-P1-R01", "NCE-P1-R02"],
+    }
+
+    suppliers = list(store.suppliers.values())
+
+    # Generate equipment per datacenter
+    for dc_prefix in dc_prefixes:
+        racks = rack_suffixes.get(dc_prefix, [])
+        if not racks:
+            continue
+
+        # Core network equipment (1 per DC)
+        main_rack = racks[0] if racks else None
+        if main_rack and main_rack in store.racks:
+            # Core router
+            eq = create_equipment_with_ip(
+                db, f"CORE-RTR-{dc_prefix}", "cisco_asr1001x", main_rack, 40, 10, 250 + dc_prefixes.index(dc_prefix),
+                supplier_name=random.choice(list(store.suppliers.keys()))
+            )
+            if eq:
+                equipment_count += 1
+
+            # Core switch
+            eq = create_equipment_with_ip(
+                db, f"CORE-SW-{dc_prefix}-01", "cisco_nexus9336", main_rack, 38, 10, 260 + dc_prefixes.index(dc_prefix),
+                supplier_name=random.choice(list(store.suppliers.keys()))
+            )
+            if eq:
+                equipment_count += 1
+
+            # Firewall
+            eq = create_equipment_with_ip(
+                db, f"FW-{dc_prefix}-01", "fortinet_fg600e", main_rack, 34, 10, 270 + dc_prefixes.index(dc_prefix),
+                supplier_name=random.choice(list(store.suppliers.keys()))
+            )
+            if eq:
+                equipment_count += 1
+
+        # Servers - multiple per rack
+        for i, rack_name in enumerate(racks):
+            if rack_name not in store.racks:
+                continue
+
+            # Generate 5-8 servers per rack
+            num_servers = random.randint(5, 8)
+            for j in range(num_servers):
+                server_model = random.choice(["hpe_dl380g10", "dell_r750", "hpe_dl360g10", "dell_r650"])
+                model = store.equipment_models.get(server_model)
+                height = model.specs.get("height_u", 2) if model and model.specs else 2
+
+                position = 30 - (j * height)
+                if position < 1:
+                    continue
+
+                status = random.choices(
+                    ["in_service", "in_service", "in_service", "maintenance", "stock", "retired"],
+                    weights=[70, 10, 5, 5, 5, 5]
+                )[0]
+
+                warranty_expired = random.random() < 0.1
+                warranty_expiring = random.random() < 0.15 if not warranty_expired else False
+
+                eq = create_equipment_with_ip(
+                    db,
+                    f"SRV-{dc_prefix}-{i:02d}-{j:02d}",
+                    server_model,
+                    rack_name,
+                    position,
+                    10,
+                    100 + (dc_prefixes.index(dc_prefix) * 50) + (i * 10) + j,
+                    status=status,
+                    supplier_name=random.choice(list(store.suppliers.keys())),
+                    warranty_expired=warranty_expired,
+                    warranty_expiring_soon=warranty_expiring
+                )
+                if eq:
+                    equipment_count += 1
+
+            # Add distribution/access switches
+            if i < 3:
+                eq = create_equipment_with_ip(
+                    db, f"DIST-SW-{dc_prefix}-{i:02d}", "cisco_catalyst9500", rack_name, 40, 10,
+                    150 + (dc_prefixes.index(dc_prefix) * 10) + i,
+                    supplier_name=random.choice(list(store.suppliers.keys()))
+                )
+                if eq:
+                    equipment_count += 1
+
+        # Storage equipment (1-2 per DC)
+        storage_rack = racks[0] if racks else None
+        if storage_rack and storage_rack in store.racks:
+            for k in range(2):
+                storage_model = random.choice(["netapp_aff400", "dell_unity500"])
+                eq = create_equipment_with_ip(
+                    db, f"SAN-{dc_prefix}-{k:02d}", storage_model, storage_rack, 10 - (k * 4), 50,
+                    50 + (dc_prefixes.index(dc_prefix) * 10) + k,
+                    supplier_name=random.choice(list(store.suppliers.keys()))
+                )
+                if eq:
+                    equipment_count += 1
+
+    # Office switches
+    office_racks = ["BDX-OFF-R01", "LIL-OFF-R01", "TLS-OFF-R01", "STR-OFF-R01", "NTS-OFF-R01", "NCE-OFF-R01", "REN-OFF-R01", "MPL-OFF-R01"]
+    for i, rack_name in enumerate(office_racks):
+        if rack_name not in store.racks:
+            continue
+
+        eq = create_equipment_with_ip(
+            db, f"SW-{rack_name.split('-')[0]}-01", "aruba_6300", rack_name, 10, 10, 180 + i,
+            supplier_name=random.choice(list(store.suppliers.keys()))
+        )
+        if eq:
+            equipment_count += 1
+
+    db.commit()
+    print(f"    Created {equipment_count} additional equipment items")
+
+
+def seed_massive_ips(db: Session) -> None:
+    """Generate many more IP addresses for performance testing."""
+    print("  Creating massive IP address set...")
+
+    ip_count = 0
+
+    # Generate IPs for all new subnets
+    for vlan_id, subnet in store.subnets.items():
+        if vlan_id < 10:  # Skip management VLANs which are sparse
+            continue
+
+        base = subnet.cidr.rsplit('.', 1)[0]
+        # Different density based on network type
+        if vlan_id in [100, 101, 102, 103, 104, 105, 106, 107, 108]:  # User networks - high density
+            ip_range = range(10, 250)
+        elif vlan_id in [20, 21, 22, 23, 24, 25, 30, 31, 32, 33, 34]:  # Server networks - medium
+            ip_range = range(10, 100)
+        elif vlan_id in [60, 64, 65]:  # Container networks - high density
+            ip_range = range(10, 200)
+        else:
+            ip_range = range(10, 50)
+
+        for i in ip_range:
+            ip_addr = f"{base}.{i}"
+            if ip_addr in store.ip_addresses:
+                continue
+
+            existing = db.query(models.IPAddress).filter(models.IPAddress.address == ip_addr).first()
+            if existing:
+                store.ip_addresses[ip_addr] = existing
+                continue
+
+            status = random.choices(
+                ["active", "active", "reserved", "available"],
+                weights=[60, 20, 10, 10]
+            )[0]
+
+            ip = models.IPAddress(
+                address=ip_addr,
+                subnet_id=subnet.id,
+                status=status,
+                hostname=f"host-{random_string(8)}.techcorp.local" if status == "active" else None,
+                mac_address=random_mac() if status == "active" else None,
+                last_scanned_at=random_datetime_past(14) if status == "active" else None
+            )
+            db.add(ip)
+            store.ip_addresses[ip_addr] = ip
+            ip_count += 1
+
+            # Commit in batches
+            if ip_count % 500 == 0:
+                db.commit()
+                print(f"    ... created {ip_count} IPs")
+
+    db.commit()
+    print(f"    Created {ip_count} additional IP addresses")
+
+
+def seed_massive_tickets(db: Session, count: int = 200) -> None:
+    """Generate many more tickets for performance testing."""
+    print(f"  Creating {count} additional tickets...")
+
+    tech_users = [u for u in store.users if u.role in ["tech", "admin", "superadmin"]]
+    all_users = store.users
+
+    categories = ["Network", "Infrastructure", "Database", "Security", "Application", "Storage",
+                  "Monitoring", "DevOps", "Access", "Hardware", "Software", "Backup"]
+    priorities = ["low", "medium", "high", "critical"]
+    types = ["incident", "request", "change", "problem"]
+    statuses = ["new", "open", "pending", "resolved", "closed"]
+
+    for i in range(count):
+        priority = random.choices(priorities, weights=[20, 40, 30, 10])[0]
+        status = random.choices(statuses, weights=[15, 25, 20, 20, 20])[0]
+        ticket_type = random.choices(types, weights=[40, 30, 20, 10])[0]
+
+        sla_hours = {"critical": 2, "high": 4, "medium": 8, "low": 24}.get(priority, 8)
+        sla_breached = random.random() < 0.15 if status in ["open", "pending"] else False
+
+        created_at = random_datetime_past(60)
+        if sla_breached:
+            created_at = datetime.now(timezone.utc) - timedelta(hours=sla_hours + random.randint(2, 24))
+
+        sla_due_date = created_at + timedelta(hours=sla_hours)
+
+        ticket = models.Ticket(
+            title=f"{random.choice(['Issue', 'Problem', 'Request', 'Alert', 'Task'])}: {random.choice(categories)} - {random_string(6)}",
+            description=f"Auto-generated ticket for performance testing.\n\nCategory: {random.choice(categories)}\nType: {ticket_type}",
+            ticket_type=ticket_type,
+            status=status,
+            priority=priority,
+            category=random.choice(categories),
+            requester_id=random.choice(all_users).id,
+            assigned_to_id=random.choice(tech_users).id if status not in ["new"] else None,
+            entity_id=store.entities[0].id if store.entities else None,
+            created_at=created_at,
+            updated_at=created_at + timedelta(hours=random.randint(1, 48)),
+            sla_due_date=sla_due_date,
+            sla_breached=sla_breached
+        )
+
+        if status in ["resolved", "closed"]:
+            ticket.resolved_at = created_at + timedelta(hours=random.randint(1, sla_hours - 1))
+            ticket.resolution = "Issue resolved via automated process."
+
+        if status == "closed":
+            ticket.closed_at = ticket.resolved_at + timedelta(hours=random.randint(1, 24))
+
+        db.add(ticket)
+
+        # Commit in batches
+        if (i + 1) % 50 == 0:
+            db.commit()
+            print(f"    ... created {i + 1} tickets")
+
+    db.commit()
+    print(f"    Created {count} additional tickets")
+
+
+def seed_massive_software(db: Session) -> None:
+    """Add more software entries for massive mode."""
+    print("  Creating additional software entries...")
+
+    for sw_data in MASSIVE_ADDITIONAL_SOFTWARE:
+        existing = db.query(models.Software).filter(models.Software.name == sw_data["name"]).first()
+        if existing:
+            store.software.append(existing)
+            continue
+
+        software = models.Software(
+            name=sw_data["name"],
+            publisher=sw_data["publisher"],
+            category=sw_data["category"],
+            version=sw_data["version"]
+        )
+        db.add(software)
+        store.software.append(software)
+
+    db.commit()
+    print(f"    Added {len(MASSIVE_ADDITIONAL_SOFTWARE)} additional software entries")
+
+    # Create licenses for new software
+    print("  Creating additional licenses...")
+    license_count = 0
+
+    for software in store.software[-len(MASSIVE_ADDITIONAL_SOFTWARE):]:
+        lic_type = random.choice(["subscription", "perpetual", "subscription"])
+        expiry_status = random.choices(["normal", "expiring_soon", "expired"], weights=[70, 20, 10])[0]
+
+        if lic_type == "subscription":
+            if expiry_status == "expired":
+                expiry_date = date.today() - timedelta(days=random.randint(10, 60))
+            elif expiry_status == "expiring_soon":
+                expiry_date = date.today() + timedelta(days=random.randint(5, 25))
+            else:
+                expiry_date = date.today() + timedelta(days=random.randint(90, 400))
+        else:
+            expiry_date = None
+
+        license = models.SoftwareLicense(
+            software_id=software.id,
+            license_key=f"XXXX-{random_string(4).upper()}-{random_string(4).upper()}-{random_string(4).upper()}",
+            license_type=lic_type,
+            quantity=random.randint(10, 500),
+            purchase_date=random_date_past(365, 730),
+            expiry_date=expiry_date,
+            purchase_price=random.randint(5000, 100000)
+        )
+        db.add(license)
+        license_count += 1
+
+    db.commit()
+    print(f"    Created {license_count} additional licenses")
+
+
+def seed_massive_contracts(db: Session) -> None:
+    """Add more contracts for massive mode."""
+    print("  Creating additional contracts...")
+
+    for contract_data in MASSIVE_CONTRACTS:
+        existing = db.query(models.Contract).filter(models.Contract.name == contract_data["name"]).first()
+        if existing:
+            store.contracts.append(existing)
+            continue
+
+        # Random supplier
+        supplier = random.choice(list(store.suppliers.values()))
+
+        # Vary expiration status
+        expiry_status = random.choices(["active", "expiring_soon", "expired"], weights=[70, 20, 10])[0]
+
+        if expiry_status == "expired":
+            start_date = date.today() - timedelta(days=random.randint(500, 800))
+            end_date = date.today() - timedelta(days=random.randint(10, 60))
+        elif expiry_status == "expiring_soon":
+            start_date = date.today() - timedelta(days=random.randint(300, 360))
+            end_date = date.today() + timedelta(days=random.randint(5, 28))
+        else:
+            start_date = random_date_past(365, 730)
+            end_date = date.today() + timedelta(days=random.randint(90, 500))
+
+        contract = models.Contract(
+            name=contract_data["name"],
+            contract_type=contract_data["type"],
+            contract_number=f"CTR-{random_string(8).upper()}",
+            supplier_id=supplier.id,
+            start_date=start_date,
+            end_date=end_date,
+            annual_cost=contract_data["annual_cost"],
+            renewal_type="auto" if expiry_status == "active" else "manual"
+        )
+        db.add(contract)
+        store.contracts.append(contract)
+
+    db.commit()
+    print(f"    Added {len(MASSIVE_CONTRACTS)} additional contracts")
+
+
 def clean_test_data(db: Session) -> None:
     """Remove all test data."""
     print("Cleaning existing data...")
@@ -1875,12 +2536,18 @@ def main():
     parser = argparse.ArgumentParser(description="Seed realistic infrastructure data")
     parser.add_argument("--clean", action="store_true", help="Remove existing data first")
     parser.add_argument("--minimal", action="store_true", help="Single DC only (faster)")
+    parser.add_argument("--massive", action="store_true", help="Generate massive data for performance testing")
     args = parser.parse_args()
 
     print("=" * 70)
     print("TechCorp Infrastructure Seeder")
     print("=" * 70)
-    print(f"Mode: {'Minimal (Paris DC only)' if args.minimal else 'Full (Paris DC + Lyon DR)'}")
+    if args.massive:
+        print("Mode: MASSIVE (Performance Testing - ~500+ equipment, 1000+ IPs, 200+ tickets)")
+    elif args.minimal:
+        print("Mode: Minimal (Paris DC only)")
+    else:
+        print("Mode: Full (Paris DC + Lyon DR)")
     print()
 
     db = SessionLocal()
@@ -1921,6 +2588,31 @@ def main():
         seed_knowledge_articles(db)
         seed_notifications(db)
 
+        # MASSIVE MODE: Generate much more data for performance testing
+        if args.massive:
+            print()
+            print("=" * 70)
+            print("MASSIVE MODE: Generating additional data for performance testing...")
+            print("=" * 70)
+            print()
+
+            # Additional infrastructure
+            seed_massive_locations(db)
+            seed_massive_racks(db)
+            seed_massive_subnets(db)
+            seed_massive_equipment(db)
+            seed_massive_ips(db)
+
+            # Additional assets
+            seed_massive_software(db)
+            seed_massive_contracts(db)
+
+            # Additional tickets
+            seed_massive_tickets(db, count=200)
+
+            # Re-run PDU creation for new racks
+            seed_pdus(db)
+
         print()
         print("=" * 70)
         print("Infrastructure seeding complete!")
@@ -1939,6 +2631,9 @@ def main():
         for user in IT_TEAM:
             print(f"  - {user['username']} ({user['role']}) - {user['full_name']}")
         print()
+
+        # Invalidate Redis cache for immediate visibility
+        invalidate_redis_cache()
 
     except Exception as e:
         print(f"\nError: {e}")
