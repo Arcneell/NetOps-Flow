@@ -14,11 +14,16 @@ import binascii
 
 
 def _read_secret_file(file_path: str) -> str:
-    """Read a secret from a Docker secrets file."""
-    try:
-        return Path(file_path).read_text().strip()
-    except Exception:
-        return ""
+    """Read a secret from a Docker secrets file.
+
+    Raises:
+        FileNotFoundError: If the secret file doesn't exist
+        PermissionError: If the file cannot be read
+    """
+    path = Path(file_path)
+    if not path.exists():
+        raise FileNotFoundError(f"Secret file not found: {file_path}")
+    return path.read_text().strip()
 
 
 def _decode_base64(value: str) -> bytes:
@@ -29,6 +34,26 @@ def _decode_base64(value: str) -> bytes:
         return base64.urlsafe_b64decode(value + padding)
     except (binascii.Error, ValueError) as e:
         raise ValueError(f"Invalid base64 encoding: {e}") from e
+
+
+def _derive_fernet_key(raw_key: str) -> str:
+    """Derive a valid Fernet key from any string using PBKDF2.
+
+    Fernet requires exactly 32 bytes, base64 url-safe encoded.
+    This function uses PBKDF2 to derive a valid key from arbitrary input.
+    """
+    import hashlib
+    # Use PBKDF2 with a fixed salt (app-specific) to derive 32 bytes
+    # The salt is fixed so the same input always produces the same key
+    salt = b"inframate-encryption-v1"
+    derived = hashlib.pbkdf2_hmac(
+        "sha256",
+        raw_key.encode("utf-8"),
+        salt,
+        iterations=100000,
+        dklen=32
+    )
+    return base64.urlsafe_b64encode(derived).decode("utf-8")
 
 
 class Settings(BaseSettings):
@@ -183,19 +208,34 @@ class Settings(BaseSettings):
     @classmethod
     def validate_encryption_key(cls, v: str) -> str:
         """
-        Validate Fernet key format (base64, 32 bytes) but allow legacy
-        non-standard keys to keep backward compatibility for rotation.
+        Validate or derive a valid Fernet key.
+
+        Fernet requires exactly 32 bytes, base64 url-safe encoded.
+        - If the key is already valid (base64, 32 bytes): use it directly
+        - If not: derive a valid key using PBKDF2
+
+        This ensures the application never crashes due to invalid key format.
         """
         try:
             decoded = _decode_base64(v)
-            if len(decoded) != 32:
-                raise ValueError("ENCRYPTION_KEY must decode to 32 bytes (Fernet key)")
-            return v
-        except ValueError:
-            # Legacy tolerance: accept raw strings (non-base64) of reasonable length
-            if len(v) >= 16:
+            if len(decoded) == 32:
+                # Valid Fernet key
                 return v
-            raise
+        except ValueError:
+            pass
+
+        # Key is not valid Fernet format - derive one using PBKDF2
+        if len(v) < 8:
+            raise ValueError("ENCRYPTION_KEY must be at least 8 characters")
+
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.warning(
+            "ENCRYPTION_KEY is not a valid Fernet key format. "
+            "Deriving a key using PBKDF2. For production, generate a proper "
+            "Fernet key with: python -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())'"
+        )
+        return _derive_fernet_key(v)
 
     @field_validator("database_url")
     @classmethod

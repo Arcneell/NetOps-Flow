@@ -157,13 +157,46 @@ def create_app() -> FastAPI:
     app.include_router(settings_router, prefix=api_prefix)
 
     @app.get("/health")
-    async def health_check(
+    async def health_check():
+        """
+        Public health check endpoint for orchestrators (Kubernetes, Docker, ALB).
+        Returns basic status without requiring authentication.
+        """
+        health_status = {
+            "status": "healthy",
+            "version": "2.0.0"
+        }
+        overall_healthy = True
+
+        # Check Database (critical)
+        try:
+            with SessionLocal() as db:
+                db.execute(text("SELECT 1"))
+        except Exception:
+            overall_healthy = False
+
+        # Check Redis (critical)
+        try:
+            redis_client = getattr(app.state, 'redis_client', None)
+            if redis_client:
+                redis_client.ping()
+            else:
+                redis_client = redis.from_url(settings.redis_url, decode_responses=True)
+                redis_client.ping()
+        except Exception:
+            overall_healthy = False
+
+        health_status["status"] = "healthy" if overall_healthy else "unhealthy"
+        status_code = 200 if overall_healthy else 503
+        return JSONResponse(content=health_status, status_code=status_code)
+
+    @app.get("/health/detailed")
+    async def health_check_detailed(
         current_user: models.User = Depends(get_current_superadmin_user)
     ):
         """
-        Comprehensive health check endpoint.
-        Checks FastAPI, Database, Redis, and Celery worker status.
-        Uses pre-initialized clients from app.state for performance.
+        Detailed health check endpoint (superadmin only).
+        Shows comprehensive status of all services with error details.
         """
         health_status = {
             "status": "healthy",

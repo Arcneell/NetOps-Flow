@@ -65,9 +65,9 @@
             <Button
               icon="pi pi-plus"
               size="small"
-              severity="primary"
               @click="showAddIpDialog = true"
               v-tooltip.left="t('ipam.addIp')"
+              class="!bg-blue-500 !text-white hover:!bg-blue-600"
             />
           </div>
         </h4>
