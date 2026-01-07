@@ -66,7 +66,7 @@
               <template #body="slotProps">
                 <span
                   class="font-medium text-blue-500 hover:text-blue-600 dark:hover:text-blue-400 cursor-pointer transition-colors hover:underline"
-                  @click.stop="openContractDialog(slotProps.data)"
+                  @click.stop="openContractDetail(slotProps.data)"
                 >
                   {{ slotProps.data.name }}
                 </span>
@@ -210,6 +210,13 @@
         <Button :label="t('common.close')" @click="showEquipmentDialog = false" />
       </template>
     </Dialog>
+
+    <!-- Contract Detail SlideOver -->
+    <ContractDetailSlideOver
+      v-model="showDetailSlideOver"
+      :contractId="selectedContractId"
+      @edit="handleEditFromSlideOver"
+    />
     </div>
   </div>
 </template>
@@ -223,6 +230,7 @@ import api from '../api';
 import ExpiryBadge from '../components/shared/ExpiryBadge.vue';
 import Breadcrumbs from '../components/shared/Breadcrumbs.vue';
 import EmptyState from '../components/shared/EmptyState.vue';
+import ContractDetailSlideOver from '../components/shared/ContractDetailSlideOver.vue';
 
 const route = useRoute();
 const router = useRouter();
@@ -244,6 +252,8 @@ const filterType = ref(null);
 // Dialogs
 const showContractDialog = ref(false);
 const showEquipmentDialog = ref(false);
+const showDetailSlideOver = ref(false);
+const selectedContractId = ref(null);
 
 // Editing states
 const editingContract = ref(null);
@@ -445,13 +455,25 @@ const onEquipmentLinkDialogEnter = (event) => {
   }
 };
 
+// Open contract detail slide-over
+const openContractDetail = (contract) => {
+  selectedContractId.value = contract.id;
+  showDetailSlideOver.value = true;
+};
+
+// Handle edit from slide-over
+const handleEditFromSlideOver = (contract) => {
+  showDetailSlideOver.value = false;
+  openContractDialog(contract);
+};
+
 // Open contract from URL parameter
 const openContractFromUrl = () => {
   const contractId = route.query.id;
   if (contractId && contracts.value.length > 0) {
     const contract = contracts.value.find(c => c.id === parseInt(contractId));
     if (contract) {
-      openContractDialog(contract);
+      openContractDetail(contract);
       // Clear the query parameter after opening
       router.replace({ path: route.path });
     }

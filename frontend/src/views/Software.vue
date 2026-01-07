@@ -72,7 +72,16 @@
         <div class="flex-1 overflow-auto">
           <DataTable :value="filteredSoftware" stripedRows paginator :rows="10" v-model:expandedRows="expandedRows" dataKey="id" class="text-sm">
             <Column expander style="width: 3rem" />
-            <Column field="name" :header="t('common.name')" sortable></Column>
+            <Column field="name" :header="t('common.name')" sortable>
+              <template #body="slotProps">
+                <span
+                  class="font-medium text-blue-500 hover:text-blue-600 dark:hover:text-blue-400 cursor-pointer transition-colors hover:underline"
+                  @click.stop="openSoftwareDetail(slotProps.data)"
+                >
+                  {{ slotProps.data.name }}
+                </span>
+              </template>
+            </Column>
             <Column field="publisher" :header="t('software.publisher')"></Column>
             <Column field="version" :header="t('software.version')" style="width: 100px"></Column>
             <Column field="category" :header="t('software.category')">
@@ -281,6 +290,14 @@
         <Button :label="t('common.close')" @click="showInstallationsDialog = false" />
       </template>
     </Dialog>
+
+    <!-- Software Detail SlideOver -->
+    <SoftwareDetailSlideOver
+      v-model="showDetailSlideOver"
+      :softwareId="selectedSoftwareId"
+      @edit="handleEditFromSlideOver"
+      @manage-licenses="handleManageLicensesFromSlideOver"
+    />
     </div>
   </div>
 </template>
@@ -292,6 +309,7 @@ import { useToast } from 'primevue/usetoast';
 import { useI18n } from 'vue-i18n';
 import api from '../api';
 import Breadcrumbs from '../components/shared/Breadcrumbs.vue';
+import SoftwareDetailSlideOver from '../components/shared/SoftwareDetailSlideOver.vue';
 
 const route = useRoute();
 const router = useRouter();
@@ -322,6 +340,8 @@ const showLicensesDialog = ref(false);
 const showInstallationsDialog = ref(false);
 const showLicenseForm = ref(false);
 const showInstallationForm = ref(false);
+const showDetailSlideOver = ref(false);
+const selectedSoftwareId = ref(null);
 
 // Editing states
 const editingSoftware = ref(null);
@@ -541,13 +561,31 @@ const onInstallationDialogEnter = (event) => {
   }
 };
 
+// Open software detail slide-over
+const openSoftwareDetail = (sw) => {
+  selectedSoftwareId.value = sw.id;
+  showDetailSlideOver.value = true;
+};
+
+// Handle edit from slide-over
+const handleEditFromSlideOver = (sw) => {
+  showDetailSlideOver.value = false;
+  openSoftwareDialog(sw);
+};
+
+// Handle manage licenses from slide-over
+const handleManageLicensesFromSlideOver = (sw) => {
+  showDetailSlideOver.value = false;
+  openLicensesDialog(sw);
+};
+
 // Open software from URL parameter
 const openSoftwareFromUrl = () => {
   const softwareId = route.query.id;
   if (softwareId && software.value.length > 0) {
     const sw = software.value.find(s => s.id === parseInt(softwareId));
     if (sw) {
-      openSoftwareDialog(sw);
+      openSoftwareDetail(sw);
       // Clear the query parameter after opening
       router.replace({ path: route.path });
     }

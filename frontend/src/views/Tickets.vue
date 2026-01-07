@@ -799,10 +799,14 @@ onMounted(async () => {
     openTicketById(ticketId);
   }
 
-  // Check if action=create in query params (from CommandBar quick action)
+  // Check if action=create in query params (from CommandBar quick action or Equipment detail)
   if (route.query.action === 'create') {
+    // Pre-fill equipment_id if provided (from EquipmentDetailSlideOver)
+    if (route.query.equipment_id) {
+      ticketForm.value.equipment_id = parseInt(route.query.equipment_id);
+    }
     openTicketDialog();
-    // Clear the query param after opening dialog
+    // Clear the query params after opening dialog
     router.replace({ path: '/tickets', query: {} });
   }
 });

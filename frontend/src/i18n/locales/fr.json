@@ -132,7 +132,19 @@
     "failedStartScan": "Échec démarrage scan",
     "scanningBackground": "Scan en arrière-plan...",
     "manualIpAllocation": "Allocation IP Manuelle",
-    "ipAddress": "Adresse IP"
+    "ipAddress": "Adresse IP",
+    "totalIps": "Total IPs",
+    "usedIps": "IPs Utilisées",
+    "available": "Disponibles",
+    "utilization": "Utilisation",
+    "subnetUtilization": "Utilisation du Sous-réseau",
+    "ipAddresses": "Adresses IP",
+    "noIpAddresses": "Aucune adresse IP dans ce sous-réseau",
+    "linkedEquipment": "Équipements Liés",
+    "noLinkedEquipment": "Aucun équipement lié aux IPs de ce sous-réseau",
+    "vlan": "VLAN",
+    "gateway": "Passerelle",
+    "dns": "Serveurs DNS"
   },
   "scripts": {
     "uploadTitle": "Uploader un Script",
@@ -454,7 +466,16 @@
     "positionUPlaceholder": "Position U de départ",
     "positionUHint": "Laisser vide si non placé",
     "heightU": "Hauteur U",
-    "heightUPlaceholder": "Hauteur de l'équipement en U"
+    "heightUPlaceholder": "Hauteur de l'équipement en U",
+    "specifications": "Spécifications",
+    "maxWeight": "Poids Max",
+    "usedU": "Utilisé",
+    "freeU": "Libre",
+    "utilization": "Utilisation",
+    "rackUtilization": "Utilisation de la Baie",
+    "installedEquipment": "Équipements Installés",
+    "noEquipmentInRack": "Aucun équipement dans cette baie",
+    "noPdusInRack": "Aucun PDU dans cette baie"
   },
   "contracts": {
     "title": "Contrats",
@@ -487,6 +508,7 @@
     "period": "Période",
     "linkedContracts": "Contrats liés",
     "noLinkedContracts": "Aucun contrat lié à cet équipement",
+    "noEquipmentLinked": "Aucun équipement lié à ce contrat",
     "expiredDaysAgo": "Expiré il y a {days} jours",
     "expiresToday": "Expire aujourd'hui",
     "expiresTomorrow": "Expire demain",
@@ -528,7 +550,15 @@
     "expiringLicenses": "Licences à Échéance",
     "softwareCreated": "Logiciel créé avec succès",
     "softwareUpdated": "Logiciel mis à jour avec succès",
-    "softwareDeleted": "Logiciel supprimé avec succès"
+    "softwareDeleted": "Logiciel supprimé avec succès",
+    "licenseOverview": "Aperçu des Licences",
+    "totalLicenses": "Total Licences",
+    "available": "Disponibles",
+    "seats": "postes",
+    "noKey": "Pas de clé",
+    "noLicenses": "Aucune licence pour ce logiciel",
+    "noInstallations": "Aucune installation trouvée",
+    "installedOn": "Installé le"
   },
   "networkPorts": {
     "title": "Ports Réseau",
@@ -652,7 +682,11 @@
     "viewAll": "Voir tous les tickets",
     "openTickets": "Tickets ouverts",
     "noOpenTickets": "Aucun ticket ouvert pour cet équipement",
-    "createTicket": "Créer un ticket"
+    "createTicket": "Créer un ticket",
+    "priority": "Priorité",
+    "slaNearBreach": "SLA Proche du Dépassement",
+    "noHistory": "Aucun historique disponible",
+    "historyPriorityChanged": "a changé la priorité de"
   },
   "notifications": {
     "title": "Notifications",

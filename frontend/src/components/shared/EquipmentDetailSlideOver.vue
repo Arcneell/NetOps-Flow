@@ -13,21 +13,21 @@
     <div v-else-if="equipment" class="space-y-6">
       <!-- Quick Stats -->
       <div class="grid grid-cols-3 gap-4">
-        <div class="stat-card p-4 rounded-lg" style="background-color: var(--bg-app);">
-          <div class="text-sm opacity-60 mb-1">{{ t('ipam.status') }}</div>
+        <div class="stat-card p-4 rounded-lg">
+          <div class="text-sm mb-1">{{ t('ipam.status') }}</div>
           <Tag :value="getStatusLabel(equipment.status)" :severity="getStatusSeverity(equipment.status)" />
         </div>
-        <div class="stat-card p-4 rounded-lg" style="background-color: var(--bg-app);">
-          <div class="text-sm opacity-60 mb-1">{{ t('inventory.type') }}</div>
+        <div class="stat-card p-4 rounded-lg">
+          <div class="text-sm mb-1">{{ t('inventory.type') }}</div>
           <div class="font-medium flex items-center gap-2">
             <i v-if="equipment.model?.equipment_type?.icon" :class="['pi', equipment.model.equipment_type.icon]"></i>
             {{ equipment.model?.equipment_type?.name || '-' }}
           </div>
         </div>
-        <div class="stat-card p-4 rounded-lg" style="background-color: var(--bg-app);">
-          <div class="text-sm opacity-60 mb-1">{{ t('inventory.warrantyExpiry') }}</div>
+        <div class="stat-card p-4 rounded-lg">
+          <div class="text-sm mb-1">{{ t('inventory.warrantyExpiry') }}</div>
           <ExpiryBadge v-if="equipment.warranty_expiry" :date="equipment.warranty_expiry" compact />
-          <span v-else class="opacity-50">-</span>
+          <span v-else class="text-muted">-</span>
         </div>
       </div>
 
@@ -63,7 +63,7 @@
             <i v-if="equipment.location.room" class="pi pi-chevron-right text-xs opacity-50"></i>
             <span v-if="equipment.location.room">{{ equipment.location.room }}</span>
           </div>
-          <span v-else class="opacity-50">-</span>
+          <span v-else class="text-muted">-</span>
         </div>
       </section>
 
@@ -110,8 +110,7 @@
             <div
               v-for="contract in linkedContracts"
               :key="contract.id"
-              class="linked-item p-3 rounded-lg flex items-center justify-between cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-              style="background-color: var(--bg-app);"
+              class="linked-item p-3 rounded-lg flex items-center justify-between cursor-pointer"
               @click="navigateTo('contract', contract.id)"
             >
               <div class="flex items-center gap-3">
@@ -124,7 +123,7 @@
               <ExpiryBadge :date="contract.end_date" compact />
             </div>
           </div>
-          <div v-else class="text-sm opacity-50">{{ t('contracts.noLinkedContracts') }}</div>
+          <div v-else class="text-sm text-muted">{{ t('contracts.noLinkedContracts') }}</div>
         </div>
       </section>
 
@@ -142,8 +141,7 @@
             <div
               v-for="ticket in openTickets"
               :key="ticket.id"
-              class="linked-item p-3 rounded-lg flex items-center justify-between cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-              style="background-color: var(--bg-app);"
+              class="linked-item p-3 rounded-lg flex items-center justify-between cursor-pointer"
               @click="navigateTo('ticket', ticket.id)"
             >
               <div class="flex items-center gap-3">
@@ -156,7 +154,7 @@
               <Tag :value="ticket.priority" :severity="getPrioritySeverity(ticket.priority)" />
             </div>
           </div>
-          <div v-else class="text-sm opacity-50">{{ t('tickets.noOpenTickets') }}</div>
+          <div v-else class="text-sm text-muted">{{ t('tickets.noOpenTickets') }}</div>
         </div>
       </section>
 
@@ -175,7 +173,6 @@
               v-for="ip in equipment.ip_addresses"
               :key="ip.id"
               class="linked-item p-3 rounded-lg flex items-center justify-between"
-              style="background-color: var(--bg-app);"
             >
               <div class="flex items-center gap-3">
                 <span class="font-mono text-sm">{{ ip.address }}</span>
@@ -184,7 +181,7 @@
               <Tag :value="ip.status" :severity="getIpStatusSeverity(ip.status)" />
             </div>
           </div>
-          <div v-else class="text-sm opacity-50">{{ t('ip.noIpLinked') }}</div>
+          <div v-else class="text-sm text-muted">{{ t('ip.noIpLinked') }}</div>
         </div>
       </section>
 
@@ -384,7 +381,7 @@ watch(() => [props.modelValue, props.equipmentId], ([isVisible, id]) => {
 
 <style scoped>
 .detail-section {
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: 1px solid var(--border-default);
   padding-bottom: 1.5rem;
 }
 
@@ -400,32 +397,71 @@ watch(() => [props.modelValue, props.equipmentId], ([isVisible, id]) => {
   font-weight: 600;
   font-size: 0.875rem;
   margin-bottom: 0.75rem;
-  color: var(--primary-color, #0ea5e9);
+  color: var(--primary);
 }
 
 .section-content .label {
   font-size: 0.75rem;
-  opacity: 0.6;
+  color: var(--text-secondary);
   margin-bottom: 0.25rem;
 }
 
 .section-content .value {
   font-weight: 500;
+  color: var(--text-primary);
 }
 
 .stat-card {
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-default);
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .stat-card:hover {
   transform: translateY(-1px);
+  border-color: var(--border-strong);
+}
+
+.stat-card .text-sm {
+  color: var(--text-secondary);
 }
 
 .linked-item {
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-default);
   transition: all 0.15s ease;
 }
 
 .linked-item:hover {
   transform: translateX(4px);
+  background-color: var(--bg-hover);
+  border-color: var(--primary);
+}
+
+/* Ensure text colors work in both modes */
+.text-muted {
+  color: var(--text-muted);
+}
+
+.font-medium {
+  color: var(--text-primary);
+}
+
+.font-mono {
+  color: var(--text-primary);
+}
+
+/* Linked item content */
+.linked-item .font-medium {
+  color: var(--text-primary);
+}
+
+.linked-item .text-sm {
+  color: var(--text-secondary);
+}
+
+/* Notes section */
+.section-content p {
+  color: var(--text-secondary);
 }
 </style>

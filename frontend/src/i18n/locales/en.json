@@ -132,7 +132,19 @@
     "failedStartScan": "Failed to start scan",
     "scanningBackground": "Scanning in background...",
     "manualIpAllocation": "Manual IP Allocation",
-    "ipAddress": "IP Address"
+    "ipAddress": "IP Address",
+    "totalIps": "Total IPs",
+    "usedIps": "Used IPs",
+    "available": "Available",
+    "utilization": "Utilization",
+    "subnetUtilization": "Subnet Utilization",
+    "ipAddresses": "IP Addresses",
+    "noIpAddresses": "No IP addresses in this subnet",
+    "linkedEquipment": "Linked Equipment",
+    "noLinkedEquipment": "No equipment linked to IPs in this subnet",
+    "vlan": "VLAN",
+    "gateway": "Gateway",
+    "dns": "DNS Servers"
   },
   "scripts": {
     "uploadTitle": "Upload Script",
@@ -454,7 +466,16 @@
     "positionUPlaceholder": "Starting U position",
     "positionUHint": "Leave empty if not placed",
     "heightU": "Height U",
-    "heightUPlaceholder": "Equipment height in U"
+    "heightUPlaceholder": "Equipment height in U",
+    "specifications": "Specifications",
+    "maxWeight": "Max Weight",
+    "usedU": "Used",
+    "freeU": "Free",
+    "utilization": "Utilization",
+    "rackUtilization": "Rack Utilization",
+    "installedEquipment": "Installed Equipment",
+    "noEquipmentInRack": "No equipment in this rack",
+    "noPdusInRack": "No PDUs in this rack"
   },
   "contracts": {
     "title": "Contracts",
@@ -487,6 +508,7 @@
     "period": "Period",
     "linkedContracts": "Linked Contracts",
     "noLinkedContracts": "No contracts linked to this equipment",
+    "noEquipmentLinked": "No equipment linked to this contract",
     "expiredDaysAgo": "Expired {days} days ago",
     "expiresToday": "Expires today",
     "expiresTomorrow": "Expires tomorrow",
@@ -528,7 +550,15 @@
     "expiringLicenses": "Expiring Licenses",
     "softwareCreated": "Software created successfully",
     "softwareUpdated": "Software updated successfully",
-    "softwareDeleted": "Software deleted successfully"
+    "softwareDeleted": "Software deleted successfully",
+    "licenseOverview": "License Overview",
+    "totalLicenses": "Total Licenses",
+    "available": "Available",
+    "seats": "seats",
+    "noKey": "No key",
+    "noLicenses": "No licenses for this software",
+    "noInstallations": "No installations found",
+    "installedOn": "Installed on"
   },
   "networkPorts": {
     "title": "Network Ports",
@@ -652,7 +682,11 @@
     "viewAll": "View all tickets",
     "openTickets": "Open Tickets",
     "noOpenTickets": "No open tickets for this equipment",
-    "createTicket": "Create Ticket"
+    "createTicket": "Create Ticket",
+    "priority": "Priority",
+    "slaNearBreach": "SLA Near Breach",
+    "noHistory": "No history available",
+    "historyPriorityChanged": "changed priority from"
   },
   "notifications": {
     "title": "Notifications",

@@ -1245,11 +1245,11 @@ const onLinkIpDialogEnter = (event) => {
 
 // Open equipment from URL parameter
 const openEquipmentFromUrl = () => {
-  const equipmentId = route.query.equipment;
+  const equipmentId = route.query.equipment || route.query.id;
   if (equipmentId && equipment.value.length > 0) {
     const eq = equipment.value.find(e => e.id === parseInt(equipmentId));
     if (eq) {
-      openEquipmentDialog(eq);
+      openEquipmentDetail(eq);
       // Clear the query parameter after opening
       router.replace({ path: route.path });
     }
@@ -1257,8 +1257,8 @@ const openEquipmentFromUrl = () => {
 };
 
 // Watch for route changes
-watch(() => route.query.equipment, (newVal) => {
-  if (newVal) {
+watch(() => [route.query.equipment, route.query.id], ([equipmentQuery, idQuery]) => {
+  if (equipmentQuery || idQuery) {
     openEquipmentFromUrl();
   }
 });
