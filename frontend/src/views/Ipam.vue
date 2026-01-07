@@ -31,17 +31,9 @@
           <div class="p-4" style="background-color: rgba(0,0,0,0.02);">
             <div class="flex justify-between items-center mb-3">
                  <h3 class="font-semibold text-sm opacity-70">{{ t('ipam.allocatedIps') }} {{ slotProps.data.cidr }}</h3>
-                 <div class="flex items-center gap-4">
-                   <!-- Slider for IPs per page -->
-                   <div class="flex items-center gap-2">
-                     <span class="text-xs opacity-50">{{ t('ipam.ipsPerPage') }}:</span>
-                     <Slider v-model="ipsPerPage" :min="10" :max="200" :step="10" class="w-24" @slideend="() => reloadSubnetIps(slotProps.data.id)" />
-                     <span class="text-xs font-medium w-8">{{ ipsPerPage }}</span>
-                   </div>
-                   <span class="text-xs opacity-50" v-if="subnetIps[slotProps.data.id]?.total > 0">
-                      {{ subnetIps[slotProps.data.id].total }} {{ t('ipam.addressesFound') }}
-                   </span>
-                 </div>
+                 <span class="text-xs opacity-50" v-if="subnetIps[slotProps.data.id]?.total > 0">
+                    {{ subnetIps[slotProps.data.id].total }} {{ t('ipam.addressesFound') }}
+                 </span>
             </div>
 
             <!-- Loading state -->
@@ -49,7 +41,7 @@
               <i class="pi pi-spin pi-spinner text-2xl opacity-50"></i>
             </div>
 
-            <!-- IP Table with pagination -->
+            <!-- IP Table with pagination and scroll -->
             <template v-else-if="subnetIps[slotProps.data.id]?.items?.length > 0">
               <DataTable
                 :value="subnetIps[slotProps.data.id].items"
@@ -57,11 +49,13 @@
                 stripedRows
                 lazy
                 paginator
-                :rows="ipsPerPage"
+                :rows="50"
                 :totalRecords="subnetIps[slotProps.data.id].total"
                 :first="subnetIps[slotProps.data.id].skip || 0"
                 @page="(e) => onIpPage(e, slotProps.data.id)"
-                :rowsPerPageOptions="[10, 25, 50, 100, 200]"
+                :rowsPerPageOptions="[25, 50, 100]"
+                scrollable
+                scrollHeight="400px"
               >
                 <Column field="address" :header="t('ipam.address')" sortable class="font-mono text-sm"></Column>
                 <Column field="hostname" :header="t('ipam.hostname')" class="text-sm"></Column>
@@ -168,7 +162,6 @@ const selectedSubnet = ref(null);
 // IP pagination state per subnet
 const subnetIps = reactive({});
 const loadingIps = reactive({});
-const ipsPerPage = ref(50);
 
 const newSubnet = ref({ cidr: '', name: '', description: '' });
 const newIp = ref({ address: '', hostname: '', status: 'active' });
@@ -183,12 +176,11 @@ const fetchSubnets = async () => {
 };
 
 // Load IPs for a specific subnet with pagination
-const loadSubnetIps = async (subnetId, skip = 0, limit = null) => {
-  const effectiveLimit = limit ?? ipsPerPage.value;
+const loadSubnetIps = async (subnetId, skip = 0, limit = 50) => {
   loadingIps[subnetId] = true;
   try {
     const res = await api.get(`/subnets/${subnetId}/ips/`, {
-      params: { skip, limit: effectiveLimit }
+      params: { skip, limit }
     });
     subnetIps[subnetId] = {
       items: res.data.items,
@@ -198,15 +190,10 @@ const loadSubnetIps = async (subnetId, skip = 0, limit = null) => {
     };
   } catch (error) {
     toast.add({ severity: 'error', summary: t('common.error'), detail: 'Could not load IPs', life: 3000 });
-    subnetIps[subnetId] = { items: [], total: 0, skip: 0, limit: effectiveLimit };
+    subnetIps[subnetId] = { items: [], total: 0, skip: 0, limit };
   } finally {
     loadingIps[subnetId] = false;
   }
-};
-
-// Reload IPs when slider changes
-const reloadSubnetIps = (subnetId) => {
-  loadSubnetIps(subnetId, 0, ipsPerPage.value);
 };
 
 // Handler for row expansion - load IPs on demand
@@ -214,7 +201,7 @@ const onRowExpand = (event) => {
   const subnetId = event.data.id;
   // Only load if not already loaded
   if (!subnetIps[subnetId]) {
-    loadSubnetIps(subnetId, 0, ipsPerPage.value);
+    loadSubnetIps(subnetId);
   }
 };
 

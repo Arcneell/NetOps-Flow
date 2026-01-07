@@ -4,13 +4,13 @@ Provides a single endpoint to search equipment, tickets, knowledge articles, and
 """
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session, joinedload
-from sqlalchemy import or_, func
+from sqlalchemy import or_, func, and_, String
 from typing import Optional, List
 from datetime import datetime
 import logging
 
 from backend.core.database import get_db
-from backend.core.security import get_current_user, has_permission
+from backend.core.security import get_current_active_user, has_permission
 from backend import models
 from pydantic import BaseModel
 
@@ -52,7 +52,7 @@ def global_search(
     types: Optional[str] = Query(None, description="Comma-separated types to search: equipment,tickets,articles,subnets,contracts,software"),
     limit: int = Query(default=20, le=50, description="Max results per type"),
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user)
+    current_user: models.User = Depends(get_current_active_user)
 ):
     """
     Global search across multiple resource types.
@@ -83,16 +83,21 @@ def global_search(
     can_search_software = has_permission(current_user, "software")
     can_search_knowledge = has_permission(current_user, "knowledge")
 
+    logger.debug(f"Search permissions for {current_user.username} (role={current_user.role}): "
+                 f"inventory={can_search_inventory}, ipam={can_search_ipam}, "
+                 f"contracts={can_search_contracts}, software={can_search_software}, "
+                 f"knowledge={can_search_knowledge}")
+
     # ==================== SEARCH EQUIPMENT ====================
     if "equipment" in search_types and can_search_inventory:
         equipment_query = db.query(models.Equipment).options(
-            joinedload(models.Equipment.equipment_type)
+            joinedload(models.Equipment.model).joinedload(models.EquipmentModel.equipment_type)
         ).filter(
             or_(
-                func.lower(models.Equipment.name).like(search_term),
-                func.lower(models.Equipment.serial_number).like(search_term),
-                func.lower(models.Equipment.asset_tag).like(search_term),
-                func.lower(models.Equipment.notes).like(search_term)
+                func.lower(func.coalesce(models.Equipment.name, '')).like(search_term),
+                func.lower(func.coalesce(models.Equipment.serial_number, '')).like(search_term),
+                func.lower(func.coalesce(models.Equipment.asset_tag, '')).like(search_term),
+                func.lower(func.coalesce(models.Equipment.notes, '')).like(search_term)
             )
         )
 
@@ -103,13 +108,18 @@ def global_search(
 
         equipment = equipment_query.limit(limit).all()
         type_counts["equipment"] = len(equipment)
+        logger.debug(f"Equipment search: found {len(equipment)} results")
 
         for eq in equipment:
+            # Get equipment type through model relationship
+            eq_type_name = None
+            if eq.model and eq.model.equipment_type:
+                eq_type_name = eq.model.equipment_type.name
             results.append(SearchResultItem(
                 id=eq.id,
                 type="equipment",
                 title=eq.name,
-                subtitle=eq.equipment_type.name if eq.equipment_type else None,
+                subtitle=eq_type_name,
                 description=f"S/N: {eq.serial_number}" if eq.serial_number else None,
                 status=eq.status,
                 url=f"/inventory?id={eq.id}"
@@ -119,9 +129,9 @@ def global_search(
     if "tickets" in search_types:
         tickets_query = db.query(models.Ticket).filter(
             or_(
-                func.lower(models.Ticket.ticket_number).like(search_term),
-                func.lower(models.Ticket.title).like(search_term),
-                func.lower(models.Ticket.description).like(search_term)
+                func.lower(func.coalesce(models.Ticket.ticket_number, '')).like(search_term),
+                func.lower(func.coalesce(models.Ticket.title, '')).like(search_term),
+                func.lower(func.coalesce(models.Ticket.description, '')).like(search_term)
             )
         )
 
@@ -138,6 +148,7 @@ def global_search(
 
         tickets = tickets_query.limit(limit).all()
         type_counts["tickets"] = len(tickets)
+        logger.debug(f"Tickets search: found {len(tickets)} results")
 
         for t in tickets:
             results.append(SearchResultItem(
@@ -153,11 +164,11 @@ def global_search(
     # ==================== SEARCH KNOWLEDGE ARTICLES ====================
     if "articles" in search_types and can_search_knowledge:
         articles_query = db.query(models.KnowledgeArticle).filter(
-            models.KnowledgeArticle.status == "published",
+            models.KnowledgeArticle.is_published == True,
             or_(
-                func.lower(models.KnowledgeArticle.title).like(search_term),
-                func.lower(models.KnowledgeArticle.content).like(search_term),
-                func.lower(models.KnowledgeArticle.summary).like(search_term)
+                func.lower(func.coalesce(models.KnowledgeArticle.title, '')).like(search_term),
+                func.lower(func.coalesce(models.KnowledgeArticle.content, '')).like(search_term),
+                func.lower(func.coalesce(models.KnowledgeArticle.summary, '')).like(search_term)
             )
         )
 
@@ -170,6 +181,7 @@ def global_search(
 
         articles = articles_query.limit(limit).all()
         type_counts["articles"] = len(articles)
+        logger.debug(f"Articles search: found {len(articles)} results")
 
         for a in articles:
             results.append(SearchResultItem(
@@ -178,17 +190,18 @@ def global_search(
                 title=a.title,
                 subtitle=a.category,
                 description=a.summary[:100] if a.summary else None,
-                status="published",
+                status="published" if a.is_published else "draft",
                 url=f"/knowledge/{a.slug}"
             ))
 
     # ==================== SEARCH SUBNETS ====================
     if "subnets" in search_types and can_search_ipam:
+        # Cast cidr to text for LIKE search (cidr is inet type in PostgreSQL)
         subnets_query = db.query(models.Subnet).filter(
             or_(
-                func.lower(models.Subnet.cidr).like(search_term),
-                func.lower(models.Subnet.name).like(search_term),
-                func.lower(models.Subnet.description).like(search_term)
+                func.lower(func.cast(models.Subnet.cidr, String)).like(search_term),
+                func.lower(func.coalesce(models.Subnet.name, '')).like(search_term),
+                func.lower(func.coalesce(models.Subnet.description, '')).like(search_term)
             )
         )
 
@@ -199,12 +212,13 @@ def global_search(
 
         subnets = subnets_query.limit(limit).all()
         type_counts["subnets"] = len(subnets)
+        logger.debug(f"Subnets search: found {len(subnets)} results")
 
         for s in subnets:
             results.append(SearchResultItem(
                 id=s.id,
                 type="subnet",
-                title=s.cidr,
+                title=str(s.cidr),
                 subtitle=s.name,
                 description=s.description[:100] if s.description else None,
                 status=None,
@@ -215,9 +229,9 @@ def global_search(
     if "contracts" in search_types and can_search_contracts:
         contracts_query = db.query(models.Contract).filter(
             or_(
-                func.lower(models.Contract.name).like(search_term),
-                func.lower(models.Contract.contract_number).like(search_term),
-                func.lower(models.Contract.notes).like(search_term)
+                func.lower(func.coalesce(models.Contract.name, '')).like(search_term),
+                func.lower(func.coalesce(models.Contract.contract_number, '')).like(search_term),
+                func.lower(func.coalesce(models.Contract.notes, '')).like(search_term)
             )
         )
 
@@ -228,6 +242,7 @@ def global_search(
 
         contracts = contracts_query.limit(limit).all()
         type_counts["contracts"] = len(contracts)
+        logger.debug(f"Contracts search: found {len(contracts)} results")
 
         for c in contracts:
             results.append(SearchResultItem(
@@ -244,9 +259,9 @@ def global_search(
     if "software" in search_types and can_search_software:
         software_query = db.query(models.Software).filter(
             or_(
-                func.lower(models.Software.name).like(search_term),
-                func.lower(models.Software.publisher).like(search_term),
-                func.lower(models.Software.notes).like(search_term)
+                func.lower(func.coalesce(models.Software.name, '')).like(search_term),
+                func.lower(func.coalesce(models.Software.publisher, '')).like(search_term),
+                func.lower(func.coalesce(models.Software.notes, '')).like(search_term)
             )
         )
 
@@ -257,6 +272,7 @@ def global_search(
 
         software = software_query.limit(limit).all()
         type_counts["software"] = len(software)
+        logger.debug(f"Software search: found {len(software)} results")
 
         for sw in software:
             results.append(SearchResultItem(
