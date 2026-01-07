@@ -139,6 +139,10 @@ class SubnetBase(BaseModel):
 class SubnetCreate(SubnetBase):
     pass
 
+class SubnetUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+
 class Subnet(SubnetBase):
     id: int
     ips: List[IPAddress] = Field(default_factory=list)

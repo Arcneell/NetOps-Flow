@@ -116,6 +116,42 @@ def read_subnets(
     return subnets
 
 
+@router.put("/{subnet_id}", response_model=schemas.Subnet)
+def update_subnet(
+    subnet_id: int,
+    subnet_update: schemas.SubnetUpdate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user)
+):
+    """Update a subnet (name and description only, CIDR cannot be changed)."""
+    check_ipam_permission(current_user)
+    entity_filter = get_entity_filter(current_user)
+
+    subnet_query = db.query(models.Subnet).filter(models.Subnet.id == subnet_id)
+    if entity_filter is not None:
+        subnet_query = subnet_query.filter(
+            or_(
+                models.Subnet.entity_id == entity_filter,
+                models.Subnet.entity_id == None  # noqa: E711
+            )
+        )
+    db_subnet = subnet_query.first()
+    if not db_subnet:
+        raise HTTPException(status_code=404, detail="Subnet not found")
+
+    # Update fields
+    if subnet_update.name is not None:
+        db_subnet.name = subnet_update.name
+    if subnet_update.description is not None:
+        db_subnet.description = subnet_update.description
+
+    db.commit()
+    db.refresh(db_subnet)
+
+    logger.info(f"Subnet '{db_subnet.cidr}' updated by '{current_user.username}'")
+    return db_subnet
+
+
 @router.get("/{subnet_id}/ips/", response_model=schemas.PaginatedIPResponse)
 def get_subnet_ips(
     subnet_id: int,

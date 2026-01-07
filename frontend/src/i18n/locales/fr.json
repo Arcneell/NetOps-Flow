@@ -146,7 +146,21 @@
     "noLinkedEquipment": "Aucun équipement lié aux IPs de ce sous-réseau",
     "vlan": "VLAN",
     "gateway": "Passerelle",
-    "dns": "Serveurs DNS"
+    "dns": "Serveurs DNS",
+    "subnets": "Sous-réseaux",
+    "activeIps": "IPs Actives",
+    "reservedIps": "IPs Réservées",
+    "noSubnets": "Aucun sous-réseau trouvé",
+    "editSubnet": "Modifier le Sous-réseau",
+    "subnetUpdated": "Sous-réseau modifié",
+    "subnetDeleted": "Sous-réseau supprimé",
+    "confirmDeleteSubnet": "Êtes-vous sûr de vouloir supprimer ce sous-réseau ?",
+    "deleteWarningIps": "Attention : Ce sous-réseau contient {count} adresses IP qui seront également supprimées.",
+    "failedLoadSubnets": "Échec du chargement des sous-réseaux",
+    "failedLoadSubnet": "Échec du chargement des détails du sous-réseau",
+    "cidrHint": "Exemple : 192.168.1.0/24",
+    "ipDeleted": "Adresse IP supprimée",
+    "confirmDeleteIp": "Êtes-vous sûr de vouloir supprimer cette adresse IP ?"
   },
   "scripts": {
     "uploadTitle": "Uploader un Script",
@@ -936,6 +950,8 @@
     "open": "Ouvrir",
     "close": "Fermer",
     "createTicket": "Créer un nouveau ticket",
-    "createEquipment": "Créer un nouvel équipement"
+    "createEquipment": "Créer un nouvel équipement",
+    "searchSubnets": "Rechercher des sous-réseaux...",
+    "searchIps": "Rechercher des IPs..."
   }
 }

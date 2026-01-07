@@ -146,7 +146,21 @@
     "noLinkedEquipment": "No equipment linked to IPs in this subnet",
     "vlan": "VLAN",
     "gateway": "Gateway",
-    "dns": "DNS Servers"
+    "dns": "DNS Servers",
+    "subnets": "Subnets",
+    "activeIps": "Active IPs",
+    "reservedIps": "Reserved IPs",
+    "noSubnets": "No subnets found",
+    "editSubnet": "Edit Subnet",
+    "subnetUpdated": "Subnet updated",
+    "subnetDeleted": "Subnet deleted",
+    "confirmDeleteSubnet": "Are you sure you want to delete this subnet?",
+    "deleteWarningIps": "Warning: This subnet contains {count} IP addresses that will also be deleted.",
+    "failedLoadSubnets": "Failed to load subnets",
+    "failedLoadSubnet": "Failed to load subnet details",
+    "cidrHint": "Example: 192.168.1.0/24",
+    "ipDeleted": "IP address deleted",
+    "confirmDeleteIp": "Are you sure you want to delete this IP address?"
   },
   "scripts": {
     "uploadTitle": "Upload Script",
@@ -936,6 +950,8 @@
     "open": "Open",
     "close": "Close",
     "createTicket": "Create New Ticket",
-    "createEquipment": "Create New Equipment"
+    "createEquipment": "Create New Equipment",
+    "searchSubnets": "Search subnets...",
+    "searchIps": "Search IPs..."
   }
 }

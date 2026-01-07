@@ -132,12 +132,13 @@ def global_search(
             ))
 
     # ==================== SEARCH TICKETS ====================
+    # Note: We only search ticket_number and title, NOT description
+    # This prevents irrelevant results from matching common words in descriptions
     if "tickets" in search_types:
         tickets_query = db.query(models.Ticket).filter(
             or_(
                 func.lower(func.coalesce(models.Ticket.ticket_number, '')).like(search_term),
-                func.lower(func.coalesce(models.Ticket.title, '')).like(search_term),
-                func.lower(func.coalesce(models.Ticket.description, '')).like(search_term)
+                func.lower(func.coalesce(models.Ticket.title, '')).like(search_term)
             )
         )
 
