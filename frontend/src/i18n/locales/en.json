@@ -30,10 +30,18 @@
     "ipam": "IPAM",
     "topology": "Topology",
     "automation": "Automation",
+    "scripts": "Scripts",
     "scriptRunner": "Script Runner",
     "system": "System",
     "settings": "Settings",
     "inventory": "Inventory",
+    "dcim": "DCIM",
+    "contracts": "Contracts",
+    "software": "Software",
+    "tickets": "Tickets",
+    "knowledge": "Knowledge Base",
+    "users": "User Management",
+    "admin": "Administration",
     "logout": "Logout"
   },
   "dashboard": {
@@ -101,6 +109,7 @@
     "slaBreached": "SLA Breached"
   },
   "ipam": {
+    "title": "IPAM",
     "cidr": "CIDR",
     "name": "Name",
     "description": "Description",
@@ -309,7 +318,8 @@
     "maintenance": "Maintenance",
     "active": "Active",
     "available": "Available",
-    "warning": "Warning"
+    "warning": "Warning",
+    "expired": "Expired"
   },
   "ip": {
     "linkedIps": "Linked IPs",
@@ -889,8 +899,5 @@
     "close": "Close",
     "createTicket": "Create New Ticket",
     "createEquipment": "Create New Equipment"
-  },
-  "status": {
-    "expired": "Expired"
   }
 }

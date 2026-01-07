@@ -30,10 +30,18 @@
     "ipam": "IPAM",
     "topology": "Topologie",
     "automation": "Automatisation",
+    "scripts": "Scripts",
     "scriptRunner": "Exécution de Scripts",
     "system": "Système",
     "settings": "Paramètres",
     "inventory": "Inventaire",
+    "dcim": "DCIM",
+    "contracts": "Contrats",
+    "software": "Logiciels",
+    "tickets": "Tickets",
+    "knowledge": "Base de Connaissances",
+    "users": "Gestion des Utilisateurs",
+    "admin": "Administration",
     "logout": "Déconnexion"
   },
   "dashboard": {
@@ -101,6 +109,7 @@
     "slaBreached": "SLA Dépassé"
   },
   "ipam": {
+    "title": "IPAM",
     "cidr": "CIDR",
     "name": "Nom",
     "description": "Description",
@@ -309,7 +318,8 @@
     "maintenance": "En maintenance",
     "active": "Actif",
     "available": "Disponible",
-    "warning": "Attention"
+    "warning": "Attention",
+    "expired": "Expiré"
   },
   "ip": {
     "linkedIps": "IPs liées",
@@ -889,8 +899,5 @@
     "close": "Fermer",
     "createTicket": "Créer un nouveau ticket",
     "createEquipment": "Créer un nouvel équipement"
-  },
-  "status": {
-    "expired": "Expiré"
   }
 }
