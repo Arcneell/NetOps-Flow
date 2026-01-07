@@ -542,10 +542,13 @@ def list_executable_equipment(
     check_inventory_permission(current_user)
 
     # Use contains_eager for filtered joins, joinedload for other relations
+    # Must explicitly join all tables used with contains_eager to avoid cartesian product
     query = db.query(models.Equipment).join(
         models.EquipmentModel
     ).join(
         models.EquipmentType
+    ).join(
+        models.Manufacturer, models.EquipmentModel.manufacturer_id == models.Manufacturer.id
     ).options(
         contains_eager(models.Equipment.model).contains_eager(models.EquipmentModel.manufacturer),
         contains_eager(models.Equipment.model).contains_eager(models.EquipmentModel.equipment_type),
