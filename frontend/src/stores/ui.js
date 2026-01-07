@@ -6,7 +6,7 @@ import { defineStore } from 'pinia'
 import { ref, computed, watch } from 'vue'
 
 export const useUIStore = defineStore('ui', () => {
-  // Theme State
+  // Theme State - default to light for new users
   const isDark = ref(localStorage.getItem('theme') === 'dark')
 
   // Language State
@@ -90,15 +90,13 @@ export const useUIStore = defineStore('ui', () => {
    * Initialize UI state from localStorage.
    */
   function init() {
-    // Theme
+    // Theme - default to light for new users
     const savedTheme = localStorage.getItem('theme')
     if (savedTheme === 'dark') {
       isDark.value = true
-    } else if (savedTheme === 'light') {
-      isDark.value = false
     } else {
-      // Default to system preference
-      isDark.value = window.matchMedia('(prefers-color-scheme: dark)').matches
+      // Default to light theme (not system preference)
+      isDark.value = false
     }
     updateThemeClass()
 

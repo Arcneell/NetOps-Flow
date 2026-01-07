@@ -2,8 +2,14 @@
   <div class="min-h-screen w-full flex items-center justify-center relative overflow-hidden font-sans"
        :style="{ background: 'var(--bg-app)' }">
 
-    <!-- Language Toggle (Top Right) -->
-    <div class="absolute top-6 right-6 z-20">
+    <!-- Theme & Language Toggle (Top Right) -->
+    <div class="absolute top-6 right-6 z-20 flex items-center gap-2">
+      <!-- Theme Toggle -->
+      <button @click="toggleTheme" class="theme-toggle-login" :title="isDark ? 'Light mode' : 'Dark mode'">
+        <i :class="['pi', isDark ? 'pi-sun' : 'pi-moon']"></i>
+      </button>
+
+      <!-- Language Switcher -->
       <div class="lang-switcher-login">
         <button @click="setLang('en')" :class="['lang-btn-login', locale === 'en' ? 'active' : '']" title="English">
           <svg viewBox="0 0 60 30" class="w-5 h-3.5">
@@ -179,14 +185,20 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '../stores/auth'
+import { useUIStore } from '../stores/ui'
 
 const { t, locale } = useI18n()
 const router = useRouter()
 const authStore = useAuthStore()
+const uiStore = useUIStore()
+
+// Theme state
+const isDark = computed(() => uiStore.isDark)
+const toggleTheme = () => uiStore.toggleTheme()
 
 const username = ref('')
 const password = ref('')
@@ -201,6 +213,9 @@ const setLang = (lang) => {
 }
 
 onMounted(() => {
+  // Initialize UI store (theme, language)
+  uiStore.init()
+
   const savedLang = localStorage.getItem('lang') || 'en'
   locale.value = savedLang
 
@@ -294,6 +309,32 @@ const backToLogin = () => {
   right: 0;
   height: 1px;
   background: linear-gradient(90deg, transparent, rgba(14, 165, 233, 0.3), transparent);
+}
+
+/* Theme Toggle */
+.theme-toggle-login {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: var(--radius-md);
+  background: var(--bg-card);
+  backdrop-filter: blur(var(--blur-md));
+  border: 1px solid var(--border-default);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  color: var(--text-secondary);
+}
+
+.theme-toggle-login:hover {
+  background: var(--bg-secondary);
+  border-color: var(--border-strong);
+  color: var(--primary);
+}
+
+.theme-toggle-login i {
+  font-size: 1rem;
 }
 
 /* Language Switcher */
