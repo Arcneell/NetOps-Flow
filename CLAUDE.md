@@ -34,13 +34,21 @@ Plateforme de gestion IT complète (ITSM/ITAM) auto-hébergée, entièrement gé
 ```
 frontend/          # Vue.js 3 SPA
 ├── src/
-│   ├── components/shared/   # Composants réutilisables (StatusTag, NotificationBell)
+│   ├── components/shared/   # Composants réutilisables:
+│   │   ├── StatusTag.vue          # Tags de statut avec gradients
+│   │   ├── NotificationBell.vue   # Cloche notifications avec deep linking
+│   │   ├── CommandBar.vue         # Recherche globale (Ctrl+K) style moderne
+│   │   ├── Breadcrumbs.vue        # Fil d'Ariane navigation
+│   │   ├── EmptyState.vue         # États vides pédagogiques
+│   │   ├── ExpiryBadge.vue        # Badges expiration pulsants
+│   │   ├── SlideOver.vue          # Panneau latéral générique
+│   │   └── EquipmentDetailSlideOver.vue  # Détails équipement 360°
 │   ├── stores/              # Pinia stores (auth, ui, dcim, contracts, software, networkPorts, attachments, tickets, notifications, inventory)
 │   ├── views/               # Pages principales (Tickets.vue, Knowledge.vue, Administration.vue)
 │   ├── i18n/                # Traductions EN/FR
 │   ├── api.js               # Client Axios
 │   ├── router.js            # Routes avec guards de permissions (lazy loading, code splitting)
-│   └── style.css            # Design System Modern Slate (Anthracite, Zinc, Bleu électrique)
+│   └── style.css            # Design System Modern Slate (Anthracite, Zinc, Bleu électrique) + micro-interactions
 
 backend/           # FastAPI API
 ├── core/
@@ -78,7 +86,7 @@ backend/           # FastAPI API
 └── app.py                  # Application FastAPI (lifespan context manager, auto create_default_admin)
 
 worker/            # Celery worker
-└── tasks.py       # Tâches async (exécution scripts, scan subnet, alertes expirations, collecte logiciels, cleanup tokens/audit logs, SLA breach check, backup PostgreSQL)
+└── tasks.py       # Tâches async (exécution scripts, scan subnet, alertes expirations avec notifications, collecte logiciels, cleanup tokens/audit logs, SLA breach check, backup PostgreSQL)
 
 frontend/src/utils/
 └── validation.js  # Schémas de validation Zod (avatar, scripts, passwords, MFA codes)
@@ -198,9 +206,31 @@ frontend/src/utils/
 - Types : info, success, warning, error, ticket
 - Polling automatique (30 secondes)
 - Marquer comme lu (individuel ou tous)
-- Lien vers ressource associée (ticket, article)
+- **Deep Linking** : Navigation directe vers la ressource (ticket, équipement, contrat, logiciel, article)
 - Suppression des notifications lues
 - Broadcast admin vers tous les utilisateurs
+- **Notifications automatiques** : Création par worker pour expirations contrats/garanties/licences
+
+### Interface Utilisateur Moderne
+
+#### Recherche Globale (Command Bar)
+- Raccourci clavier **Ctrl+K** / **Cmd+K**
+- Recherche multi-ressources (équipements, tickets, contrats, KB)
+- Résultats catégorisés avec navigation clavier
+- Actions rapides intégrées
+
+#### Navigation & UX
+- **Breadcrumbs** : Fil d'Ariane sur toutes les pages
+- **Colonnes cliquables** : Noms dans les tableaux ouvrent les détails
+- **Slide-over détails 360°** : Vue complète équipement avec contrats, tickets, IPs liés
+- **Badges d'expiration pulsants** : Alertes visuelles pour dates proches
+- **Empty States pédagogiques** : Guidage utilisateur quand aucune donnée
+
+#### Micro-interactions
+- Transitions fluides (cubic-bezier 0.4, 0, 0.2, 1)
+- Hover avec translation légère sur lignes tableau
+- Effets pulse pour alertes critiques
+- Animations d'entrée/sortie pour modales et slide-overs
 
 ### Export de Données
 - Export CSV pour équipements, tickets, contrats, logiciels, IPs, audit logs

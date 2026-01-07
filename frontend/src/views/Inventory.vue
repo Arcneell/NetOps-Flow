@@ -1,5 +1,9 @@
 <template>
-  <div class="flex gap-6 h-full">
+  <div class="flex flex-col h-full">
+    <!-- Breadcrumbs -->
+    <Breadcrumbs :items="breadcrumbItems" />
+
+    <div class="flex gap-6 flex-1 overflow-hidden">
     <!-- Sidebar Menu -->
     <div class="w-64 flex-shrink-0">
       <div class="card p-0 overflow-hidden">
@@ -86,7 +90,16 @@
             class="text-sm"
           >
             <Column expander style="width: 3rem" />
-            <Column field="name" :header="t('common.name')" sortable></Column>
+            <Column field="name" :header="t('common.name')" sortable>
+              <template #body="slotProps">
+                <span
+                  class="font-medium text-blue-500 hover:text-blue-600 dark:hover:text-blue-400 cursor-pointer transition-colors hover:underline"
+                  @click.stop="openEquipmentDetail(slotProps.data)"
+                >
+                  {{ slotProps.data.name }}
+                </span>
+              </template>
+            </Column>
             <Column :header="t('inventory.type')">
               <template #body="slotProps">
                 <span v-if="slotProps.data.model?.equipment_type">
@@ -632,6 +645,14 @@
         </div>
       </template>
     </Dialog>
+
+    <!-- Equipment Detail Slide-Over -->
+    <EquipmentDetailSlideOver
+      v-model="showDetailSlideOver"
+      :equipmentId="selectedEquipmentId"
+      @edit="handleEditFromSlideOver"
+    />
+    </div>
   </div>
 </template>
 
@@ -641,6 +662,9 @@ import { useRoute, useRouter } from 'vue-router';
 import { useToast } from 'primevue/usetoast';
 import { useI18n } from 'vue-i18n';
 import api from '../api';
+import ExpiryBadge from '../components/shared/ExpiryBadge.vue';
+import Breadcrumbs from '../components/shared/Breadcrumbs.vue';
+import EquipmentDetailSlideOver from '../components/shared/EquipmentDetailSlideOver.vue';
 
 const route = useRoute();
 const router = useRouter();
@@ -676,6 +700,8 @@ const showLocationDialog = ref(false);
 const showSupplierDialog = ref(false);
 const showLinkIpDialog = ref(false);
 const showDeleteEquipmentDialog = ref(false);
+const showDetailSlideOver = ref(false);
+const selectedEquipmentId = ref(null);
 
 // Editing states
 const editingEquipment = ref(null);
@@ -726,6 +752,22 @@ const locationOptions = computed(() => locations.value.map(l => ({
 })));
 
 const iconOptions = ['pi-server', 'pi-desktop', 'pi-mobile', 'pi-box', 'pi-database', 'pi-wifi', 'pi-globe', 'pi-print', 'pi-shield', 'pi-bolt', 'pi-cog', 'pi-sitemap', 'pi-sliders-h', 'pi-tablet', 'pi-video'];
+
+// Breadcrumbs
+const breadcrumbItems = computed(() => {
+  const items = [{ label: t('inventory.title'), icon: 'pi-box' }]
+  if (activeSection.value !== 'equipment') {
+    const sectionLabels = {
+      manufacturers: t('inventory.manufacturers'),
+      models: t('inventory.models'),
+      types: t('inventory.types'),
+      locations: t('inventory.locations'),
+      suppliers: t('inventory.suppliers')
+    }
+    items.push({ label: sectionLabels[activeSection.value] || activeSection.value })
+  }
+  return items
+})
 
 // Hierarchy level options for topology view ordering
 const hierarchyLevelOptions = computed(() => [
@@ -779,6 +821,18 @@ const formatDate = (date) => {
   if (!date) return '-';
   return new Date(date).toLocaleDateString();
 };
+
+// Open equipment detail slide-over
+const openEquipmentDetail = (eq) => {
+  selectedEquipmentId.value = eq.id
+  showDetailSlideOver.value = true
+}
+
+// Handle edit from slide-over
+const handleEditFromSlideOver = (eq) => {
+  showDetailSlideOver.value = false
+  openEquipmentDialog(eq)
+}
 
 // Hierarchy level helpers for Types table
 const getHierarchyColor = (level) => {

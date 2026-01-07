@@ -139,8 +139,39 @@ export const useNotificationsStore = defineStore('notifications', () => {
         return `/inventory?equipment=${notification.link_id}`
       case 'contract':
         return `/contracts?id=${notification.link_id}`
+      case 'software':
+        return `/software?id=${notification.link_id}`
+      case 'article':
+        return `/knowledge?article=${notification.link_id}`
       default:
         return null
+    }
+  }
+
+  // Get notification icon based on type
+  function getNotificationIcon(notification) {
+    switch (notification.link_type) {
+      case 'ticket':
+        return 'pi-ticket'
+      case 'equipment':
+        return 'pi-box'
+      case 'contract':
+        return 'pi-file'
+      case 'software':
+        return 'pi-desktop'
+      case 'article':
+        return 'pi-book'
+      default:
+        switch (notification.notification_type) {
+          case 'error':
+            return 'pi-exclamation-circle'
+          case 'warning':
+            return 'pi-exclamation-triangle'
+          case 'success':
+            return 'pi-check-circle'
+          default:
+            return 'pi-info-circle'
+        }
     }
   }
 
@@ -163,6 +194,7 @@ export const useNotificationsStore = defineStore('notifications', () => {
     deleteAllRead,
     startPolling,
     stopPolling,
-    getNotificationLink
+    getNotificationLink,
+    getNotificationIcon
   }
 })

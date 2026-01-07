@@ -1038,6 +1038,157 @@ a:hover {
 .animate-slide-down { animation: slideDown var(--transition-base) ease-out; }
 .animate-scale-in { animation: scaleIn var(--transition-base) ease-out; }
 
+/* =========================================
+   12. INTERACTIVE ELEMENTS
+   ========================================= */
+
+/* Clickable links in tables */
+.clickable-cell {
+    color: var(--primary);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    font-weight: 500;
+}
+
+.clickable-cell:hover {
+    color: var(--primary-hover);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+/* Card hover effects */
+.card-interactive {
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.card-interactive:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-lg);
+    border-color: var(--primary);
+}
+
+/* Row hover with slide effect */
+.p-datatable .p-datatable-tbody > tr {
+    transition: all 0.15s ease;
+}
+
+.p-datatable .p-datatable-tbody > tr:hover {
+    transform: translateX(2px);
+}
+
+/* Pulsing alert badge */
+@keyframes pulse-alert {
+    0%, 100% {
+        transform: scale(1);
+        box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4);
+    }
+    50% {
+        transform: scale(1.05);
+        box-shadow: 0 0 0 4px rgba(239, 68, 68, 0);
+    }
+}
+
+.pulse-alert {
+    animation: pulse-alert 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* Warning pulse for expiring items */
+@keyframes pulse-warning {
+    0%, 100% {
+        opacity: 1;
+        box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.3);
+    }
+    50% {
+        opacity: 0.85;
+        box-shadow: 0 0 0 4px rgba(245, 158, 11, 0);
+    }
+}
+
+.pulse-warning {
+    animation: pulse-warning 2s ease-in-out infinite;
+}
+
+/* Button with ripple effect on hover */
+.btn-ripple {
+    position: relative;
+    overflow: hidden;
+}
+
+.btn-ripple::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at center, rgba(255,255,255,0.3) 0%, transparent 70%);
+    transform: scale(0);
+    transition: transform 0.5s ease;
+}
+
+.btn-ripple:hover::after {
+    transform: scale(2);
+}
+
+/* Smooth accordion/expand transitions */
+.expand-transition-enter-active,
+.expand-transition-leave-active {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    overflow: hidden;
+}
+
+.expand-transition-enter-from,
+.expand-transition-leave-to {
+    opacity: 0;
+    max-height: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+}
+
+/* Focus visible for accessibility */
+:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+}
+
+/* Smooth number transitions for stats */
+.stat-value {
+    transition: all 0.3s ease;
+}
+
+/* Slide-over panel animations */
+.slideover-enter-active,
+.slideover-leave-active {
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.slideover-enter-from,
+.slideover-leave-to {
+    transform: translateX(100%);
+}
+
+/* Backdrop blur animation */
+.backdrop-blur-transition {
+    transition: backdrop-filter 0.2s ease, opacity 0.2s ease;
+}
+
+/* Link with arrow on hover */
+.link-arrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    transition: all var(--transition-fast);
+}
+
+.link-arrow::after {
+    content: '\2192';
+    opacity: 0;
+    transform: translateX(-4px);
+    transition: all var(--transition-fast);
+}
+
+.link-arrow:hover::after {
+    opacity: 1;
+    transform: translateX(0);
+}
+
 /* Stagger children animation */
 .stagger-children > * {
     animation: slideUp var(--transition-slow) ease-out both;

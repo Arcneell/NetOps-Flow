@@ -1,5 +1,9 @@
 <template>
-  <div class="flex gap-6 h-full">
+  <div class="flex flex-col h-full">
+    <!-- Breadcrumbs -->
+    <Breadcrumbs :items="[{ label: t('contracts.title'), icon: 'pi-file-edit' }]" />
+
+    <div class="flex gap-6 flex-1 overflow-hidden">
     <!-- Sidebar with alerts -->
     <div class="w-72 flex-shrink-0">
       <div class="card p-4 mb-4">
@@ -58,7 +62,16 @@
         <div class="flex-1 overflow-auto">
           <DataTable :value="filteredContracts" stripedRows paginator :rows="10" v-model:expandedRows="expandedRows" dataKey="id" class="text-sm">
             <Column expander style="width: 3rem" />
-            <Column field="name" :header="t('common.name')" sortable></Column>
+            <Column field="name" :header="t('common.name')" sortable>
+              <template #body="slotProps">
+                <span
+                  class="font-medium text-blue-500 hover:text-blue-600 dark:hover:text-blue-400 cursor-pointer transition-colors hover:underline"
+                  @click.stop="openContractDialog(slotProps.data)"
+                >
+                  {{ slotProps.data.name }}
+                </span>
+              </template>
+            </Column>
             <Column field="contract_type" :header="t('inventory.type')">
               <template #body="slotProps">
                 <Tag :value="slotProps.data.contract_type" :severity="getTypeSeverity(slotProps.data.contract_type)" />
@@ -70,7 +83,10 @@
             </Column>
             <Column :header="t('contracts.period')">
               <template #body="slotProps">
-                {{ formatDate(slotProps.data.start_date) }} - {{ formatDate(slotProps.data.end_date) }}
+                <div class="flex items-center gap-2">
+                  <span>{{ formatDate(slotProps.data.start_date) }} - {{ formatDate(slotProps.data.end_date) }}</span>
+                  <ExpiryBadge :date="slotProps.data.end_date" compact />
+                </div>
               </template>
             </Column>
             <Column field="annual_cost" :header="t('contracts.annualCost')">
@@ -194,6 +210,7 @@
         <Button :label="t('common.close')" @click="showEquipmentDialog = false" />
       </template>
     </Dialog>
+    </div>
   </div>
 </template>
 
@@ -203,6 +220,9 @@ import { useRoute, useRouter } from 'vue-router';
 import { useToast } from 'primevue/usetoast';
 import { useI18n } from 'vue-i18n';
 import api from '../api';
+import ExpiryBadge from '../components/shared/ExpiryBadge.vue';
+import Breadcrumbs from '../components/shared/Breadcrumbs.vue';
+import EmptyState from '../components/shared/EmptyState.vue';
 
 const route = useRoute();
 const router = useRouter();

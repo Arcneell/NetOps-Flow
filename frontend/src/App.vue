@@ -147,6 +147,20 @@
         </div>
 
         <div class="flex items-center gap-2">
+          <!-- Search Button -->
+          <button
+            @click="showCommandBar = true"
+            class="search-btn flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm"
+            :title="`${t('search.placeholder')} (Ctrl+K)`"
+          >
+            <i class="pi pi-search"></i>
+            <span class="hidden md:inline opacity-60">{{ t('search.placeholder') }}</span>
+            <kbd class="hidden md:inline px-1.5 py-0.5 text-xs rounded bg-gray-200 dark:bg-gray-700 opacity-60">Ctrl+K</kbd>
+          </button>
+
+          <!-- Divider -->
+          <div class="header-divider"></div>
+
           <!-- Language Switcher -->
           <div class="lang-switcher">
             <button @click="setLang('en')"
@@ -203,6 +217,9 @@
   <div v-else class="h-screen w-screen" :style="{ background: 'var(--bg-app)' }">
     <router-view />
   </div>
+
+  <!-- Global Command Bar -->
+  <CommandBar v-model="showCommandBar" />
 </template>
 
 <script setup>
@@ -211,6 +228,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import api from './api';
 import NotificationBell from './components/shared/NotificationBell.vue';
+import CommandBar from './components/shared/CommandBar.vue';
 import { useAuthStore } from './stores/auth';
 import { hasPermission as checkPermission } from './utils/permissions';
 
@@ -222,6 +240,7 @@ const user = ref({ username: '', role: '', permissions: [] });
 const isDark = ref(false);
 const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 const avatarError = ref(false);
+const showCommandBar = ref(false);
 
 const isLoginPage = computed(() => route.path === '/login' || route.path === '/unauthorized');
 const isSuperadmin = computed(() => user.value.role === 'superadmin');
@@ -485,5 +504,24 @@ onMounted(async () => {
 .page-leave-to {
   opacity: 0;
   transform: translateY(-8px);
+}
+
+/* Search Button */
+.search-btn {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-default);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.search-btn:hover {
+  background: var(--bg-hover);
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.search-btn kbd {
+  font-family: ui-monospace, SFMono-Regular, SF Mono, Menlo, Consolas, monospace;
 }
 </style>

@@ -869,5 +869,28 @@
     "access": "Accès",
     "compute": "Serveurs",
     "doubleClickToOpen": "Double-clic pour étendre"
+  },
+  "search": {
+    "placeholder": "Rechercher équipements, tickets, contrats...",
+    "noResults": "Aucun résultat trouvé",
+    "quickActions": "Actions rapides",
+    "navigate": "Naviguer",
+    "open": "Ouvrir",
+    "close": "Fermer",
+    "createTicket": "Créer un nouveau ticket",
+    "createEquipment": "Créer un nouvel équipement"
+  },
+  "contracts": {
+    "linkedContracts": "Contrats liés",
+    "noLinkedContracts": "Aucun contrat lié à cet équipement",
+    "expiredDaysAgo": "Expiré il y a {days} jours",
+    "expiresToday": "Expire aujourd'hui",
+    "expiresTomorrow": "Expire demain",
+    "daysRemainingLabel": "{days} jours restants"
+  },
+  "tickets": {
+    "openTickets": "Tickets ouverts",
+    "noOpenTickets": "Aucun ticket ouvert pour cet équipement",
+    "createTicket": "Créer un ticket"
   }
 }

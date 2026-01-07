@@ -869,5 +869,28 @@
     "access": "Access",
     "compute": "Compute",
     "doubleClickToOpen": "Double-click to expand"
+  },
+  "search": {
+    "placeholder": "Search equipment, tickets, contracts...",
+    "noResults": "No results found",
+    "quickActions": "Quick Actions",
+    "navigate": "Navigate",
+    "open": "Open",
+    "close": "Close",
+    "createTicket": "Create New Ticket",
+    "createEquipment": "Create New Equipment"
+  },
+  "contracts": {
+    "linkedContracts": "Linked Contracts",
+    "noLinkedContracts": "No contracts linked to this equipment",
+    "expiredDaysAgo": "Expired {days} days ago",
+    "expiresToday": "Expires today",
+    "expiresTomorrow": "Expires tomorrow",
+    "daysRemainingLabel": "{days} days remaining"
+  },
+  "tickets": {
+    "openTickets": "Open Tickets",
+    "noOpenTickets": "No open tickets for this equipment",
+    "createTicket": "Create Ticket"
   }
 }

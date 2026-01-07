@@ -841,10 +841,10 @@ def scan_subnet_task(self, subnet_id: int):
 def check_expiring_warranties_task(self, days_threshold: int = 30):
     """
     Check for equipment warranties expiring within the threshold.
-    Logs alerts for administrators.
+    Creates in-app notifications for admins and techs with inventory permission.
     """
     from backend.core.database import SessionLocal
-    from backend.models import Equipment
+    from backend.models import Equipment, User, Notification
 
     db: Session = SessionLocal()
     try:
@@ -857,10 +857,25 @@ def check_expiring_warranties_task(self, days_threshold: int = 30):
             Equipment.warranty_expiry <= threshold_date
         ).all()
 
+        # Get users to notify (admins and techs with inventory permission)
+        users_to_notify = db.query(User).filter(
+            User.is_active == True,
+            User.role.in_(["admin", "superadmin", "tech"])
+        ).all()
+
+        # Filter techs to only those with inventory permission
+        users_to_notify = [
+            u for u in users_to_notify
+            if u.role in ["admin", "superadmin"] or
+               (u.permissions and "inventory" in u.permissions)
+        ]
+
         alerts = []
+        notifications_created = 0
         for eq in expiring:
             days_remaining = (eq.warranty_expiry.date() - today).days
             severity = "critical" if days_remaining <= 7 else "warning" if days_remaining <= 14 else "info"
+            notification_type = "error" if severity == "critical" else "warning"
 
             alert = {
                 "type": "warranty_expiration",
@@ -878,9 +893,34 @@ def check_expiring_warranties_task(self, days_threshold: int = 30):
                 **alert
             )
 
+            # Create notifications for relevant users
+            for user in users_to_notify:
+                # Check if notification already exists today for this equipment
+                existing = db.query(Notification).filter(
+                    Notification.user_id == user.id,
+                    Notification.link_type == "equipment",
+                    Notification.link_id == eq.id,
+                    Notification.created_at >= datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+                ).first()
+
+                if not existing:
+                    notification = Notification(
+                        user_id=user.id,
+                        title=f"Warranty Expiring: {eq.name}",
+                        message=f"Equipment '{eq.name}' warranty expires in {days_remaining} days ({eq.warranty_expiry.strftime('%Y-%m-%d')}).",
+                        notification_type=notification_type,
+                        link_type="equipment",
+                        link_id=eq.id
+                    )
+                    db.add(notification)
+                    notifications_created += 1
+
+        db.commit()
+
         log_event(
             "warranty_check_complete",
             total_alerts=len(alerts),
+            notifications_created=notifications_created,
             critical=len([a for a in alerts if a["severity"] == "critical"]),
             warning=len([a for a in alerts if a["severity"] == "warning"])
         )
@@ -888,10 +928,12 @@ def check_expiring_warranties_task(self, days_threshold: int = 30):
         return {
             "status": "complete",
             "alerts_count": len(alerts),
+            "notifications_created": notifications_created,
             "alerts": alerts
         }
 
     except Exception as e:
+        db.rollback()
         log_event(
             "warranty_check_error",
             error_type=type(e).__name__,
@@ -906,10 +948,10 @@ def check_expiring_warranties_task(self, days_threshold: int = 30):
 def check_expiring_contracts_task(self, days_threshold: int = 30):
     """
     Check for contracts expiring within the threshold.
-    Logs alerts for administrators.
+    Creates in-app notifications for admins and techs with contracts permission.
     """
     from backend.core.database import SessionLocal
-    from backend.models import Contract
+    from backend.models import Contract, User, Notification
 
     db: Session = SessionLocal()
     try:
@@ -921,10 +963,25 @@ def check_expiring_contracts_task(self, days_threshold: int = 30):
             Contract.end_date <= threshold_date
         ).all()
 
+        # Get users to notify (admins and techs with contracts permission)
+        users_to_notify = db.query(User).filter(
+            User.is_active == True,
+            User.role.in_(["admin", "superadmin", "tech"])
+        ).all()
+
+        # Filter techs to only those with contracts permission
+        users_to_notify = [
+            u for u in users_to_notify
+            if u.role in ["admin", "superadmin"] or
+               (u.permissions and "contracts" in u.permissions)
+        ]
+
         alerts = []
+        notifications_created = 0
         for contract in expiring:
             days_remaining = (contract.end_date - today).days
             severity = "critical" if days_remaining <= 7 else "warning" if days_remaining <= 14 else "info"
+            notification_type = "error" if severity == "critical" else "warning"
 
             alert = {
                 "type": "contract_expiration",
@@ -944,9 +1001,34 @@ def check_expiring_contracts_task(self, days_threshold: int = 30):
                 **alert
             )
 
+            # Create notifications for relevant users
+            for user in users_to_notify:
+                # Check if notification already exists today for this contract
+                existing = db.query(Notification).filter(
+                    Notification.user_id == user.id,
+                    Notification.link_type == "contract",
+                    Notification.link_id == contract.id,
+                    Notification.created_at >= datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+                ).first()
+
+                if not existing:
+                    notification = Notification(
+                        user_id=user.id,
+                        title=f"Contract Expiring: {contract.name}",
+                        message=f"Contract '{contract.name}' ({contract.contract_type}) expires in {days_remaining} days ({contract.end_date.isoformat()}).",
+                        notification_type=notification_type,
+                        link_type="contract",
+                        link_id=contract.id
+                    )
+                    db.add(notification)
+                    notifications_created += 1
+
+        db.commit()
+
         log_event(
             "contract_check_complete",
             total_alerts=len(alerts),
+            notifications_created=notifications_created,
             critical=len([a for a in alerts if a["severity"] == "critical"]),
             warning=len([a for a in alerts if a["severity"] == "warning"])
         )
@@ -954,10 +1036,12 @@ def check_expiring_contracts_task(self, days_threshold: int = 30):
         return {
             "status": "complete",
             "alerts_count": len(alerts),
+            "notifications_created": notifications_created,
             "alerts": alerts
         }
 
     except Exception as e:
+        db.rollback()
         log_event(
             "contract_check_error",
             error_type=type(e).__name__,
@@ -972,10 +1056,10 @@ def check_expiring_contracts_task(self, days_threshold: int = 30):
 def check_expiring_licenses_task(self, days_threshold: int = 30):
     """
     Check for software licenses expiring within the threshold.
-    Logs alerts for administrators.
+    Creates in-app notifications for admins and techs with software permission.
     """
     from backend.core.database import SessionLocal
-    from backend.models import SoftwareLicense, Software
+    from backend.models import SoftwareLicense, Software, User, Notification
 
     db: Session = SessionLocal()
     try:
@@ -988,7 +1072,21 @@ def check_expiring_licenses_task(self, days_threshold: int = 30):
             SoftwareLicense.expiry_date <= threshold_date
         ).all()
 
+        # Get users to notify (admins and techs with software permission)
+        users_to_notify = db.query(User).filter(
+            User.is_active == True,
+            User.role.in_(["admin", "superadmin", "tech"])
+        ).all()
+
+        # Filter techs to only those with software permission
+        users_to_notify = [
+            u for u in users_to_notify
+            if u.role in ["admin", "superadmin"] or
+               (u.permissions and "software" in u.permissions)
+        ]
+
         alerts = []
+        notifications_created = 0
         for lic in expiring:
             software = db.query(Software).filter(
                 Software.id == lic.software_id
@@ -996,6 +1094,7 @@ def check_expiring_licenses_task(self, days_threshold: int = 30):
 
             days_remaining = (lic.expiry_date - today).days
             severity = "critical" if days_remaining <= 7 else "warning" if days_remaining <= 14 else "info"
+            notification_type = "error" if severity == "critical" else "warning"
 
             alert = {
                 "type": "license_expiration",
@@ -1015,9 +1114,35 @@ def check_expiring_licenses_task(self, days_threshold: int = 30):
                 **alert
             )
 
+            # Create notifications for relevant users
+            for user in users_to_notify:
+                # Check if notification already exists today for this license
+                existing = db.query(Notification).filter(
+                    Notification.user_id == user.id,
+                    Notification.link_type == "software",
+                    Notification.link_id == lic.software_id,
+                    Notification.created_at >= datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+                ).first()
+
+                if not existing:
+                    software_name = software.name if software else "Unknown"
+                    notification = Notification(
+                        user_id=user.id,
+                        title=f"License Expiring: {software_name}",
+                        message=f"License for '{software_name}' ({lic.license_type}) expires in {days_remaining} days ({lic.expiry_date.isoformat()}).",
+                        notification_type=notification_type,
+                        link_type="software",
+                        link_id=lic.software_id
+                    )
+                    db.add(notification)
+                    notifications_created += 1
+
+        db.commit()
+
         log_event(
             "license_check_complete",
             total_alerts=len(alerts),
+            notifications_created=notifications_created,
             critical=len([a for a in alerts if a["severity"] == "critical"]),
             warning=len([a for a in alerts if a["severity"] == "warning"])
         )
@@ -1025,10 +1150,12 @@ def check_expiring_licenses_task(self, days_threshold: int = 30):
         return {
             "status": "complete",
             "alerts_count": len(alerts),
+            "notifications_created": notifications_created,
             "alerts": alerts
         }
 
     except Exception as e:
+        db.rollback()
         log_event(
             "license_check_error",
             error_type=type(e).__name__,
