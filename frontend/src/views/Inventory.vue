@@ -178,11 +178,12 @@
       </div>
 
       <!-- Manufacturers Section -->
-      <div v-if="activeSection === 'manufacturers'" class="card">
+      <div v-if="activeSection === 'manufacturers'" class="card h-full flex flex-col">
         <div class="flex justify-between items-center mb-4">
           <h3 class="text-lg font-bold">{{ t('inventory.manufacturers') }}</h3>
           <Button :label="t('inventory.newManufacturer')" icon="pi pi-plus" @click="openManufacturerDialog()" />
         </div>
+        <div class="flex-1 overflow-auto">
         <DataTable :value="manufacturers" stripedRows class="text-sm">
           <Column field="name" :header="t('common.name')" sortable></Column>
           <Column field="website" :header="t('inventory.website')">
@@ -205,132 +206,141 @@
             </template>
           </Column>
         </DataTable>
+        </div>
       </div>
 
       <!-- Models Section -->
-      <div v-if="activeSection === 'models'" class="card">
+      <div v-if="activeSection === 'models'" class="card h-full flex flex-col">
         <div class="flex justify-between items-center mb-4">
           <h3 class="text-lg font-bold">{{ t('inventory.models') }}</h3>
           <Button :label="t('inventory.newModel')" icon="pi pi-plus" @click="openModelDialog()" />
         </div>
-        <DataTable :value="models" stripedRows class="text-sm">
-          <Column field="name" :header="t('common.name')" sortable></Column>
-          <Column :header="t('inventory.manufacturer')">
-            <template #body="slotProps">{{ slotProps.data.manufacturer?.name || '-' }}</template>
-          </Column>
-          <Column :header="t('inventory.type')">
-            <template #body="slotProps">
-              <span v-if="slotProps.data.equipment_type">
-                <i :class="'pi ' + slotProps.data.equipment_type.icon + ' mr-2'"></i>
-                {{ slotProps.data.equipment_type.name }}
-              </span>
-              <span v-else class="opacity-50">-</span>
-            </template>
-          </Column>
-          <Column :header="t('common.actions')" style="width: 100px">
-            <template #body="slotProps">
-              <div class="flex gap-1">
-                <Button icon="pi pi-pencil" text rounded size="small" @click="openModelDialog(slotProps.data)" />
-                <Button icon="pi pi-trash" text rounded size="small" severity="danger" @click="deleteModel(slotProps.data.id)" />
-              </div>
-            </template>
-          </Column>
-        </DataTable>
+        <div class="flex-1 overflow-auto">
+          <DataTable :value="models" stripedRows class="text-sm">
+            <Column field="name" :header="t('common.name')" sortable></Column>
+            <Column :header="t('inventory.manufacturer')">
+              <template #body="slotProps">{{ slotProps.data.manufacturer?.name || '-' }}</template>
+            </Column>
+            <Column :header="t('inventory.type')">
+              <template #body="slotProps">
+                <span v-if="slotProps.data.equipment_type">
+                  <i :class="'pi ' + slotProps.data.equipment_type.icon + ' mr-2'"></i>
+                  {{ slotProps.data.equipment_type.name }}
+                </span>
+                <span v-else class="opacity-50">-</span>
+              </template>
+            </Column>
+            <Column :header="t('common.actions')" style="width: 100px">
+              <template #body="slotProps">
+                <div class="flex gap-1">
+                  <Button icon="pi pi-pencil" text rounded size="small" @click="openModelDialog(slotProps.data)" />
+                  <Button icon="pi pi-trash" text rounded size="small" severity="danger" @click="deleteModel(slotProps.data.id)" />
+                </div>
+              </template>
+            </Column>
+          </DataTable>
+        </div>
       </div>
 
       <!-- Types Section -->
-      <div v-if="activeSection === 'types'" class="card">
+      <div v-if="activeSection === 'types'" class="card h-full flex flex-col">
         <div class="flex justify-between items-center mb-4">
           <h3 class="text-lg font-bold">{{ t('inventory.types') }}</h3>
           <Button :label="t('inventory.newType')" icon="pi pi-plus" @click="openTypeDialog()" />
         </div>
-        <DataTable :value="types" stripedRows class="text-sm">
-          <Column :header="t('inventory.icon')" style="width: 80px">
-            <template #body="slotProps">
-              <i :class="'pi ' + slotProps.data.icon + ' text-xl'"></i>
-            </template>
-          </Column>
-          <Column field="name" :header="t('common.name')" sortable></Column>
-          <Column :header="t('inventory.hierarchyLevel')" style="width: 200px">
-            <template #body="slotProps">
-              <span v-if="slotProps.data.hierarchy_level !== undefined" class="flex items-center gap-2">
-                <span class="w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold text-white"
-                  :style="{ background: getHierarchyColor(slotProps.data.hierarchy_level) }">
-                  {{ slotProps.data.hierarchy_level }}
+        <div class="flex-1 overflow-auto">
+          <DataTable :value="types" stripedRows class="text-sm">
+            <Column :header="t('inventory.icon')" style="width: 80px">
+              <template #body="slotProps">
+                <i :class="'pi ' + slotProps.data.icon + ' text-xl'"></i>
+              </template>
+            </Column>
+            <Column field="name" :header="t('common.name')" sortable></Column>
+            <Column :header="t('inventory.hierarchyLevel')" style="width: 200px">
+              <template #body="slotProps">
+                <span v-if="slotProps.data.hierarchy_level !== undefined" class="flex items-center gap-2">
+                  <span class="w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold text-white"
+                    :style="{ background: getHierarchyColor(slotProps.data.hierarchy_level) }">
+                    {{ slotProps.data.hierarchy_level }}
+                  </span>
+                  {{ getHierarchyLabel(slotProps.data.hierarchy_level) }}
                 </span>
-                {{ getHierarchyLabel(slotProps.data.hierarchy_level) }}
-              </span>
-              <span v-else class="opacity-50">-</span>
-            </template>
-          </Column>
-          <Column :header="t('common.actions')" style="width: 100px">
-            <template #body="slotProps">
-              <div class="flex gap-1">
-                <Button icon="pi pi-pencil" text rounded size="small" @click="openTypeDialog(slotProps.data)" />
-                <Button icon="pi pi-trash" text rounded size="small" severity="danger" @click="deleteType(slotProps.data.id)" />
-              </div>
-            </template>
-          </Column>
-        </DataTable>
+                <span v-else class="opacity-50">-</span>
+              </template>
+            </Column>
+            <Column :header="t('common.actions')" style="width: 100px">
+              <template #body="slotProps">
+                <div class="flex gap-1">
+                  <Button icon="pi pi-pencil" text rounded size="small" @click="openTypeDialog(slotProps.data)" />
+                  <Button icon="pi pi-trash" text rounded size="small" severity="danger" @click="deleteType(slotProps.data.id)" />
+                </div>
+              </template>
+            </Column>
+          </DataTable>
+        </div>
       </div>
 
       <!-- Locations Section -->
-      <div v-if="activeSection === 'locations'" class="card">
+      <div v-if="activeSection === 'locations'" class="card h-full flex flex-col">
         <div class="flex justify-between items-center mb-4">
           <h3 class="text-lg font-bold">{{ t('inventory.locations') }}</h3>
           <Button :label="t('inventory.newLocation')" icon="pi pi-plus" @click="openLocationDialog()" />
         </div>
-        <DataTable :value="locations" stripedRows class="text-sm">
-          <Column field="site" :header="t('inventory.site')" sortable></Column>
-          <Column field="building" :header="t('inventory.building')">
-            <template #body="slotProps">{{ slotProps.data.building || '-' }}</template>
-          </Column>
-          <Column field="room" :header="t('inventory.room')">
-            <template #body="slotProps">{{ slotProps.data.room || '-' }}</template>
-          </Column>
-          <Column :header="t('common.actions')" style="width: 100px">
-            <template #body="slotProps">
-              <div class="flex gap-1">
-                <Button icon="pi pi-pencil" text rounded size="small" @click="openLocationDialog(slotProps.data)" />
-                <Button icon="pi pi-trash" text rounded size="small" severity="danger" @click="deleteLocation(slotProps.data.id)" />
-              </div>
-            </template>
-          </Column>
-        </DataTable>
+        <div class="flex-1 overflow-auto">
+          <DataTable :value="locations" stripedRows class="text-sm">
+            <Column field="site" :header="t('inventory.site')" sortable></Column>
+            <Column field="building" :header="t('inventory.building')">
+              <template #body="slotProps">{{ slotProps.data.building || '-' }}</template>
+            </Column>
+            <Column field="room" :header="t('inventory.room')">
+              <template #body="slotProps">{{ slotProps.data.room || '-' }}</template>
+            </Column>
+            <Column :header="t('common.actions')" style="width: 100px">
+              <template #body="slotProps">
+                <div class="flex gap-1">
+                  <Button icon="pi pi-pencil" text rounded size="small" @click="openLocationDialog(slotProps.data)" />
+                  <Button icon="pi pi-trash" text rounded size="small" severity="danger" @click="deleteLocation(slotProps.data.id)" />
+                </div>
+              </template>
+            </Column>
+          </DataTable>
+        </div>
       </div>
 
       <!-- Suppliers Section -->
-      <div v-if="activeSection === 'suppliers'" class="card">
+      <div v-if="activeSection === 'suppliers'" class="card h-full flex flex-col">
         <div class="flex justify-between items-center mb-4">
           <h3 class="text-lg font-bold">{{ t('inventory.suppliers') }}</h3>
           <Button :label="t('inventory.newSupplier')" icon="pi pi-plus" @click="openSupplierDialog()" />
         </div>
-        <DataTable :value="suppliers" stripedRows class="text-sm">
-          <Column field="name" :header="t('common.name')" sortable></Column>
-          <Column field="contact_email" :header="t('inventory.contactEmail')">
-            <template #body="slotProps">
-              <a v-if="slotProps.data.contact_email" :href="'mailto:' + slotProps.data.contact_email" class="text-blue-500 hover:underline">{{ slotProps.data.contact_email }}</a>
-              <span v-else class="opacity-50">-</span>
-            </template>
-          </Column>
-          <Column field="phone" :header="t('inventory.phone')">
-            <template #body="slotProps">{{ slotProps.data.phone || '-' }}</template>
-          </Column>
-          <Column field="website" :header="t('inventory.website')">
-            <template #body="slotProps">
-              <a v-if="slotProps.data.website" :href="slotProps.data.website" target="_blank" class="text-blue-500 hover:underline">{{ slotProps.data.website }}</a>
-              <span v-else class="opacity-50">-</span>
-            </template>
-          </Column>
-          <Column :header="t('common.actions')" style="width: 100px">
-            <template #body="slotProps">
-              <div class="flex gap-1">
-                <Button icon="pi pi-pencil" text rounded size="small" @click="openSupplierDialog(slotProps.data)" />
-                <Button icon="pi pi-trash" text rounded size="small" severity="danger" @click="deleteSupplier(slotProps.data.id)" />
-              </div>
-            </template>
-          </Column>
-        </DataTable>
+        <div class="flex-1 overflow-auto">
+          <DataTable :value="suppliers" stripedRows class="text-sm">
+            <Column field="name" :header="t('common.name')" sortable></Column>
+            <Column field="contact_email" :header="t('inventory.contactEmail')">
+              <template #body="slotProps">
+                <a v-if="slotProps.data.contact_email" :href="'mailto:' + slotProps.data.contact_email" class="text-blue-500 hover:underline">{{ slotProps.data.contact_email }}</a>
+                <span v-else class="opacity-50">-</span>
+              </template>
+            </Column>
+            <Column field="phone" :header="t('inventory.phone')">
+              <template #body="slotProps">{{ slotProps.data.phone || '-' }}</template>
+            </Column>
+            <Column field="website" :header="t('inventory.website')">
+              <template #body="slotProps">
+                <a v-if="slotProps.data.website" :href="slotProps.data.website" target="_blank" class="text-blue-500 hover:underline">{{ slotProps.data.website }}</a>
+                <span v-else class="opacity-50">-</span>
+              </template>
+            </Column>
+            <Column :header="t('common.actions')" style="width: 100px">
+              <template #body="slotProps">
+                <div class="flex gap-1">
+                  <Button icon="pi pi-pencil" text rounded size="small" @click="openSupplierDialog(slotProps.data)" />
+                  <Button icon="pi pi-trash" text rounded size="small" severity="danger" @click="deleteSupplier(slotProps.data.id)" />
+                </div>
+              </template>
+            </Column>
+          </DataTable>
+        </div>
       </div>
     </div>
 
