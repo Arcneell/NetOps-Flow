@@ -88,8 +88,18 @@
             </div>
           </div>
 
-          <div v-if="!articles.length" class="text-center py-12 opacity-50">
+          <div v-if="!articles.length && !loadingArticles" class="text-center py-12 opacity-50">
             {{ t('common.noData') }}
+          </div>
+
+          <!-- Load more button -->
+          <div v-if="hasMoreArticles" class="text-center py-4">
+            <Button :label="t('common.loadMore')" icon="pi pi-chevron-down" :loading="loadingArticles" @click="loadMoreArticles" outlined />
+          </div>
+
+          <!-- Loading indicator -->
+          <div v-if="loadingArticles && articles.length === 0" class="text-center py-12">
+            <i class="pi pi-spin pi-spinner text-2xl"></i>
           </div>
         </div>
       </div>
@@ -222,6 +232,12 @@ const showDrafts = ref(false);
 const feedbackSubmitted = ref(false);
 const saving = ref(false);
 
+// Pagination state
+const articlesTotal = ref(0);
+const articlesLimit = ref(20);
+const loadingArticles = ref(false);
+const hasMoreArticles = computed(() => articles.value.length < articlesTotal.value);
+
 // Dialog
 const showArticleDialog = ref(false);
 const editingArticle = ref(null);
@@ -253,21 +269,43 @@ const formatDate = (dateStr) => {
 let searchTimeout = null;
 const debouncedSearch = () => {
   clearTimeout(searchTimeout);
-  searchTimeout = setTimeout(() => loadArticles(), 300);
+  searchTimeout = setTimeout(() => {
+    articles.value = []; // Reset for new search
+    loadArticles();
+  }, 300);
 };
 
 // Data loading
-const loadArticles = async () => {
+const loadArticles = async (loadMore = false) => {
+  loadingArticles.value = true;
   try {
     const params = new URLSearchParams();
+    params.append('limit', articlesLimit.value);
+    if (loadMore) {
+      params.append('skip', articles.value.length);
+    }
     if (searchQuery.value) params.append('search', searchQuery.value);
     if (selectedCategory.value) params.append('category', selectedCategory.value);
     if (!showDrafts.value) params.append('published_only', 'true');
 
     const response = await api.get(`/knowledge/articles?${params}`);
-    articles.value = response.data;
+    if (loadMore) {
+      articles.value = [...articles.value, ...response.data.items];
+    } else {
+      articles.value = response.data.items;
+    }
+    articlesTotal.value = response.data.total;
   } catch (e) {
     toast.add({ severity: 'error', summary: t('common.error'), detail: e.response?.data?.detail || 'Failed to load articles' });
+  } finally {
+    loadingArticles.value = false;
+  }
+};
+
+// Load more articles
+const loadMoreArticles = () => {
+  if (hasMoreArticles.value && !loadingArticles.value) {
+    loadArticles(true);
   }
 };
 
@@ -291,6 +329,7 @@ const loadCategories = async () => {
 
 const selectCategory = (cat) => {
   selectedCategory.value = cat;
+  articles.value = []; // Reset for new category
   loadArticles();
 };
 

@@ -1,10 +1,10 @@
 """
 Software & License Router - Software inventory and license compliance.
 """
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
-from sqlalchemy import func
-from typing import List
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy.orm import Session, joinedload
+from sqlalchemy import func, case, and_
+from typing import List, Optional
 from datetime import date, timedelta
 import logging
 
@@ -31,18 +31,39 @@ def get_user_entity_filter(current_user: models.User):
 
 # ==================== SOFTWARE CATALOG ====================
 
-@router.get("/", response_model=List[schemas.SoftwareWithCompliance])
+@router.get("/", response_model=schemas.PaginatedSoftwareResponse)
 def list_software(
-    skip: int = 0,
-    limit: int = 100,
-    category: str = None,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=500),
+    category: Optional[str] = None,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_active_user)
 ):
-    """List all software with compliance status."""
+    """List all software with compliance status (optimized with single query)."""
     check_software_permission(current_user)
 
-    query = db.query(models.Software)
+    # Subquery for total licenses per software
+    license_subq = db.query(
+        models.SoftwareLicense.software_id,
+        func.coalesce(func.sum(models.SoftwareLicense.quantity), 0).label('total_licenses')
+    ).group_by(models.SoftwareLicense.software_id).subquery()
+
+    # Subquery for total installations per software
+    installation_subq = db.query(
+        models.SoftwareInstallation.software_id,
+        func.count(models.SoftwareInstallation.id).label('total_installations')
+    ).group_by(models.SoftwareInstallation.software_id).subquery()
+
+    # Main query with LEFT JOINs to subqueries
+    query = db.query(
+        models.Software,
+        func.coalesce(license_subq.c.total_licenses, 0).label('total_licenses'),
+        func.coalesce(installation_subq.c.total_installations, 0).label('total_installations')
+    ).outerjoin(
+        license_subq, models.Software.id == license_subq.c.software_id
+    ).outerjoin(
+        installation_subq, models.Software.id == installation_subq.c.software_id
+    )
 
     entity_filter = get_user_entity_filter(current_user)
     if entity_filter:
@@ -51,20 +72,14 @@ def list_software(
     if category:
         query = query.filter(models.Software.category == category)
 
-    software_list = query.order_by(models.Software.name).offset(skip).limit(limit).all()
+    # Get total count for pagination
+    total = query.count()
 
-    result = []
-    for sw in software_list:
-        # Calculate license totals
-        total_licenses = db.query(func.sum(models.SoftwareLicense.quantity)).filter(
-            models.SoftwareLicense.software_id == sw.id
-        ).scalar() or 0
+    # Get paginated results
+    results = query.order_by(models.Software.name).offset(skip).limit(limit).all()
 
-        # Count installations
-        total_installations = db.query(models.SoftwareInstallation).filter(
-            models.SoftwareInstallation.software_id == sw.id
-        ).count()
-
+    items = []
+    for sw, total_licenses, total_installations in results:
         # Determine compliance status
         if total_licenses == 0:
             compliance = "unknown"
@@ -75,14 +90,14 @@ def list_software(
         else:
             compliance = "compliant"
 
-        result.append(schemas.SoftwareWithCompliance(
+        items.append(schemas.SoftwareWithCompliance(
             **{k: v for k, v in sw.__dict__.items() if not k.startswith('_')},
-            total_licenses=total_licenses,
-            total_installations=total_installations,
+            total_licenses=int(total_licenses),
+            total_installations=int(total_installations),
             compliance_status=compliance
         ))
 
-    return result
+    return schemas.PaginatedSoftwareResponse(items=items, total=total, skip=skip, limit=limit)
 
 
 @router.get("/compliance")
@@ -90,39 +105,56 @@ def get_compliance_overview(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_active_user)
 ):
-    """Get overall license compliance status."""
+    """Get overall license compliance status (optimized with single query)."""
     check_software_permission(current_user)
 
-    query = db.query(models.Software)
+    # Subquery for total licenses per software
+    license_subq = db.query(
+        models.SoftwareLicense.software_id,
+        func.coalesce(func.sum(models.SoftwareLicense.quantity), 0).label('total_licenses')
+    ).group_by(models.SoftwareLicense.software_id).subquery()
+
+    # Subquery for total installations per software
+    installation_subq = db.query(
+        models.SoftwareInstallation.software_id,
+        func.count(models.SoftwareInstallation.id).label('total_installations')
+    ).group_by(models.SoftwareInstallation.software_id).subquery()
+
+    # Main query with LEFT JOINs
+    query = db.query(
+        models.Software.id,
+        models.Software.name,
+        func.coalesce(license_subq.c.total_licenses, 0).label('total_licenses'),
+        func.coalesce(installation_subq.c.total_installations, 0).label('total_installations')
+    ).outerjoin(
+        license_subq, models.Software.id == license_subq.c.software_id
+    ).outerjoin(
+        installation_subq, models.Software.id == installation_subq.c.software_id
+    )
 
     entity_filter = get_user_entity_filter(current_user)
     if entity_filter:
         query = query.filter(models.Software.entity_id == entity_filter)
 
-    software_list = query.all()
+    # Only include software with licenses
+    query = query.filter(license_subq.c.total_licenses > 0)
+
+    results = query.all()
 
     compliant = 0
     warning = 0
     violation = 0
-
     violations = []
 
-    for sw in software_list:
-        total_licenses = db.query(func.sum(models.SoftwareLicense.quantity)).filter(
-            models.SoftwareLicense.software_id == sw.id
-        ).scalar() or 0
+    for sw_id, sw_name, total_licenses, total_installations in results:
+        total_licenses = int(total_licenses)
+        total_installations = int(total_installations)
 
-        total_installations = db.query(models.SoftwareInstallation).filter(
-            models.SoftwareInstallation.software_id == sw.id
-        ).count()
-
-        if total_licenses == 0:
-            continue
-        elif total_installations > total_licenses:
+        if total_installations > total_licenses:
             violation += 1
             violations.append({
-                "software_id": sw.id,
-                "software_name": sw.name,
+                "software_id": sw_id,
+                "software_name": sw_name,
                 "licensed": total_licenses,
                 "installed": total_installations,
                 "over_by": total_installations - total_licenses
@@ -243,35 +275,35 @@ def list_licenses(
 
 @router.get("/licenses/expiring", response_model=List[schemas.ExpirationAlert])
 def get_expiring_licenses(
-    days: int = 30,
+    days: int = Query(30, ge=1, le=365),
+    limit: int = Query(100, ge=1, le=500),
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_active_user)
 ):
-    """Get licenses expiring within specified days."""
+    """Get licenses expiring within specified days (optimized with join)."""
     check_software_permission(current_user)
 
     today = date.today()
     threshold = today + timedelta(days=days)
 
-    licenses = db.query(models.SoftwareLicense).filter(
+    # Use joinedload to fetch software in single query
+    licenses = db.query(models.SoftwareLicense).options(
+        joinedload(models.SoftwareLicense.software)
+    ).filter(
         models.SoftwareLicense.expiry_date.isnot(None),
         models.SoftwareLicense.expiry_date >= today,
         models.SoftwareLicense.expiry_date <= threshold
-    ).all()
+    ).order_by(models.SoftwareLicense.expiry_date).limit(limit).all()
 
     alerts = []
     for lic in licenses:
-        software = db.query(models.Software).filter(
-            models.Software.id == lic.software_id
-        ).first()
-
         days_remaining = (lic.expiry_date - today).days
         severity = "critical" if days_remaining <= 7 else "warning" if days_remaining <= 14 else "info"
 
         alerts.append(schemas.ExpirationAlert(
             type="license",
             item_id=lic.id,
-            item_name=software.name if software else f"License #{lic.id}",
+            item_name=lic.software.name if lic.software else f"License #{lic.id}",
             expiry_date=lic.expiry_date,
             days_remaining=days_remaining,
             severity=severity

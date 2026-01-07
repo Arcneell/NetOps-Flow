@@ -106,7 +106,7 @@
         </div>
 
         <div class="flex-1 overflow-auto">
-          <DataTable :value="tickets" stripedRows paginator :rows="15" dataKey="id" :loading="loading"
+          <DataTable :value="tickets" stripedRows lazy paginator :rows="ticketsRows" :totalRecords="ticketsTotal" :first="ticketsFirst" @page="onTicketsPage" dataKey="id" :loading="loading"
                      class="text-sm" @row-click="openTicketDetail">
             <Column field="ticket_number" :header="t('tickets.ticketNumber')" sortable style="width: 140px">
               <template #body="slotProps">
@@ -459,6 +459,11 @@ const equipment = ref([]);
 const loading = ref(false);
 const saving = ref(false);
 
+// Pagination state
+const ticketsTotal = ref(0);
+const ticketsFirst = ref(0);
+const ticketsRows = ref(15);
+
 // Filters
 const filters = ref({
   status: null,
@@ -582,7 +587,17 @@ const formatHistoryAction = (item) => {
 let searchTimeout = null;
 const debouncedSearch = () => {
   clearTimeout(searchTimeout);
-  searchTimeout = setTimeout(() => loadTickets(), 300);
+  searchTimeout = setTimeout(() => {
+    ticketsFirst.value = 0; // Reset to first page on search
+    loadTickets();
+  }, 300);
+};
+
+// Handle tickets page change
+const onTicketsPage = (event) => {
+  ticketsFirst.value = event.first;
+  ticketsRows.value = event.rows;
+  loadTickets();
 };
 
 // Data loading
@@ -590,6 +605,8 @@ const loadTickets = async () => {
   loading.value = true;
   try {
     const params = new URLSearchParams();
+    params.append('skip', ticketsFirst.value);
+    params.append('limit', ticketsRows.value);
     if (filters.value.status) params.append('status', filters.value.status);
     if (filters.value.priority) params.append('priority', filters.value.priority);
     if (filters.value.ticket_type) params.append('ticket_type', filters.value.ticket_type);
@@ -600,7 +617,8 @@ const loadTickets = async () => {
       api.get(`/tickets/?${params}`),
       api.get('/tickets/stats')
     ]);
-    tickets.value = ticketsRes.data;
+    tickets.value = ticketsRes.data.items;
+    ticketsTotal.value = ticketsRes.data.total;
     stats.value = statsRes.data;
   } catch (e) {
     toast.add({ severity: 'error', summary: t('common.error'), detail: e.response?.data?.detail || 'Failed to load tickets' });
@@ -613,11 +631,14 @@ const loadReferenceData = async () => {
   try {
     const results = await Promise.allSettled([
       api.get('/users/'),
-      api.get('/inventory/equipment/')
+      api.get('/inventory/equipment/', { params: { limit: 500 } }) // Get a reasonable number for dropdown
     ]);
     // Handle partial failures gracefully
     if (results[0].status === 'fulfilled') users.value = results[0].value.data;
-    if (results[1].status === 'fulfilled') equipment.value = results[1].value.data;
+    if (results[1].status === 'fulfilled') {
+      const eqData = results[1].value.data;
+      equipment.value = eqData.items || eqData; // Handle both paginated and non-paginated response
+    }
   } catch {
     // Error handled by API interceptor
   }
@@ -625,6 +646,7 @@ const loadReferenceData = async () => {
 
 const setFilter = (key, value) => {
   filters.value[key] = value;
+  ticketsFirst.value = 0; // Reset to first page on filter change
   loadTickets();
 };
 
@@ -790,8 +812,11 @@ const assignCurrentTicket = async () => {
 };
 
 onMounted(async () => {
-  await loadTickets();
-  loadReferenceData();
+  // Load tickets and reference data in parallel, but wait for both
+  await Promise.all([
+    loadTickets(),
+    loadReferenceData()
+  ]);
 
   // Check if there's a ticket ID in the URL query params (from notification click)
   const ticketId = route.query.id;

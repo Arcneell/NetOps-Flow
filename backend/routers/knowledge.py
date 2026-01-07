@@ -50,18 +50,18 @@ def generate_slug(title: str, db: Session, existing_id: int = None) -> str:
 
 # ==================== PUBLIC ENDPOINTS ====================
 
-@router.get("/articles", response_model=List[schemas.KnowledgeArticleBrief])
+@router.get("/articles", response_model=schemas.PaginatedKnowledgeResponse)
 def list_articles(
     category: Optional[str] = None,
     tag: Optional[str] = None,
     search: Optional[str] = None,
     published_only: bool = True,
-    skip: int = 0,
-    limit: int = Query(default=20, le=100),
+    skip: int = Query(default=0, ge=0),
+    limit: int = Query(default=20, ge=1, le=100),
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user)
 ):
-    """List knowledge base articles."""
+    """List knowledge base articles with pagination."""
     query = db.query(models.KnowledgeArticle)
 
     # Entity filtering for non-privileged users
@@ -102,12 +102,16 @@ def list_articles(
             )
         )
 
+    # Get total count
+    total = query.count()
+
+    # Get paginated results
     articles = query.order_by(
         models.KnowledgeArticle.view_count.desc(),
         models.KnowledgeArticle.created_at.desc()
     ).offset(skip).limit(limit).all()
 
-    return [
+    items = [
         schemas.KnowledgeArticleBrief(
             id=a.id,
             title=a.title,
@@ -115,10 +119,13 @@ def list_articles(
             summary=a.summary,
             category=a.category,
             is_published=a.is_published,
+            is_internal=a.is_internal,
             view_count=a.view_count,
             created_at=a.created_at
         ) for a in articles
     ]
+
+    return schemas.PaginatedKnowledgeResponse(items=items, total=total, skip=skip, limit=limit)
 
 
 @router.get("/articles/categories")

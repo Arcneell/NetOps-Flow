@@ -1,9 +1,9 @@
 """
 IPAM Router - IP Address Management endpoints.
 """
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session, joinedload
-from sqlalchemy import or_
+from sqlalchemy import or_, func
 from typing import List
 import ipaddress
 import logging
@@ -75,13 +75,23 @@ def read_subnets(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_active_user)
 ):
-    """List all subnets with their IPs (tech with ipam, admin, superadmin)."""
+    """List all subnets with IP counts (tech with ipam, admin, superadmin)."""
     check_ipam_permission(current_user)
     entity_filter = get_entity_filter(current_user)
 
-    query = db.query(models.Subnet).options(
-        joinedload(models.Subnet.ips).joinedload(models.IPAddress.equipment)
+    # Subquery for IP count per subnet
+    ip_count_subq = db.query(
+        models.IPAddress.subnet_id,
+        func.count(models.IPAddress.id).label('ip_count')
+    ).group_by(models.IPAddress.subnet_id).subquery()
+
+    query = db.query(
+        models.Subnet,
+        func.coalesce(ip_count_subq.c.ip_count, 0).label('ip_count')
+    ).outerjoin(
+        ip_count_subq, models.Subnet.id == ip_count_subq.c.subnet_id
     )
+
     if entity_filter is not None:
         query = query.filter(
             or_(
@@ -90,9 +100,65 @@ def read_subnets(
             )
         )
 
-    subnets = query.offset(skip).limit(limit).all()
+    results = query.offset(skip).limit(limit).all()
+
+    # Convert to response format
+    subnets = []
+    for subnet, ip_count in results:
+        subnets.append(schemas.SubnetWithEquipment(
+            id=subnet.id,
+            cidr=subnet.cidr,
+            name=subnet.name,
+            description=subnet.description,
+            ip_count=ip_count
+        ))
 
     return subnets
+
+
+@router.get("/{subnet_id}/ips/", response_model=schemas.PaginatedIPResponse)
+def get_subnet_ips(
+    subnet_id: int,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=200),
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user)
+):
+    """Get paginated IP addresses for a subnet."""
+    check_ipam_permission(current_user)
+    entity_filter = get_entity_filter(current_user)
+
+    # Verify subnet access
+    subnet_query = db.query(models.Subnet).filter(models.Subnet.id == subnet_id)
+    if entity_filter is not None:
+        subnet_query = subnet_query.filter(
+            or_(
+                models.Subnet.entity_id == entity_filter,
+                models.Subnet.entity_id == None  # noqa: E711
+            )
+        )
+    subnet = subnet_query.first()
+    if not subnet:
+        raise HTTPException(status_code=404, detail="Subnet not found")
+
+    # Get total count
+    total = db.query(func.count(models.IPAddress.id)).filter(
+        models.IPAddress.subnet_id == subnet_id
+    ).scalar() or 0
+
+    # Get paginated IPs with equipment
+    ips = db.query(models.IPAddress).options(
+        joinedload(models.IPAddress.equipment)
+    ).filter(
+        models.IPAddress.subnet_id == subnet_id
+    ).order_by(models.IPAddress.address).offset(skip).limit(limit).all()
+
+    return schemas.PaginatedIPResponse(
+        items=ips,
+        total=total,
+        skip=skip,
+        limit=limit
+    )
 
 
 @router.post("/{subnet_id}/ips/", response_model=schemas.IPAddress)

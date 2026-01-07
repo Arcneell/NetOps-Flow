@@ -113,6 +113,7 @@
     "cidr": "CIDR",
     "name": "Nom",
     "description": "Description",
+    "ips": "IPs",
     "actions": "Actions",
     "scanSubnet": "Scanner",
     "addIp": "Ajouter IP",
@@ -411,7 +412,9 @@
     "name": "Nom",
     "current": "Actuel",
     "dismiss": "Ignorer",
-    "refresh": "Actualiser"
+    "refresh": "Actualiser",
+    "loadMore": "Charger plus",
+    "views": "vues"
   },
   "dcim": {
     "title": "DCIM",

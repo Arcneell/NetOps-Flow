@@ -81,10 +81,15 @@
 
         <div class="flex-1 overflow-auto">
           <DataTable
-            :value="filteredEquipment"
+            :value="equipment"
+            :loading="loadingEquipment"
             stripedRows
+            lazy
             paginator
-            :rows="25"
+            :rows="equipmentRows"
+            :totalRecords="equipmentTotal"
+            :first="equipmentFirst"
+            @page="onEquipmentPage"
             v-model:expandedRows="expandedRows"
             dataKey="id"
             class="text-sm"
@@ -686,6 +691,12 @@ const racks = ref([]);
 const availableIps = ref([]);
 const expandedRows = ref({});
 
+// Equipment pagination state
+const equipmentTotal = ref(0);
+const equipmentFirst = ref(0);
+const equipmentRows = ref(25);
+const loadingEquipment = ref(false);
+
 // Filters
 const filterType = ref(null);
 const filterStatus = ref(null);
@@ -779,19 +790,39 @@ const hierarchyLevelOptions = computed(() => [
   { value: 5, label: t('inventory.hierarchyLevelOptions.endpoint'), color: '#64748b' }
 ]);
 
-// Filtered equipment
-const filteredEquipment = computed(() => {
-  let result = equipment.value;
-  if (filterType.value) {
-    result = result.filter(eq => eq.model?.equipment_type_id === filterType.value);
+// Handle equipment page change
+const onEquipmentPage = (event) => {
+  equipmentFirst.value = event.first;
+  equipmentRows.value = event.rows;
+  loadEquipment();
+};
+
+// Load equipment with server-side pagination
+const loadEquipment = async () => {
+  loadingEquipment.value = true;
+  try {
+    const params = {
+      skip: equipmentFirst.value,
+      limit: equipmentRows.value
+    };
+    if (filterType.value) params.type_id = filterType.value;
+    if (filterStatus.value) params.status = filterStatus.value;
+    if (filterLocation.value) params.location_id = filterLocation.value;
+
+    const res = await api.get('/inventory/equipment/', { params });
+    equipment.value = res.data.items;
+    equipmentTotal.value = res.data.total;
+  } catch (e) {
+    toast.add({ severity: 'error', summary: t('common.error'), detail: e.response?.data?.detail || 'Failed to load equipment' });
+  } finally {
+    loadingEquipment.value = false;
   }
-  if (filterStatus.value) {
-    result = result.filter(eq => eq.status === filterStatus.value);
-  }
-  if (filterLocation.value) {
-    result = result.filter(eq => eq.location_id === filterLocation.value);
-  }
-  return result;
+};
+
+// Watch filters to reload equipment
+watch([filterType, filterStatus, filterLocation], () => {
+  equipmentFirst.value = 0; // Reset to first page on filter change
+  loadEquipment();
 });
 
 // Check if selected model supports remote execution
@@ -845,11 +876,10 @@ const getHierarchyLabel = (level) => {
   return option ? option.label : '-';
 };
 
-// Data loading
-const loadData = async () => {
+// Data loading - load configuration data (manufacturers, models, etc.)
+const loadConfigData = async () => {
   try {
-    const [eqRes, mfRes, mdRes, tpRes, lcRes, spRes, rackRes] = await Promise.all([
-      api.get('/inventory/equipment/'),
+    const [mfRes, mdRes, tpRes, lcRes, spRes, rackRes] = await Promise.all([
       api.get('/inventory/manufacturers/'),
       api.get('/inventory/models/'),
       api.get('/inventory/types/'),
@@ -857,7 +887,6 @@ const loadData = async () => {
       api.get('/inventory/suppliers/'),
       api.get('/dcim/racks/')
     ]);
-    equipment.value = eqRes.data;
     manufacturers.value = mfRes.data;
     models.value = mdRes.data;
     types.value = tpRes.data;
@@ -865,8 +894,14 @@ const loadData = async () => {
     suppliers.value = spRes.data;
     racks.value = rackRes.data;
   } catch (e) {
-    toast.add({ severity: 'error', summary: t('common.error'), detail: e.response?.data?.detail || 'Failed to load data' });
+    toast.add({ severity: 'error', summary: t('common.error'), detail: e.response?.data?.detail || 'Failed to load config data' });
   }
+};
+
+// Load all data (config + equipment)
+const loadData = async () => {
+  await loadConfigData();
+  await loadEquipment();
 };
 
 const loadAvailableIps = async () => {
@@ -943,7 +978,7 @@ const saveEquipment = async () => {
       toast.add({ severity: 'success', summary: t('common.success'), detail: t('messages.equipmentCreated') });
     }
     showEquipmentDialog.value = false;
-    loadData();
+    loadEquipment();
   } catch (e) {
     toast.add({ severity: 'error', summary: t('common.error'), detail: e.response?.data?.detail || t('common.error') });
   }
@@ -959,7 +994,7 @@ const deleteEquipment = async () => {
     await api.delete(`/inventory/equipment/${deletingEquipment.value.id}`);
     toast.add({ severity: 'success', summary: t('common.deleted'), detail: t('messages.equipmentDeleted') });
     showDeleteEquipmentDialog.value = false;
-    loadData();
+    loadEquipment();
   } catch (e) {
     toast.add({ severity: 'error', summary: t('common.error'), detail: e.response?.data?.detail || t('common.error') });
   }
@@ -979,7 +1014,7 @@ const linkIp = async () => {
     await api.post(`/inventory/equipment/${linkingEquipment.value.id}/link-ip`, { ip_address_id: selectedIpToLink.value });
     toast.add({ severity: 'success', summary: t('common.success'), detail: t('messages.ipLinked') });
     showLinkIpDialog.value = false;
-    loadData();
+    loadEquipment();
   } catch (e) {
     toast.add({ severity: 'error', summary: t('common.error'), detail: e.response?.data?.detail || t('common.error') });
   }
@@ -992,7 +1027,7 @@ const unlinkIp = async (ipId) => {
     const res = await api.get(`/inventory/equipment/${linkingEquipment.value.id}`);
     linkingEquipment.value = res.data;
     await loadAvailableIps();
-    loadData();
+    loadEquipment();
   } catch (e) {
     toast.add({ severity: 'error', summary: t('common.error'), detail: e.response?.data?.detail || t('common.error') });
   }
@@ -1002,7 +1037,7 @@ const unlinkIpFromExpansion = async (equipmentId, ipId) => {
   try {
     await api.delete(`/inventory/equipment/${equipmentId}/unlink-ip/${ipId}`);
     toast.add({ severity: 'success', summary: t('common.success'), detail: t('messages.ipUnlinked') });
-    loadData();
+    loadEquipment();
   } catch (e) {
     toast.add({ severity: 'error', summary: t('common.error'), detail: e.response?.data?.detail || t('common.error') });
   }

@@ -114,14 +114,22 @@ class IPAddressWithEquipment(IPAddress):
     equipment: Optional[EquipmentBrief] = None
 
 class SubnetWithEquipment(BaseModel):
-    """Subnet with IPs that include equipment info"""
+    """Subnet with IP count (IPs loaded separately with pagination)"""
     id: int
     cidr: str
     name: Optional[str] = None
     description: Optional[str] = None
-    ips: List[IPAddressWithEquipment] = Field(default_factory=list)
+    ip_count: int = 0
     class Config:
         from_attributes = True
+
+
+class PaginatedIPResponse(BaseModel):
+    """Paginated response for IP addresses."""
+    items: List[IPAddressWithEquipment]
+    total: int
+    skip: int
+    limit: int
 
 class SubnetBase(BaseModel):
     cidr: str
@@ -344,6 +352,14 @@ class EquipmentFull(Equipment):
     ip_addresses: List[IPAddress] = Field(default_factory=list)
 
 
+class PaginatedEquipmentResponse(BaseModel):
+    """Paginated response for equipment list"""
+    items: List[EquipmentFull]
+    total: int
+    skip: int
+    limit: int
+
+
 # --- IP Link ---
 class IPLinkRequest(BaseModel):
     ip_address_id: int
@@ -553,6 +569,14 @@ class SoftwareWithCompliance(Software):
     compliance_status: str = "compliant"  # compliant, warning, violation
 
 
+class PaginatedSoftwareResponse(BaseModel):
+    """Paginated response for software list"""
+    items: List[SoftwareWithCompliance]
+    total: int
+    skip: int
+    limit: int
+
+
 # ==================== NETWORK PORT SCHEMAS ====================
 
 class NetworkPortBase(BaseModel):
@@ -749,6 +773,14 @@ class TicketBrief(BaseModel):
         from_attributes = True
 
 
+class PaginatedTicketResponse(BaseModel):
+    """Paginated response for ticket list"""
+    items: List[TicketBrief]
+    total: int
+    skip: int
+    limit: int
+
+
 class TicketFull(Ticket):
     """Ticket with all relationships"""
     requester_name: Optional[str] = None
@@ -856,11 +888,20 @@ class KnowledgeArticleBrief(BaseModel):
     summary: Optional[str] = None
     category: Optional[str] = None
     is_published: bool
+    is_internal: bool = False
     view_count: int
     created_at: datetime
 
     class Config:
         from_attributes = True
+
+
+class PaginatedKnowledgeResponse(BaseModel):
+    """Paginated response for knowledge articles"""
+    items: List[KnowledgeArticleBrief]
+    total: int
+    skip: int
+    limit: int
 
 
 class KnowledgeArticleFull(KnowledgeArticle):

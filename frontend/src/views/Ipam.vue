@@ -8,11 +8,16 @@
     </div>
 
     <div class="card">
-      <DataTable :value="subnets" v-model:expandedRows="expandedRows" dataKey="id" showGridlines>
+      <DataTable :value="subnets" v-model:expandedRows="expandedRows" dataKey="id" showGridlines @rowExpand="onRowExpand">
         <Column expander style="width: 3rem" />
         <Column field="cidr" :header="t('ipam.cidr')" sortable class="font-mono font-bold text-blue-600 dark:text-blue-400"></Column>
         <Column field="name" :header="t('common.name')" sortable></Column>
         <Column field="description" :header="t('ipam.description')"></Column>
+        <Column :header="t('ipam.ips')" style="width: 8rem; text-align: center">
+          <template #body="slotProps">
+            <span class="font-medium">{{ slotProps.data.ip_count }}</span>
+          </template>
+        </Column>
         <Column :header="t('common.actions')" style="width: 12rem; text-align: center">
           <template #body="slotProps">
              <div class="flex gap-2 justify-center">
@@ -26,35 +31,55 @@
           <div class="p-4" style="background-color: rgba(0,0,0,0.02);">
             <div class="flex justify-between items-center mb-3">
                  <h3 class="font-semibold text-sm opacity-70">{{ t('ipam.allocatedIps') }} {{ slotProps.data.cidr }}</h3>
-                 <span class="text-xs opacity-50" v-if="slotProps.data.ips.length > 0">
-                    {{ slotProps.data.ips.length }} {{ t('ipam.addressesFound') }}
+                 <span class="text-xs opacity-50" v-if="subnetIps[slotProps.data.id]?.total > 0">
+                    {{ subnetIps[slotProps.data.id].total }} {{ t('ipam.addressesFound') }}
                  </span>
             </div>
 
-            <DataTable :value="slotProps.data.ips" size="small" stripedRows v-if="slotProps.data.ips.length > 0">
-              <Column field="address" :header="t('ipam.address')" sortable class="font-mono text-sm"></Column>
-              <Column field="hostname" :header="t('ipam.hostname')" class="text-sm"></Column>
-              <Column field="mac_address" :header="t('ipam.mac')" class="font-mono text-xs opacity-70"></Column>
-              <Column :header="t('ip.linkedEquipment')" class="text-sm">
-                 <template #body="ipSlot">
-                    <span v-if="ipSlot.data.equipment" class="flex items-center gap-2">
-                       <i class="pi pi-box text-blue-500"></i>
-                       <span class="font-medium">{{ ipSlot.data.equipment.name }}</span>
-                    </span>
-                    <span v-else class="opacity-50">-</span>
-                 </template>
-              </Column>
-              <Column field="last_scanned_at" :header="t('ipam.lastScan')" class="text-xs opacity-70">
-                 <template #body="ip">
-                    {{ ip.data.last_scanned_at ? new Date(ip.data.last_scanned_at).toLocaleString() : '-' }}
-                 </template>
-              </Column>
-              <Column field="status" :header="t('ipam.status')">
-                 <template #body="ipSlot">
-                    <Tag :value="ipSlot.data.status" :severity="getStatusSeverity(ipSlot.data.status)" />
-                 </template>
-              </Column>
-            </DataTable>
+            <!-- Loading state -->
+            <div v-if="loadingIps[slotProps.data.id]" class="flex justify-center py-8">
+              <i class="pi pi-spin pi-spinner text-2xl opacity-50"></i>
+            </div>
+
+            <!-- IP Table with pagination -->
+            <template v-else-if="subnetIps[slotProps.data.id]?.items?.length > 0">
+              <DataTable
+                :value="subnetIps[slotProps.data.id].items"
+                size="small"
+                stripedRows
+                lazy
+                paginator
+                :rows="50"
+                :totalRecords="subnetIps[slotProps.data.id].total"
+                :first="subnetIps[slotProps.data.id].skip || 0"
+                @page="(e) => onIpPage(e, slotProps.data.id)"
+                :rowsPerPageOptions="[25, 50, 100]"
+              >
+                <Column field="address" :header="t('ipam.address')" sortable class="font-mono text-sm"></Column>
+                <Column field="hostname" :header="t('ipam.hostname')" class="text-sm"></Column>
+                <Column field="mac_address" :header="t('ipam.mac')" class="font-mono text-xs opacity-70"></Column>
+                <Column :header="t('ip.linkedEquipment')" class="text-sm">
+                   <template #body="ipSlot">
+                      <span v-if="ipSlot.data.equipment" class="flex items-center gap-2">
+                         <i class="pi pi-box text-blue-500"></i>
+                         <span class="font-medium">{{ ipSlot.data.equipment.name }}</span>
+                      </span>
+                      <span v-else class="opacity-50">-</span>
+                   </template>
+                </Column>
+                <Column field="last_scanned_at" :header="t('ipam.lastScan')" class="text-xs opacity-70">
+                   <template #body="ip">
+                      {{ ip.data.last_scanned_at ? new Date(ip.data.last_scanned_at).toLocaleString() : '-' }}
+                   </template>
+                </Column>
+                <Column field="status" :header="t('ipam.status')">
+                   <template #body="ipSlot">
+                      <Tag :value="ipSlot.data.status" :severity="getStatusSeverity(ipSlot.data.status)" />
+                   </template>
+                </Column>
+              </DataTable>
+            </template>
+
             <div v-else class="opacity-50 text-sm italic py-4 text-center">{{ t('ipam.noIps') }}</div>
           </div>
         </template>
@@ -112,7 +137,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, reactive } from 'vue';
 import { useToast } from 'primevue/usetoast';
 import { useI18n } from 'vue-i18n';
 import api from '../api';
@@ -132,6 +157,10 @@ const showSubnetDialog = ref(false);
 const showIpDialog = ref(false);
 const selectedSubnet = ref(null);
 
+// IP pagination state per subnet
+const subnetIps = reactive({});
+const loadingIps = reactive({});
+
 const newSubnet = ref({ cidr: '', name: '', description: '' });
 const newIp = ref({ address: '', hostname: '', status: 'active' });
 
@@ -142,6 +171,43 @@ const fetchSubnets = async () => {
   } catch (error) {
     toast.add({ severity: 'error', summary: t('common.error'), detail: 'Could not load subnets', life: 3000 });
   }
+};
+
+// Load IPs for a specific subnet with pagination
+const loadSubnetIps = async (subnetId, skip = 0, limit = 50) => {
+  loadingIps[subnetId] = true;
+  try {
+    const res = await api.get(`/subnets/${subnetId}/ips/`, {
+      params: { skip, limit }
+    });
+    subnetIps[subnetId] = {
+      items: res.data.items,
+      total: res.data.total,
+      skip: res.data.skip,
+      limit: res.data.limit
+    };
+  } catch (error) {
+    toast.add({ severity: 'error', summary: t('common.error'), detail: 'Could not load IPs', life: 3000 });
+    subnetIps[subnetId] = { items: [], total: 0, skip: 0, limit: 50 };
+  } finally {
+    loadingIps[subnetId] = false;
+  }
+};
+
+// Handler for row expansion - load IPs on demand
+const onRowExpand = (event) => {
+  const subnetId = event.data.id;
+  // Only load if not already loaded
+  if (!subnetIps[subnetId]) {
+    loadSubnetIps(subnetId);
+  }
+};
+
+// Handler for IP pagination
+const onIpPage = (event, subnetId) => {
+  const skip = event.first;
+  const limit = event.rows;
+  loadSubnetIps(subnetId, skip, limit);
 };
 
 const createSubnet = async () => {
@@ -173,9 +239,17 @@ const createIp = async () => {
       return;
   }
   try {
-    await api.post(`/subnets/${selectedSubnet.value.id}/ips/`, newIp.value);
+    const subnetId = selectedSubnet.value.id;
+    await api.post(`/subnets/${subnetId}/ips/`, newIp.value);
     showIpDialog.value = false;
+    // Refresh subnets (for IP count) and IPs for this subnet
     fetchSubnets();
+    // Clear cached IPs to force reload on next expand
+    delete subnetIps[subnetId];
+    // If subnet is already expanded, reload IPs
+    if (expandedRows.value[subnetId]) {
+      loadSubnetIps(subnetId);
+    }
     toast.add({ severity: 'success', summary: t('common.success'), detail: t('ipam.ipAllocated'), life: 3000 });
   } catch (error) {
     toast.add({ severity: 'error', summary: t('common.error'), detail: error.response?.data?.detail || t('ipam.failedAllocateIp'), life: 3000 });

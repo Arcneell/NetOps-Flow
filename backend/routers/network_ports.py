@@ -1,9 +1,9 @@
 """
 Network Ports Router - Physical connectivity and patching management.
 """
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
-from typing import List
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy.orm import Session, joinedload
+from typing import List, Optional
 import logging
 
 from backend.core.database import get_db
@@ -274,16 +274,34 @@ def disconnect_port(
 
 @router.get("/connections/all")
 def get_all_connections(
+    limit: int = Query(500, ge=1, le=2000),
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_active_user)
 ):
-    """Get all port connections for topology visualization."""
+    """Get all port connections for topology visualization (optimized with joinedload)."""
     check_network_permission(current_user)
 
-    # Get ports that have connections
-    connected_ports = db.query(models.NetworkPort).filter(
+    # Get ports that have connections with equipment eagerly loaded
+    connected_ports = db.query(models.NetworkPort).options(
+        joinedload(models.NetworkPort.equipment)
+    ).filter(
         models.NetworkPort.connected_to_id.isnot(None)
+    ).limit(limit).all()
+
+    # Build a map of port_id -> port for quick lookup of target ports
+    port_ids = set()
+    for port in connected_ports:
+        port_ids.add(port.id)
+        port_ids.add(port.connected_to_id)
+
+    # Fetch all related ports in one query
+    all_ports = db.query(models.NetworkPort).options(
+        joinedload(models.NetworkPort.equipment)
+    ).filter(
+        models.NetworkPort.id.in_(port_ids)
     ).all()
+
+    port_map = {p.id: p for p in all_ports}
 
     connections = []
     seen = set()
@@ -295,31 +313,20 @@ def get_all_connections(
             continue
         seen.add(connection_key)
 
-        source_eq = db.query(models.Equipment).filter(
-            models.Equipment.id == port.equipment_id
-        ).first()
-
-        target_port = db.query(models.NetworkPort).filter(
-            models.NetworkPort.id == port.connected_to_id
-        ).first()
-
+        target_port = port_map.get(port.connected_to_id)
         if target_port:
-            target_eq = db.query(models.Equipment).filter(
-                models.Equipment.id == target_port.equipment_id
-            ).first()
-
             connections.append({
                 "source": {
                     "port_id": port.id,
                     "port_name": port.name,
-                    "equipment_id": source_eq.id if source_eq else None,
-                    "equipment_name": source_eq.name if source_eq else None
+                    "equipment_id": port.equipment.id if port.equipment else None,
+                    "equipment_name": port.equipment.name if port.equipment else None
                 },
                 "target": {
                     "port_id": target_port.id,
                     "port_name": target_port.name,
-                    "equipment_id": target_eq.id if target_eq else None,
-                    "equipment_name": target_eq.name if target_eq else None
+                    "equipment_id": target_port.equipment.id if target_port.equipment else None,
+                    "equipment_name": target_port.equipment.name if target_port.equipment else None
                 }
             })
 

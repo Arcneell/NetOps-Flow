@@ -1,10 +1,10 @@
 """
 Contracts Router - Maintenance, insurance, and leasing contract management.
 """
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func
-from typing import List
+from typing import List, Optional
 from datetime import date, timedelta
 import logging
 
@@ -134,7 +134,7 @@ def get_contract_equipment(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_active_user)
 ):
-    """Get equipment covered by this contract."""
+    """Get equipment covered by this contract (optimized with joinedload)."""
     check_contract_permission(current_user)
 
     contract = db.query(models.Contract).filter(
@@ -143,21 +143,21 @@ def get_contract_equipment(
     if not contract:
         raise HTTPException(status_code=404, detail="Contract not found")
 
-    equipment_links = db.query(models.ContractEquipment).filter(
+    # Use joinedload to fetch equipment in a single query
+    equipment_links = db.query(models.ContractEquipment).options(
+        joinedload(models.ContractEquipment.equipment)
+    ).filter(
         models.ContractEquipment.contract_id == contract_id
     ).all()
 
     equipment_list = []
     for link in equipment_links:
-        eq = db.query(models.Equipment).filter(
-            models.Equipment.id == link.equipment_id
-        ).first()
-        if eq:
+        if link.equipment:
             equipment_list.append({
-                "id": eq.id,
-                "name": eq.name,
-                "serial_number": eq.serial_number,
-                "status": eq.status,
+                "id": link.equipment.id,
+                "name": link.equipment.name,
+                "serial_number": link.equipment.serial_number,
+                "status": link.equipment.status,
                 "link_notes": link.notes
             })
 

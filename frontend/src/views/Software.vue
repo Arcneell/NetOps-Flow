@@ -70,7 +70,7 @@
         </div>
 
         <div class="flex-1 overflow-auto">
-          <DataTable :value="filteredSoftware" stripedRows paginator :rows="10" v-model:expandedRows="expandedRows" dataKey="id" class="text-sm">
+          <DataTable :value="software" :loading="loadingSoftware" stripedRows lazy paginator :rows="softwareRows" :totalRecords="softwareTotal" :first="softwareFirst" @page="onSoftwarePage" v-model:expandedRows="expandedRows" dataKey="id" class="text-sm">
             <Column expander style="width: 3rem" />
             <Column field="name" :header="t('common.name')" sortable>
               <template #body="slotProps">
@@ -331,6 +331,12 @@ const complianceOverview = ref(null);
 const expiringLicenses = ref([]);
 const expandedRows = ref({});
 
+// Software pagination state
+const softwareTotal = ref(0);
+const softwareFirst = ref(0);
+const softwareRows = ref(25);
+const loadingSoftware = ref(false);
+
 // Filters
 const filterCategory = ref(null);
 
@@ -356,10 +362,37 @@ const installationForm = ref({ equipment_id: null, installed_version: '' });
 const categoryOptions = ['os', 'database', 'middleware', 'application', 'utility', 'security'];
 const licenseTypeOptions = ['perpetual', 'subscription', 'oem', 'volume'];
 
-// Computed
-const filteredSoftware = computed(() => {
-  if (!filterCategory.value) return software.value;
-  return software.value.filter(s => s.category === filterCategory.value);
+// Handle software page change
+const onSoftwarePage = (event) => {
+  softwareFirst.value = event.first;
+  softwareRows.value = event.rows;
+  loadSoftware();
+};
+
+// Load software with server-side pagination
+const loadSoftware = async () => {
+  loadingSoftware.value = true;
+  try {
+    const params = {
+      skip: softwareFirst.value,
+      limit: softwareRows.value
+    };
+    if (filterCategory.value) params.category = filterCategory.value;
+
+    const res = await api.get('/software/', { params });
+    software.value = res.data.items;
+    softwareTotal.value = res.data.total;
+  } catch (e) {
+    toast.add({ severity: 'error', summary: t('common.error'), detail: e.response?.data?.detail || 'Failed to load software' });
+  } finally {
+    loadingSoftware.value = false;
+  }
+};
+
+// Watch filters to reload software
+watch([filterCategory], () => {
+  softwareFirst.value = 0;
+  loadSoftware();
 });
 
 // Helpers
@@ -386,22 +419,26 @@ const getEquipmentName = (id) => {
   return eq?.name || `Equipment #${id}`;
 };
 
-// Data loading
-const loadData = async () => {
+// Data loading - load metadata and sidebar data
+const loadMetadata = async () => {
   try {
-    const [softwareRes, equipmentRes, complianceRes, expiringRes] = await Promise.all([
-      api.get('/software/'),
-      api.get('/inventory/equipment/'),
+    const [equipmentRes, complianceRes, expiringRes] = await Promise.all([
+      api.get('/inventory/equipment/', { params: { limit: 500 } }), // Get a reasonable number for dropdown
       api.get('/software/compliance'),
-      api.get('/software/licenses/expiring', { params: { days: 30 } })
+      api.get('/software/licenses/expiring', { params: { days: 30, limit: 20 } })
     ]);
-    software.value = softwareRes.data;
-    equipment.value = equipmentRes.data;
+    equipment.value = equipmentRes.data.items || equipmentRes.data;
     complianceOverview.value = complianceRes.data;
     expiringLicenses.value = expiringRes.data;
   } catch (e) {
-    toast.add({ severity: 'error', summary: t('common.error'), detail: e.response?.data?.detail || 'Failed to load data' });
+    toast.add({ severity: 'error', summary: t('common.error'), detail: e.response?.data?.detail || 'Failed to load metadata' });
   }
+};
+
+// Load all data
+const loadData = async () => {
+  await loadMetadata();
+  await loadSoftware();
 };
 
 // Software CRUD

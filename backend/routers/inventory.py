@@ -2,9 +2,9 @@
 Inventory Router - Equipment management.
 Includes Redis caching for list endpoints with smart invalidation.
 """
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import Response
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from typing import List, Optional
 import logging
 import io
@@ -445,23 +445,53 @@ def delete_supplier(
 
 # --- Equipment ---
 
-@router.get("/equipment/", response_model=List[schemas.EquipmentFull])
+@router.get("/equipment/", response_model=schemas.PaginatedEquipmentResponse)
 def list_equipment(
-    skip: int = 0,
-    limit: int = 100,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=500),
     status: Optional[str] = None,
     type_id: Optional[int] = None,
     location_id: Optional[int] = None,
+    search: Optional[str] = None,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_active_user)
 ):
     """
     List equipment with optimized eager loading to prevent N+1 queries.
     Uses joinedload for all relationships used in EquipmentFull schema.
+    Returns paginated response with total count.
     """
-    from sqlalchemy.orm import joinedload
-
     check_inventory_permission(current_user)
+
+    # Base query for counting (without joins to avoid counting duplicates)
+    count_query = db.query(models.Equipment)
+
+    # Apply entity filter for multi-tenant isolation
+    entity_filter = get_user_entity_filter(current_user)
+    if entity_filter:
+        count_query = count_query.filter(models.Equipment.entity_id == entity_filter)
+
+    if status:
+        count_query = count_query.filter(models.Equipment.status == status)
+    if type_id:
+        count_query = count_query.filter(
+            models.Equipment.model_id.in_(
+                db.query(models.EquipmentModel.id).filter(
+                    models.EquipmentModel.equipment_type_id == type_id
+                )
+            )
+        )
+    if location_id:
+        count_query = count_query.filter(models.Equipment.location_id == location_id)
+    if search:
+        search_filter = f"%{search}%"
+        count_query = count_query.filter(
+            (models.Equipment.name.ilike(search_filter)) |
+            (models.Equipment.serial_number.ilike(search_filter)) |
+            (models.Equipment.asset_tag.ilike(search_filter))
+        )
+
+    total = count_query.count()
 
     # Eager load all relationships to prevent N+1 queries
     query = db.query(models.Equipment).options(
@@ -473,15 +503,12 @@ def list_equipment(
         joinedload(models.Equipment.ip_addresses)
     )
 
-    # Apply entity filter for multi-tenant isolation
-    entity_filter = get_user_entity_filter(current_user)
+    # Apply same filters to data query
     if entity_filter:
         query = query.filter(models.Equipment.entity_id == entity_filter)
-
     if status:
         query = query.filter(models.Equipment.status == status)
     if type_id:
-        # Use subquery to avoid cartesian product with joinedload
         query = query.filter(
             models.Equipment.model_id.in_(
                 db.query(models.EquipmentModel.id).filter(
@@ -491,8 +518,17 @@ def list_equipment(
         )
     if location_id:
         query = query.filter(models.Equipment.location_id == location_id)
+    if search:
+        search_filter = f"%{search}%"
+        query = query.filter(
+            (models.Equipment.name.ilike(search_filter)) |
+            (models.Equipment.serial_number.ilike(search_filter)) |
+            (models.Equipment.asset_tag.ilike(search_filter))
+        )
 
-    return query.order_by(models.Equipment.name).offset(skip).limit(limit).all()
+    items = query.order_by(models.Equipment.name).offset(skip).limit(limit).all()
+
+    return schemas.PaginatedEquipmentResponse(items=items, total=total, skip=skip, limit=limit)
 
 
 @router.get("/equipment/executable/", response_model=List[schemas.EquipmentFull])

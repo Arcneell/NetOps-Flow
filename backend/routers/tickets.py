@@ -144,7 +144,7 @@ def create_notification(
 
 # ==================== TICKET CRUD ====================
 
-@router.get("/", response_model=List[schemas.TicketBrief])
+@router.get("/", response_model=schemas.PaginatedTicketResponse)
 def list_tickets(
     status: Optional[str] = None,
     priority: Optional[str] = None,
@@ -154,12 +154,16 @@ def list_tickets(
     category: Optional[str] = None,
     search: Optional[str] = None,
     my_tickets: bool = False,
-    skip: int = 0,
-    limit: int = Query(default=50, le=200),
+    skip: int = Query(default=0, ge=0),
+    limit: int = Query(default=50, ge=1, le=200),
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user)
 ):
-    """List tickets with filtering options."""
+    """List tickets with filtering options. Returns paginated response with total count."""
+    # Base count query (without joins)
+    count_query = db.query(func.count(models.Ticket.id))
+
+    # Data query with joins
     query = db.query(models.Ticket).options(
         joinedload(models.Ticket.requester),
         joinedload(models.Ticket.assigned_to)
@@ -168,48 +172,60 @@ def list_tickets(
     # Users can only see their own tickets, tech/admin/superadmin can see all
     if not can_access_all_tickets(current_user):
         query = query.filter(models.Ticket.requester_id == current_user.id)
+        count_query = count_query.filter(models.Ticket.requester_id == current_user.id)
     # Entity filtering for privileged users with entity
     elif current_user.entity_id:
         query = query.filter(models.Ticket.entity_id == current_user.entity_id)
+        count_query = count_query.filter(models.Ticket.entity_id == current_user.entity_id)
 
     # Filter by my tickets (assigned or requested) - only relevant for tech/admin/superadmin
     if my_tickets and can_access_all_tickets(current_user):
-        query = query.filter(
-            or_(
-                models.Ticket.assigned_to_id == current_user.id,
-                models.Ticket.requester_id == current_user.id
-            )
+        my_filter = or_(
+            models.Ticket.assigned_to_id == current_user.id,
+            models.Ticket.requester_id == current_user.id
         )
+        query = query.filter(my_filter)
+        count_query = count_query.filter(my_filter)
 
     # Apply filters
     if status:
         query = query.filter(models.Ticket.status == status)
+        count_query = count_query.filter(models.Ticket.status == status)
     if priority:
         query = query.filter(models.Ticket.priority == priority)
+        count_query = count_query.filter(models.Ticket.priority == priority)
     if ticket_type:
         query = query.filter(models.Ticket.ticket_type == ticket_type)
+        count_query = count_query.filter(models.Ticket.ticket_type == ticket_type)
     if assigned_to_id:
         query = query.filter(models.Ticket.assigned_to_id == assigned_to_id)
+        count_query = count_query.filter(models.Ticket.assigned_to_id == assigned_to_id)
     if requester_id:
         query = query.filter(models.Ticket.requester_id == requester_id)
+        count_query = count_query.filter(models.Ticket.requester_id == requester_id)
     if category:
         query = query.filter(models.Ticket.category == category)
+        count_query = count_query.filter(models.Ticket.category == category)
     if search:
         search_term = f"%{search}%"
-        query = query.filter(
-            or_(
-                models.Ticket.title.ilike(search_term),
-                models.Ticket.ticket_number.ilike(search_term),
-                models.Ticket.description.ilike(search_term)
-            )
+        search_filter = or_(
+            models.Ticket.title.ilike(search_term),
+            models.Ticket.ticket_number.ilike(search_term),
+            models.Ticket.description.ilike(search_term)
         )
+        query = query.filter(search_filter)
+        count_query = count_query.filter(search_filter)
 
+    # Get total count
+    total = count_query.scalar() or 0
+
+    # Get paginated results
     tickets = query.order_by(models.Ticket.created_at.desc()).offset(skip).limit(limit).all()
 
     # Map to brief response
-    result = []
+    items = []
     for t in tickets:
-        result.append(schemas.TicketBrief(
+        items.append(schemas.TicketBrief(
             id=t.id,
             ticket_number=t.ticket_number,
             title=t.title,
@@ -221,7 +237,7 @@ def list_tickets(
             assigned_to_name=t.assigned_to.username if t.assigned_to else None
         ))
 
-    return result
+    return schemas.PaginatedTicketResponse(items=items, total=total, skip=skip, limit=limit)
 
 
 @router.get("/stats", response_model=schemas.TicketStats)
