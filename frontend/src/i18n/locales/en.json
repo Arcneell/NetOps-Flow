@@ -810,7 +810,9 @@
     "categoryUpdated": "Category updated successfully",
     "categoryDeleted": "Category deleted successfully",
     "cannotDeleteWithArticles": "Cannot delete category with articles",
-    "selectCategory": "Select a category"
+    "selectCategory": "Select a category",
+    "selectIcon": "Select an icon",
+    "preview": "Preview"
   },
   "admin": {
     "title": "Administration",

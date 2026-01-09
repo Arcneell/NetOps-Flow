@@ -810,7 +810,9 @@
     "categoryUpdated": "Catégorie mise à jour avec succès",
     "categoryDeleted": "Catégorie supprimée avec succès",
     "cannotDeleteWithArticles": "Impossible de supprimer une catégorie contenant des articles",
-    "selectCategory": "Sélectionner une catégorie"
+    "selectCategory": "Sélectionner une catégorie",
+    "selectIcon": "Choisir une icône",
+    "preview": "Aperçu"
   },
   "admin": {
     "title": "Administration",

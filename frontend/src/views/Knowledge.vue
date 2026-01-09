@@ -222,20 +222,55 @@
             </div>
             <div>
               <label class="block text-sm font-medium mb-1">{{ t('common.icon') }}</label>
-              <InputText v-model="categoryForm.icon" class="w-full" placeholder="pi-folder" />
+              <div class="flex gap-2">
+                <Dropdown v-model="categoryForm.icon" :options="iconOptions" optionLabel="label" optionValue="value"
+                          class="flex-1" :placeholder="t('knowledge.selectIcon')">
+                  <template #value="slotProps">
+                    <div v-if="slotProps.value" class="flex items-center gap-2">
+                      <i :class="slotProps.value"></i>
+                      <span>{{ getIconLabel(slotProps.value) }}</span>
+                    </div>
+                    <span v-else>{{ slotProps.placeholder }}</span>
+                  </template>
+                  <template #option="slotProps">
+                    <div class="flex items-center gap-2">
+                      <i :class="slotProps.option.value"></i>
+                      <span>{{ slotProps.option.label }}</span>
+                    </div>
+                  </template>
+                </Dropdown>
+                <div class="w-10 h-10 rounded border flex-shrink-0 flex items-center justify-center" style="background-color: var(--bg-app);">
+                  <i :class="categoryForm.icon" :style="{ color: categoryForm.color, fontSize: '1.25rem' }"></i>
+                </div>
+              </div>
             </div>
           </div>
-          <div class="grid grid-cols-2 gap-4 mb-3">
-            <div>
-              <label class="block text-sm font-medium mb-1">{{ t('common.description') }}</label>
-              <InputText v-model="categoryForm.description" class="w-full" />
-            </div>
-            <div>
-              <label class="block text-sm font-medium mb-1">{{ t('common.color') }}</label>
-              <div class="flex gap-2">
-                <InputText v-model="categoryForm.color" class="w-full" placeholder="#0ea5e9" />
-                <div class="w-10 h-10 rounded border flex-shrink-0" :style="{ backgroundColor: categoryForm.color }"></div>
+          <div class="mb-3">
+            <label class="block text-sm font-medium mb-1">{{ t('common.description') }}</label>
+            <InputText v-model="categoryForm.description" class="w-full" />
+          </div>
+          <div class="mb-3">
+            <label class="block text-sm font-medium mb-2">{{ t('common.color') }}</label>
+            <div class="flex items-center gap-3">
+              <div class="flex gap-1 flex-wrap">
+                <div v-for="color in colorPresets" :key="color"
+                     class="w-7 h-7 rounded cursor-pointer transition-all hover:scale-110 border-2"
+                     :class="categoryForm.color === color ? 'border-white ring-2 ring-offset-2 ring-offset-slate-900' : 'border-transparent'"
+                     :style="{ backgroundColor: color, '--tw-ring-color': color }"
+                     @click="categoryForm.color = color">
+                </div>
               </div>
+              <div class="flex items-center gap-2">
+                <InputText v-model="categoryForm.color" class="w-24 text-sm" placeholder="#0ea5e9" />
+              </div>
+            </div>
+          </div>
+          <!-- Preview -->
+          <div class="mb-3 p-3 rounded-lg flex items-center gap-3" style="background-color: var(--surface-ground);">
+            <span class="text-sm opacity-70">{{ t('knowledge.preview') }}:</span>
+            <div class="flex items-center gap-2 px-3 py-1.5 rounded-lg" style="background-color: var(--bg-secondary);">
+              <i :class="categoryForm.icon" :style="{ color: categoryForm.color }"></i>
+              <span class="font-medium">{{ categoryForm.name || t('knowledge.categoryName') }}</span>
             </div>
           </div>
           <div class="flex justify-end gap-2">
@@ -314,6 +349,20 @@ const categoryForm = ref({
   color: '#0ea5e9'
 });
 
+// Color presets for quick selection
+const colorPresets = [
+  '#0ea5e9', // Sky blue
+  '#22c55e', // Green
+  '#f59e0b', // Amber
+  '#ef4444', // Red
+  '#8b5cf6', // Violet
+  '#ec4899', // Pink
+  '#06b6d4', // Cyan
+  '#f97316', // Orange
+  '#6366f1', // Indigo
+  '#84cc16'  // Lime
+];
+
 // Pagination state
 const articlesTotal = ref(0);
 const articlesLimit = ref(20);
@@ -335,6 +384,45 @@ const articleForm = ref({
 
 // Category options from API
 const categoryOptions = computed(() => categories.value);
+
+// Icon options for category selector
+const iconOptions = [
+  { label: 'Dossier', value: 'pi pi-folder' },
+  { label: 'Fichier', value: 'pi pi-file' },
+  { label: 'Document', value: 'pi pi-file-edit' },
+  { label: 'Livre', value: 'pi pi-book' },
+  { label: 'Question', value: 'pi pi-question-circle' },
+  { label: 'Info', value: 'pi pi-info-circle' },
+  { label: 'Ampoule', value: 'pi pi-lightbulb' },
+  { label: 'Outils', value: 'pi pi-wrench' },
+  { label: 'Paramètres', value: 'pi pi-cog' },
+  { label: 'Serveur', value: 'pi pi-server' },
+  { label: 'Base de données', value: 'pi pi-database' },
+  { label: 'Réseau', value: 'pi pi-sitemap' },
+  { label: 'Cloud', value: 'pi pi-cloud' },
+  { label: 'Sécurité', value: 'pi pi-shield' },
+  { label: 'Cadenas', value: 'pi pi-lock' },
+  { label: 'Utilisateurs', value: 'pi pi-users' },
+  { label: 'Code', value: 'pi pi-code' },
+  { label: 'Terminal', value: 'pi pi-hashtag' },
+  { label: 'Alerte', value: 'pi pi-exclamation-triangle' },
+  { label: 'Check', value: 'pi pi-check-circle' },
+  { label: 'Étoile', value: 'pi pi-star' },
+  { label: 'Cœur', value: 'pi pi-heart' },
+  { label: 'Tag', value: 'pi pi-tag' },
+  { label: 'Bookmark', value: 'pi pi-bookmark' },
+  { label: 'Calendrier', value: 'pi pi-calendar' },
+  { label: 'Horloge', value: 'pi pi-clock' },
+  { label: 'Email', value: 'pi pi-envelope' },
+  { label: 'Téléphone', value: 'pi pi-phone' },
+  { label: 'Globe', value: 'pi pi-globe' },
+  { label: 'Maison', value: 'pi pi-home' }
+];
+
+const getIconLabel = (iconValue) => {
+  const option = iconOptions.find(o => o.value === iconValue);
+  return option ? option.label : iconValue;
+};
 
 // Computed - Check if user can manage knowledge (tech with permission, admin, superadmin)
 const canManageKnowledge = computed(() => {
@@ -555,10 +643,15 @@ const resetCategoryForm = () => {
 
 const editCategory = (cat) => {
   editingCategory.value = cat;
+  // Normalize icon format - add 'pi ' prefix if missing
+  let icon = cat.icon || 'pi pi-folder';
+  if (icon && !icon.startsWith('pi ')) {
+    icon = 'pi ' + icon;
+  }
   categoryForm.value = {
     name: cat.name,
     description: cat.description || '',
-    icon: cat.icon || 'pi pi-folder',
+    icon: icon,
     color: cat.color || '#0ea5e9'
   };
 };
