@@ -335,12 +335,13 @@ watch(() => route.path, async (newPath) => {
 });
 
 // Watch authStore user changes to sync local user ref (for account switching)
-watch(() => authStore.user, (newUser) => {
-  if (newUser && newUser.id !== user.value.id) {
-    user.value = { ...newUser };
+// Only watch the user ID to avoid deep watching the entire object (performance optimization)
+watch(() => authStore.user?.id, (newId) => {
+  if (newId && newId !== user.value.id) {
+    user.value = { ...authStore.user };
     avatarError.value = false;
   }
-}, { deep: true });
+});
 
 onMounted(async () => {
   initTheme();

@@ -78,7 +78,9 @@
 
         <div class="flex-1 overflow-auto">
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <!-- Use v-memo to prevent re-rendering unchanged articles -->
             <div v-for="article in articles" :key="article.id"
+                 v-memo="[article.id, article.title, article.is_published, article.is_internal, article.updated_at]"
                  class="p-4 rounded-xl cursor-pointer transition-all hover:translate-y-[-2px]"
                  style="background-color: var(--bg-app);"
                  @click="openArticle(article.slug)">
@@ -308,7 +310,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useToast } from 'primevue/usetoast';
 import { useI18n } from 'vue-i18n';
 import api from '../api';
@@ -699,6 +701,14 @@ onMounted(() => {
   loadArticles();
   loadPopularArticles();
   loadCategories();
+});
+
+// Cleanup debounce timer on unmount to prevent memory leaks
+onUnmounted(() => {
+  if (searchTimeout) {
+    clearTimeout(searchTimeout);
+    searchTimeout = null;
+  }
 });
 </script>
 

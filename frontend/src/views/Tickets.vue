@@ -524,7 +524,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue';
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useToast } from 'primevue/usetoast';
 import { useI18n } from 'vue-i18n';
@@ -1104,6 +1104,14 @@ onMounted(async () => {
     openTicketDialog();
     // Clear the query params after opening dialog
     router.replace({ path: '/tickets', query: {} });
+  }
+});
+
+// Cleanup debounce timer on unmount to prevent memory leaks
+onUnmounted(() => {
+  if (searchTimeout) {
+    clearTimeout(searchTimeout);
+    searchTimeout = null;
   }
 });
 </script>

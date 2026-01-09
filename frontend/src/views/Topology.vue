@@ -1643,7 +1643,8 @@ watch(selectedSite, loadTopology);
 watch(selectedVlan, () => { if (viewMode.value === 'logical') renderNetwork(); });
 watch(showMiniMap, (val) => { if (val) nextTick(initMiniMap); });
 watch(clusteringMode, () => { clustersOpen.value.clear(); renderNetwork(); });
-watch(selectedLayers, () => { if (viewMode.value === 'physical') renderNetwork(); }, { deep: true });
+// Watch selectedLayers array length and join as string to avoid deep watching
+watch(() => selectedLayers.value.slice().sort().join(','), () => { if (viewMode.value === 'physical') renderNetwork(); });
 
 onMounted(loadTopology);
 onUnmounted(() => {

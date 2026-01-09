@@ -105,6 +105,30 @@ export const useNotificationsStore = defineStore('notifications', () => {
     }
   }
 
+  // Page Visibility API handler - pause polling when tab is not visible
+  let visibilityHandler = null
+  let currentPollingInterval = 30000
+
+  function handleVisibilityChange() {
+    if (document.hidden) {
+      // Tab is hidden - stop polling to save resources
+      if (pollingInterval.value) {
+        clearInterval(pollingInterval.value)
+        pollingInterval.value = null
+      }
+    } else {
+      // Tab is visible again - resume polling
+      if (isPollingActive.value && !pollingInterval.value) {
+        fetchCount() // Fetch immediately on return
+        pollingInterval.value = setInterval(() => {
+          if (isPollingActive.value && !document.hidden) {
+            fetchCount()
+          }
+        }, currentPollingInterval)
+      }
+    }
+  }
+
   // Start polling for new notifications
   function startPolling(intervalMs = 30000) {
     // Prevent multiple polling intervals
@@ -116,21 +140,30 @@ export const useNotificationsStore = defineStore('notifications', () => {
       clearInterval(pollingInterval.value)
     }
 
+    currentPollingInterval = intervalMs
     isPollingActive.value = true
+
+    // Setup visibility handler if not already
+    if (!visibilityHandler) {
+      visibilityHandler = handleVisibilityChange
+      document.addEventListener('visibilitychange', visibilityHandler)
+    }
 
     // Fetch immediately
     fetchCount()
 
-    // Then poll at interval
-    pollingInterval.value = setInterval(() => {
-      // Only poll if still active (prevents zombie intervals)
-      if (isPollingActive.value) {
-        fetchCount()
-      } else {
-        clearInterval(pollingInterval.value)
-        pollingInterval.value = null
-      }
-    }, intervalMs)
+    // Only start interval if page is visible
+    if (!document.hidden) {
+      pollingInterval.value = setInterval(() => {
+        // Only poll if still active and page is visible
+        if (isPollingActive.value && !document.hidden) {
+          fetchCount()
+        } else if (!isPollingActive.value) {
+          clearInterval(pollingInterval.value)
+          pollingInterval.value = null
+        }
+      }, intervalMs)
+    }
   }
 
   function stopPolling() {
@@ -138,6 +171,11 @@ export const useNotificationsStore = defineStore('notifications', () => {
     if (pollingInterval.value) {
       clearInterval(pollingInterval.value)
       pollingInterval.value = null
+    }
+    // Remove visibility listener
+    if (visibilityHandler) {
+      document.removeEventListener('visibilitychange', visibilityHandler)
+      visibilityHandler = null
     }
   }
 

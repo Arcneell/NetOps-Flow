@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
+import { ref, computed, shallowRef } from 'vue'
 import api from '../api'
 
 /**
@@ -17,13 +17,14 @@ const CACHE_TTL_MS = 2 * 60 * 1000 // 2 minutes cache TTL (matches backend Redis
 const DEBOUNCE_MS = 300 // Debounce rapid fetch calls
 
 export const useInventoryStore = defineStore('inventory', () => {
-  // State
-  const equipment = ref([])
-  const manufacturers = ref([])
-  const models = ref([])
-  const types = ref([])
-  const locations = ref([])
-  const suppliers = ref([])
+  // State - use shallowRef for large arrays to reduce reactivity overhead
+  // Only the array reference triggers updates, not deep changes
+  const equipment = shallowRef([])
+  const manufacturers = shallowRef([])
+  const models = shallowRef([])
+  const types = shallowRef([])
+  const locations = shallowRef([])
+  const suppliers = shallowRef([])
 
   const loading = ref(false)
   const error = ref(null)
@@ -41,12 +42,29 @@ export const useInventoryStore = defineStore('inventory', () => {
   // Debounce timer refs
   let fetchDebounceTimer = null
 
+  // Memoization cache for expensive computed operations
+  // Invalidated when equipment array reference changes
+  const memoCache = ref({
+    byStatus: null,
+    byLocation: null,
+    equipmentVersion: 0
+  })
+
+  // Track equipment version to invalidate memo cache
+  const equipmentVersion = computed(() => equipment.value.length)
+
   // Getters
   const activeEquipment = computed(() =>
     equipment.value.filter(e => e.status === 'in_service')
   )
 
+  // Memoized grouping - only recalculates when equipment changes
   const equipmentByStatus = computed(() => {
+    // Use version to detect changes
+    if (memoCache.value.byStatus && memoCache.value.equipmentVersion === equipmentVersion.value) {
+      return memoCache.value.byStatus
+    }
+
     const grouped = {
       in_service: [],
       in_stock: [],
@@ -58,16 +76,28 @@ export const useInventoryStore = defineStore('inventory', () => {
         grouped[e.status].push(e)
       }
     })
+
+    // Cache result
+    memoCache.value.byStatus = grouped
+    memoCache.value.equipmentVersion = equipmentVersion.value
     return grouped
   })
 
   const equipmentByLocation = computed(() => {
+    // Use version to detect changes
+    if (memoCache.value.byLocation && memoCache.value.equipmentVersion === equipmentVersion.value) {
+      return memoCache.value.byLocation
+    }
+
     const grouped = {}
     equipment.value.forEach(e => {
       const locKey = e.location?.site || 'Unassigned'
       if (!grouped[locKey]) grouped[locKey] = []
       grouped[locKey].push(e)
     })
+
+    // Cache result
+    memoCache.value.byLocation = grouped
     return grouped
   })
 
@@ -305,6 +335,13 @@ export const useInventoryStore = defineStore('inventory', () => {
     suppliers.value = []
     invalidateCache()
     error.value = null
+    // Clear memo cache
+    memoCache.value = { byStatus: null, byLocation: null, equipmentVersion: 0 }
+    // Clear debounce timer
+    if (fetchDebounceTimer) {
+      clearTimeout(fetchDebounceTimer)
+      fetchDebounceTimer = null
+    }
   }
 
   return {
