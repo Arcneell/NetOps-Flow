@@ -7,7 +7,7 @@ from typing import List, Optional
 import logging
 
 from backend.core.database import get_db
-from backend.core.security import get_current_active_user, has_permission
+from backend.core.security import get_current_active_user, check_permission_or_raise
 from backend import models, schemas
 
 logger = logging.getLogger(__name__)
@@ -16,8 +16,7 @@ router = APIRouter(prefix="/network-ports", tags=["Network Ports"])
 
 def check_network_permission(current_user: models.User):
     """Check if user has network_ports permission (tech with network_ports, admin, superadmin)."""
-    if not has_permission(current_user, "network_ports"):
-        raise HTTPException(status_code=403, detail="Permission denied")
+    check_permission_or_raise(current_user, "network_ports", "manage network port connections")
 
 
 # ==================== NETWORK PORTS ====================
@@ -50,7 +49,7 @@ def get_equipment_ports(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_active_user)
 ):
-    """Get all ports for an equipment."""
+    """Get all ports for an equipment with connected equipment info."""
     check_network_permission(current_user)
 
     equipment = db.query(models.Equipment).filter(
@@ -59,9 +58,48 @@ def get_equipment_ports(
     if not equipment:
         raise HTTPException(status_code=404, detail="Equipment not found")
 
-    return db.query(models.NetworkPort).filter(
+    ports = db.query(models.NetworkPort).filter(
         models.NetworkPort.equipment_id == equipment_id
     ).order_by(models.NetworkPort.name).all()
+
+    # Enrich ports with connected equipment info
+    result = []
+    for port in ports:
+        port_data = {
+            "id": port.id,
+            "equipment_id": port.equipment_id,
+            "name": port.name,
+            "port_type": port.port_type,
+            "speed": port.speed,
+            "mac_address": port.mac_address,
+            "connected_to_id": port.connected_to_id,
+            "notes": port.notes,
+            "connected_to": None,
+            "connected_equipment_id": None,
+            "connected_equipment_name": None,
+            "connected_port_name": None,
+        }
+
+        # If connected to another port, get the connected equipment info
+        if port.connected_to_id:
+            connected_port = db.query(models.NetworkPort).filter(
+                models.NetworkPort.id == port.connected_to_id
+            ).first()
+            if connected_port:
+                port_data["connected_to"] = connected_port
+                port_data["connected_port_name"] = connected_port.name
+
+                # Get connected equipment
+                connected_eq = db.query(models.Equipment).filter(
+                    models.Equipment.id == connected_port.equipment_id
+                ).first()
+                if connected_eq:
+                    port_data["connected_equipment_id"] = connected_eq.id
+                    port_data["connected_equipment_name"] = connected_eq.name
+
+        result.append(port_data)
+
+    return result
 
 
 @router.get("/{port_id}", response_model=schemas.NetworkPortFull)

@@ -12,7 +12,7 @@ import logging
 from pathlib import Path
 
 from backend.core.database import get_db
-from backend.core.security import get_current_active_user, has_permission
+from backend.core.security import get_current_active_user, check_permission_or_raise
 from backend import models, schemas
 
 logger = logging.getLogger(__name__)
@@ -26,8 +26,7 @@ ALLOWED_EXTENSIONS = {"pdf", "png", "jpg", "jpeg", "gif", "doc", "docx", "xls", 
 
 def check_attachment_permission(current_user: models.User):
     """Check if user has attachments permission (tech with attachments, admin, superadmin)."""
-    if not has_permission(current_user, "attachments"):
-        raise HTTPException(status_code=403, detail="Permission denied")
+    check_permission_or_raise(current_user, "attachments", "manage file attachments")
 
 def get_entity_filter(current_user: models.User) -> int | None:
     """

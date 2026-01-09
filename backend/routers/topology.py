@@ -14,7 +14,7 @@ import logging
 import json
 
 from backend.core.database import get_db
-from backend.core.security import get_current_active_user, has_permission
+from backend.core.security import get_current_active_user, check_permission_or_raise
 from backend.core.cache import cache_get, cache_set, cache_delete, build_cache_key
 from backend import models
 
@@ -73,8 +73,7 @@ STATUS_COLORS = {
 
 
 def check_topology_permission(current_user: models.User):
-    if not has_permission(current_user, "topology"):
-        raise HTTPException(status_code=403, detail="Permission denied")
+    check_permission_or_raise(current_user, "topology", "view network topology")
 
 
 def invalidate_topology_cache():

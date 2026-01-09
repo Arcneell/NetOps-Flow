@@ -44,18 +44,12 @@
           </router-link>
 
           <!-- Network Section - Permission-based -->
-          <div v-if="hasPermission('ipam') || hasPermission('topology')" class="sidebar-section-title">{{ t('nav.network') }}</div>
+          <div v-if="hasPermission('ipam')" class="sidebar-section-title">{{ t('nav.network') }}</div>
 
           <router-link v-if="hasPermission('ipam')" to="/ipam" custom v-slot="{ navigate, isActive }">
             <div @click="navigate" :class="['sidebar-link', isActive ? 'active' : '']">
               <i class="pi pi-sitemap"></i>
               <span>{{ t('nav.ipam') }}</span>
-            </div>
-          </router-link>
-          <router-link v-if="hasPermission('topology')" to="/topology" custom v-slot="{ navigate, isActive }">
-            <div @click="navigate" :class="['sidebar-link', isActive ? 'active' : '']">
-              <i class="pi pi-share-alt"></i>
-              <span>{{ t('nav.topology') }}</span>
             </div>
           </router-link>
 

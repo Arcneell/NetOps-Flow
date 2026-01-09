@@ -337,7 +337,14 @@
       "server": "Level 3 - Server/Compute",
       "storage": "Level 4 - Storage/NAS/SAN",
       "endpoint": "Level 5 - Endpoint/Workstation"
-    }
+    },
+    "qrCode": "QR Code",
+    "generateQrCode": "Generate QR Code",
+    "downloadQrCode": "Download QR Code",
+    "qrCodeGenerated": "QR Code generated for {name}",
+    "connections": "Connections",
+    "connectedEquipment": "Connected Equipment",
+    "noConnections": "No network connections"
   },
   "status": {
     "inService": "In Service",

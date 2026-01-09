@@ -16,7 +16,7 @@ from qrcode.image.pil import PilImage
 from backend.core.database import get_db
 from backend.core.security import (
     get_current_active_user,
-    has_permission,
+    check_permission_or_raise,
 )
 from backend.core.config import get_settings
 from backend.core.cache import (
@@ -39,8 +39,7 @@ EQUIPMENT_CACHE_TTL = 120
 
 def check_inventory_permission(current_user: models.User):
     """Check if user has inventory permission (tech with inventory, admin, superadmin)."""
-    if not has_permission(current_user, "inventory"):
-        raise HTTPException(status_code=403, detail="Permission denied")
+    check_permission_or_raise(current_user, "inventory", "manage equipment inventory")
 
 
 def get_user_entity_filter(current_user: models.User):

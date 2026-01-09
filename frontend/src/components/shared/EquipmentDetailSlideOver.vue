@@ -185,6 +185,37 @@
         </div>
       </section>
 
+      <!-- Network Connections -->
+      <section class="detail-section">
+        <h4 class="section-title flex items-center justify-between">
+          <span class="flex items-center gap-2">
+            <i class="pi pi-share-alt"></i>
+            {{ t('inventory.connections') }}
+          </span>
+          <span class="text-sm font-normal opacity-60">{{ networkConnections.length }}</span>
+        </h4>
+        <div class="section-content">
+          <div v-if="networkConnections.length" class="space-y-2">
+            <div
+              v-for="conn in networkConnections"
+              :key="conn.id"
+              class="linked-item p-3 rounded-lg flex items-center justify-between cursor-pointer"
+              @click="openEquipment(conn.connected_equipment_id)"
+            >
+              <div class="flex items-center gap-3">
+                <i class="pi pi-link text-primary"></i>
+                <div>
+                  <div class="font-medium">{{ conn.connected_equipment_name }}</div>
+                  <div class="text-sm opacity-60">{{ conn.name }} → {{ conn.connected_port_name }}</div>
+                </div>
+              </div>
+              <Tag v-if="conn.speed" :value="conn.speed" severity="info" />
+            </div>
+          </div>
+          <div v-else class="text-sm text-muted">{{ t('inventory.noConnections') }}</div>
+        </div>
+      </section>
+
       <!-- Notes -->
       <section v-if="equipment.notes" class="detail-section">
         <h4 class="section-title">
@@ -193,6 +224,38 @@
         </h4>
         <div class="section-content">
           <p class="text-sm whitespace-pre-wrap opacity-80">{{ equipment.notes }}</p>
+        </div>
+      </section>
+
+      <!-- QR Code -->
+      <section class="detail-section">
+        <h4 class="section-title">
+          <i class="pi pi-qrcode"></i>
+          {{ t('inventory.qrCode') }}
+        </h4>
+        <div class="section-content">
+          <div v-if="qrCodeLoading" class="flex justify-center py-4">
+            <i class="pi pi-spinner pi-spin text-xl"></i>
+          </div>
+          <div v-else-if="qrCodeData" class="flex flex-col items-center gap-3">
+            <img :src="qrCodeData" alt="QR Code" class="qr-code-image" />
+            <Button
+              :label="t('inventory.downloadQrCode')"
+              icon="pi pi-download"
+              size="small"
+              outlined
+              @click="downloadQrCode"
+            />
+          </div>
+          <div v-else>
+            <Button
+              :label="t('inventory.generateQrCode')"
+              icon="pi pi-qrcode"
+              size="small"
+              outlined
+              @click="generateQrCode"
+            />
+          </div>
         </div>
       </section>
     </div>
@@ -241,7 +304,10 @@ const { t } = useI18n()
 const equipment = ref(null)
 const linkedContracts = ref([])
 const openTickets = ref([])
+const networkConnections = ref([])
 const loading = ref(false)
+const qrCodeData = ref(null)
+const qrCodeLoading = ref(false)
 
 // Computed
 const visible = computed({
@@ -279,6 +345,19 @@ const loadEquipmentDetails = async () => {
     } catch {
       openTickets.value = []
     }
+
+    // Load network connections (ports connected to other equipment)
+    try {
+      const portsResponse = await api.get(`/network-ports/equipment/${props.equipmentId}`)
+      const ports = portsResponse.data || []
+      // Filter to only show ports that are connected to other equipment
+      networkConnections.value = ports.filter(p => p.connected_to_id && p.connected_equipment_id)
+    } catch {
+      networkConnections.value = []
+    }
+
+    // Reset QR code when loading new equipment
+    qrCodeData.value = null
   } catch (error) {
     console.error('Failed to load equipment details:', error)
   } finally {
@@ -308,6 +387,55 @@ const createTicketForEquipment = () => {
       equipment_name: equipment.value.name
     }
   })
+}
+
+// Open another equipment in the slide-over (for network connections)
+const openEquipment = (equipmentId) => {
+  if (equipmentId) {
+    // Navigate to the same page but with different equipment
+    router.push(`/inventory?equipment=${equipmentId}`)
+    visible.value = false
+  }
+}
+
+// QR Code functions
+const generateQrCode = async () => {
+  if (!equipment.value?.id) return
+
+  qrCodeLoading.value = true
+  try {
+    const response = await api.get(`/inventory/equipment/${equipment.value.id}/qrcode`, {
+      params: { format: 'base64', size: 200 }
+    })
+    qrCodeData.value = response.data.image_base64
+  } catch (error) {
+    console.error('Failed to generate QR code:', error)
+  } finally {
+    qrCodeLoading.value = false
+  }
+}
+
+const downloadQrCode = async () => {
+  if (!equipment.value?.id) return
+
+  try {
+    const response = await api.get(`/inventory/equipment/${equipment.value.id}/qrcode`, {
+      params: { format: 'png', size: 300 },
+      responseType: 'blob'
+    })
+
+    // Create download link
+    const url = window.URL.createObjectURL(new Blob([response.data]))
+    const link = document.createElement('a')
+    link.href = url
+    link.setAttribute('download', `qrcode-${equipment.value.asset_tag || equipment.value.name}.png`)
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    window.URL.revokeObjectURL(url)
+  } catch (error) {
+    console.error('Failed to download QR code:', error)
+  }
 }
 
 // Severity helpers
@@ -463,5 +591,20 @@ watch(() => [props.modelValue, props.equipmentId], ([isVisible, id]) => {
 /* Notes section */
 .section-content p {
   color: var(--text-secondary);
+}
+
+/* QR Code */
+.qr-code-image {
+  width: 200px;
+  height: 200px;
+  border: 2px solid var(--border-default);
+  border-radius: 0.5rem;
+  background: white;
+  padding: 0.5rem;
+}
+
+/* Primary color for icons */
+.text-primary {
+  color: var(--primary);
 }
 </style>

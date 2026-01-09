@@ -601,8 +601,12 @@ class NetworkPort(NetworkPortBase):
         from_attributes = True
 
 class NetworkPortFull(NetworkPort):
-    """Network port with connection info"""
+    """Network port with connection info and connected equipment details"""
     connected_to: Optional["NetworkPort"] = None
+    # Additional fields for connected equipment (populated by router)
+    connected_equipment_id: Optional[int] = None
+    connected_equipment_name: Optional[str] = None
+    connected_port_name: Optional[str] = None
 
 
 # ==================== ATTACHMENT SCHEMAS ====================

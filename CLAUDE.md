@@ -8,19 +8,22 @@ Plateforme de gestion IT complète (ITSM/ITAM) auto-hébergée, entièrement gé
 
 **Après chaque modification de code, Claude doit systématiquement :**
 
-1. **Commit** les changements avec un message descriptif
-2. **Push** vers le repository distant
-3. **Mettre à jour README.md** si les changements affectent :
+1. **Expliquer les changements** et comment les tester
+2. **Attendre la validation** de l'utilisateur avant de commit
+3. **Commit et Push** uniquement après validation explicite de l'utilisateur
+4. **Mettre à jour README.md** si les changements affectent :
    - Les fonctionnalités documentées
    - Les instructions d'installation/utilisation
    - Les variables d'environnement
    - Les dépendances
-4. **Mettre à jour CLAUDE.md** pour référencer :
+5. **Mettre à jour CLAUDE.md** pour référencer :
    - Nouveaux fichiers/modules ajoutés
    - Nouvelles fonctionnalités
    - Changements d'architecture
    - Nouveaux endpoints API
    - Modifications de la structure de base de données
+
+**IMPORTANT:** Ne jamais commit/push automatiquement. Toujours attendre que l'utilisateur teste et valide les changements.
 
 ## Stack Technique
 

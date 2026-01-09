@@ -277,6 +277,40 @@ def has_permission(user: models.User, permission: str) -> bool:
     return False
 
 
+def raise_permission_denied(permission: str, action: str = "access this resource"):
+    """
+    Raise an HTTPException with a descriptive permission error message.
+
+    Args:
+        permission: The required permission (e.g., "contracts", "dcim")
+        action: What action was being attempted (e.g., "view contracts", "manage racks")
+
+    Raises:
+        HTTPException with status 403 and descriptive message
+    """
+    raise HTTPException(
+        status_code=403,
+        detail=f"Permission denied: '{permission}' permission required to {action}. "
+               f"Contact your administrator to request access."
+    )
+
+
+def check_permission_or_raise(user: models.User, permission: str, action: str = "access this resource"):
+    """
+    Check if user has permission and raise descriptive error if not.
+
+    Args:
+        user: The current user
+        permission: The required permission
+        action: Description of the action being attempted
+
+    Raises:
+        HTTPException with status 403 if permission denied
+    """
+    if not has_permission(user, permission):
+        raise_permission_denied(permission, action)
+
+
 def require_permission(permission: str):
     """
     Dependency factory for requiring a specific permission.

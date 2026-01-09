@@ -83,7 +83,11 @@ def validate_mime_type(content: bytes, script_type: str) -> bool:
 def check_scripts_permission(current_user: models.User):
     """Check if user has scripts permission (superadmin only)."""
     if current_user.role != "superadmin":
-        raise HTTPException(status_code=403, detail="Superadmin access required")
+        raise HTTPException(
+            status_code=403,
+            detail="Permission denied: Only superadmin users can manage and execute scripts. "
+                   "Contact your administrator if you need script access."
+        )
 
 
 def sanitize_filename(filename: str) -> str:

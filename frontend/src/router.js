@@ -15,7 +15,8 @@ import Unauthorized from './views/Unauthorized.vue'
 // These routes will be loaded on-demand when the user navigates to them
 const Ipam = () => import(/* webpackChunkName: "ipam" */ './views/Ipam.vue')
 const ScriptRunner = () => import(/* webpackChunkName: "scripts" */ './views/ScriptRunner.vue')
-const Topology = () => import(/* webpackChunkName: "topology" */ './views/Topology.vue')
+// Topology page removed - functionality integrated into Equipment details
+// const Topology = () => import(/* webpackChunkName: "topology" */ './views/Topology.vue')
 const Settings = () => import(/* webpackChunkName: "settings" */ './views/Settings.vue')
 const UserManagement = () => import(/* webpackChunkName: "users" */ './views/UserManagement.vue')
 const Inventory = () => import(/* webpackChunkName: "inventory" */ './views/Inventory.vue')
@@ -48,12 +49,13 @@ const routes = [
     name: 'IP Address Management',
     meta: { requiresPermission: 'ipam' }
   },
-  {
-    path: '/topology',
-    component: Topology,
-    name: 'Network Topology',
-    meta: { requiresPermission: 'topology' }
-  },
+  // Topology page removed - network connections now shown in Equipment details slide-over
+  // {
+  //   path: '/topology',
+  //   component: Topology,
+  //   name: 'Network Topology',
+  //   meta: { requiresPermission: 'topology' }
+  // },
   {
     path: '/inventory',
     component: Inventory,

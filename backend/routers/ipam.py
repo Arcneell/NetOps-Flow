@@ -9,7 +9,7 @@ import ipaddress
 import logging
 
 from backend.core.database import get_db
-from backend.core.security import get_current_active_user, has_permission
+from backend.core.security import get_current_active_user, check_permission_or_raise
 from backend import models, schemas
 from worker.tasks import scan_subnet_task
 
@@ -19,8 +19,7 @@ router = APIRouter(prefix="/subnets", tags=["IPAM"])
 
 def check_ipam_permission(current_user: models.User):
     """Check if user has IPAM permission (tech with ipam, admin, superadmin)."""
-    if not has_permission(current_user, "ipam"):
-        raise HTTPException(status_code=403, detail="Permission denied")
+    check_permission_or_raise(current_user, "ipam", "manage IP addresses and subnets")
 
 def get_entity_filter(current_user: models.User) -> int | None:
     """Entity scope for reads. Admin without entity sees all."""

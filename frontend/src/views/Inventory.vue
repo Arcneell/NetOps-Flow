@@ -1288,16 +1288,16 @@ const onLinkIpDialogEnter = (event) => {
   }
 };
 
-// Open equipment from URL parameter
+// Open equipment from URL parameter (works regardless of pagination)
 const openEquipmentFromUrl = () => {
   const equipmentId = route.query.equipment || route.query.id;
-  if (equipmentId && equipment.value.length > 0) {
-    const eq = equipment.value.find(e => e.id === parseInt(equipmentId));
-    if (eq) {
-      openEquipmentDetail(eq);
-      // Clear the query parameter after opening
-      router.replace({ path: route.path });
-    }
+  if (equipmentId) {
+    // Directly open the slide-over with the equipment ID
+    // The slide-over will load the equipment data from the API
+    selectedEquipmentId.value = parseInt(equipmentId);
+    showDetailSlideOver.value = true;
+    // Clear the query parameter after opening
+    router.replace({ path: route.path });
   }
 };
 
@@ -1309,8 +1309,8 @@ watch(() => [route.query.equipment, route.query.id], ([equipmentQuery, idQuery])
 });
 
 onMounted(async () => {
-  await loadData();
-  // Check if we need to open an equipment from URL
+  // Check if we need to open an equipment from URL (do this first, before loading data)
+  // The slide-over loads its own data from the API, so no need to wait
   openEquipmentFromUrl();
 
   // Check if action=create in query params (from CommandBar quick action)
@@ -1319,5 +1319,8 @@ onMounted(async () => {
     // Clear the query param after opening dialog
     router.replace({ path: '/inventory', query: {} });
   }
+
+  // Load the equipment list (paginated)
+  await loadData();
 });
 </script>
