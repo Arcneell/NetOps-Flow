@@ -680,7 +680,7 @@ class TicketUpdate(BaseModel):
 
 
 class TicketCommentBase(BaseModel):
-    content: str
+    content: str = Field(..., min_length=1, max_length=50000)  # Max 50KB to prevent abuse
     is_internal: bool = False
     is_resolution: bool = False
 

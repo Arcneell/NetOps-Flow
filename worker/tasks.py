@@ -750,6 +750,7 @@ def _execute_directly(
 @celery_app.task(bind=True)
 def scan_subnet_task(self, subnet_id: int):
     """Scan a subnet for active hosts using nmap."""
+    import ipaddress as ipaddr_module
     from backend.core.database import SessionLocal
     from backend.models import Subnet, IPAddress
 
@@ -761,13 +762,22 @@ def scan_subnet_task(self, subnet_id: int):
             log_event("subnet_not_found", subnet_id=subnet_id)
             return "Subnet not found"
 
-        log_event("subnet_scan_start", subnet_id=subnet_id, cidr=str(subnet.cidr))
+        # Validate CIDR format before passing to nmap (defense in depth)
+        # This prevents command injection even though CIDR should be validated at API level
+        try:
+            validated_network = ipaddr_module.ip_network(subnet.cidr, strict=False)
+            cidr_str = str(validated_network)
+        except ValueError as e:
+            log_event("invalid_cidr", subnet_id=subnet_id, cidr=str(subnet.cidr), error=str(e))
+            return f"Invalid CIDR format: {subnet.cidr}"
+
+        log_event("subnet_scan_start", subnet_id=subnet_id, cidr=cidr_str)
 
         nm = nmap.PortScanner()
 
         offline_hosts = 0
         try:
-            nm.scan(hosts=str(subnet.cidr), arguments='-sn -PR -R --max-retries 2')
+            nm.scan(hosts=cidr_str, arguments='-sn -PR -R --max-retries 2')
         except nmap.PortScannerError as e:
             detail = str(e)
             status = "permission_denied" if "privileged" in detail.lower() else "nmap_error"

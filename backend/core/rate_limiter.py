@@ -58,6 +58,8 @@ class RedisRateLimiter:
         """
         Check if a request is allowed under rate limit.
 
+        Uses atomic Lua script to prevent TOCTOU race conditions.
+
         Args:
             identifier: Unique identifier (e.g., IP address, user ID)
             action: Action being rate limited (e.g., "login", "api")
@@ -70,25 +72,47 @@ class RedisRateLimiter:
         current_time = time.time()
         window_start = current_time - window_size
 
+        # Lua script for atomic rate limiting (prevents TOCTOU race condition)
+        # 1. Remove old entries
+        # 2. Add current request
+        # 3. Count entries AFTER adding (atomic check)
+        # 4. Set expiry
+        # Returns the count AFTER adding the new request
+        lua_script = """
+        local key = KEYS[1]
+        local window_start = tonumber(ARGV[1])
+        local current_time = tonumber(ARGV[2])
+        local max_requests = tonumber(ARGV[3])
+        local window_size = tonumber(ARGV[4])
+
+        -- Remove old entries outside the window
+        redis.call('ZREMRANGEBYSCORE', key, 0, window_start)
+
+        -- Add current request with timestamp as score
+        redis.call('ZADD', key, current_time, tostring(current_time))
+
+        -- Count AFTER adding (atomic)
+        local count = redis.call('ZCARD', key)
+
+        -- Set expiry
+        redis.call('EXPIRE', key, window_size + 10)
+
+        return count
+        """
+
         try:
-            pipe = self.client.pipeline()
+            # Execute atomic Lua script
+            current_count = self.client.eval(
+                lua_script,
+                1,  # Number of keys
+                key,  # KEYS[1]
+                window_start,  # ARGV[1]
+                current_time,  # ARGV[2]
+                max_requests,  # ARGV[3]
+                window_size   # ARGV[4]
+            )
 
-            # Remove old entries outside the window
-            pipe.zremrangebyscore(key, 0, window_start)
-
-            # Count current requests in window
-            pipe.zcard(key)
-
-            # Add current request with timestamp as score
-            pipe.zadd(key, {str(current_time): current_time})
-
-            # Set expiry on the key
-            pipe.expire(key, window_size + 10)
-
-            results = pipe.execute()
-            current_count = results[1]
-
-            if current_count >= max_requests:
+            if current_count > max_requests:
                 logger.warning(f"Rate limit exceeded for {identifier} on {action}")
                 return False
 

@@ -48,17 +48,30 @@ async function refreshAccessToken() {
 
     const { access_token, refresh_token: newRefreshToken } = response.data
 
+    // Validate response contains valid tokens before storing
+    if (!access_token || typeof access_token !== 'string' || access_token.length < 10) {
+      console.error('Invalid access token received from refresh endpoint')
+      throw new Error('Invalid token response')
+    }
+
+    if (!newRefreshToken || typeof newRefreshToken !== 'string' || newRefreshToken.length < 10) {
+      console.error('Invalid refresh token received from refresh endpoint')
+      throw new Error('Invalid token response')
+    }
+
     // Store new tokens
     localStorage.setItem('token', access_token)
     localStorage.setItem('refreshToken', newRefreshToken)
 
-    // Update user data if provided
-    if (response.data.user) {
+    // Update user data if provided and valid
+    if (response.data.user && typeof response.data.user === 'object' && response.data.user.id) {
       localStorage.setItem('user', JSON.stringify(response.data.user))
     }
 
     return access_token
   } catch (error) {
+    // Log error for debugging (without sensitive data)
+    console.error('Token refresh failed:', error.message || 'Unknown error')
     // Refresh failed - clear tokens
     localStorage.removeItem('token')
     localStorage.removeItem('refreshToken')

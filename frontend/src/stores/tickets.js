@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import api from '../api'
+import { useAuthStore } from './auth'
 
 export const useTicketsStore = defineStore('tickets', () => {
   // State
@@ -36,7 +37,10 @@ export const useTicketsStore = defineStore('tickets', () => {
   )
 
   const myTickets = computed(() => {
-    const userId = JSON.parse(localStorage.getItem('user') || '{}').id
+    // Use auth store for reactive user data instead of localStorage
+    const authStore = useAuthStore()
+    const userId = authStore.user?.id
+    if (!userId) return []
     return tickets.value.filter(t =>
       t.assigned_to_id === userId || t.requester_id === userId
     )

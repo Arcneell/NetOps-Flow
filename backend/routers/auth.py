@@ -294,22 +294,25 @@ async def get_avatar(filename: str):
     import re
     from fastapi.responses import FileResponse
 
-    # Sanitize filename to prevent path traversal
-    # Only allow alphanumeric characters, underscores, hyphens, and dots
-    if not re.match(r'^[\w\-\.]+$', filename):
-        raise HTTPException(status_code=400, detail="Invalid filename")
+    # First, extract only the basename to prevent path traversal
+    filename = os.path.basename(filename)
 
-    # Prevent directory traversal
-    if '..' in filename or filename.startswith('/') or filename.startswith('\\'):
+    # Validate filename format: must be avatar_{userid}_{uuid}.{ext}
+    # This strict pattern prevents any malicious filename
+    if not re.match(r'^avatar_\d+_[a-f0-9]{8}\.(jpg|jpeg|png|gif|webp)$', filename, re.IGNORECASE):
+        raise HTTPException(status_code=400, detail="Invalid filename format")
+
+    # Additional safety checks
+    if '..' in filename or '/' in filename or '\\' in filename:
         raise HTTPException(status_code=400, detail="Invalid filename")
 
     avatars_dir = os.path.join(settings.upload_dir, "avatars")
     file_path = os.path.join(avatars_dir, filename)
 
-    # Verify the resolved path is within the avatars directory
+    # Verify the resolved path is within the avatars directory (defense in depth)
     real_path = os.path.realpath(file_path)
     real_avatars_dir = os.path.realpath(avatars_dir)
-    if not real_path.startswith(real_avatars_dir):
+    if not real_path.startswith(real_avatars_dir + os.sep):
         raise HTTPException(status_code=400, detail="Invalid file path")
 
     if not os.path.exists(file_path):
@@ -335,10 +338,11 @@ async def verify_mfa(
     client_ip = request.client.host if request.client else "unknown"
 
     # Rate limiting for MFA verification (prevent brute force on TOTP codes)
+    # Use dedicated key combining user_id and IP for proper rate limiting
     rate_limiter = get_rate_limiter()
-    mfa_rate_key = f"mfa:{mfa_data.user_id}"
-    if not rate_limiter.is_allowed(client_ip, mfa_rate_key):
-        remaining_time = rate_limiter.get_reset_time(client_ip, mfa_rate_key)
+    mfa_rate_key = f"mfa_verify:{mfa_data.user_id}:{client_ip}"
+    if not rate_limiter.is_allowed(mfa_rate_key, "mfa"):
+        remaining_time = rate_limiter.get_reset_time(mfa_rate_key, "mfa")
         logger.warning(f"MFA rate limit exceeded for user_id: {mfa_data.user_id} from IP: {client_ip}")
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
@@ -593,27 +597,36 @@ async def refresh_access_token(
             detail="User account is not available"
         )
 
-    # Revoke the old refresh token (token rotation)
-    revoke_refresh_token(db, token_request.refresh_token)
-
-    # Generate new tokens
+    # Generate new tokens BEFORE revoking old one (atomic operation)
+    # This ensures user is never locked out if something fails
     # Include user_id and role in JWT for audit middleware optimization (avoids DB lookup)
-    access_token = create_access_token(data={
-        "sub": user.username,
-        "user_id": user.id,
-        "role": user.role
-    })
-    new_refresh_token = generate_refresh_token()
-    user_agent = request.headers.get("User-Agent", "Unknown")
+    try:
+        access_token = create_access_token(data={
+            "sub": user.username,
+            "user_id": user.id,
+            "role": user.role
+        })
+        new_refresh_token = generate_refresh_token()
+        user_agent = request.headers.get("User-Agent", "Unknown")
 
-    # Store new refresh token
-    create_refresh_token_record(
-        db=db,
-        user_id=user.id,
-        token=new_refresh_token,
-        device_info=user_agent[:255] if user_agent else None,
-        ip_address=client_ip
-    )
+        # Store new refresh token first
+        create_refresh_token_record(
+            db=db,
+            user_id=user.id,
+            token=new_refresh_token,
+            device_info=user_agent[:255] if user_agent else None,
+            ip_address=client_ip
+        )
+
+        # Only revoke old token after new one is successfully created (token rotation)
+        revoke_refresh_token(db, token_request.refresh_token)
+    except Exception as e:
+        logger.error(f"Token refresh failed for user {user.username}: {e}")
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Token refresh failed. Please try again."
+        )
 
     logger.info(f"Token refreshed for user: {user.username} from IP: {client_ip}")
 

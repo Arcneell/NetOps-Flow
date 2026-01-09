@@ -155,7 +155,7 @@ def list_tickets(
     search: Optional[str] = None,
     my_tickets: bool = False,
     skip: int = Query(default=0, ge=0),
-    limit: int = Query(default=50, ge=1, le=200),
+    limit: int = Query(default=50, ge=1, le=100),  # Max 100 for performance
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user)
 ):

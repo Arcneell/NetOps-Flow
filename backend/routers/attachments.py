@@ -54,13 +54,21 @@ def get_file_extension(filename: str) -> str:
     return ""
 
 
-def validate_file(file: UploadFile):
-    """Validate uploaded file."""
+def validate_file(file: UploadFile, max_size: int = MAX_FILE_SIZE):
+    """Validate uploaded file type and optionally size from headers."""
     ext = get_file_extension(file.filename)
     if ext not in ALLOWED_EXTENSIONS:
         raise HTTPException(
             status_code=400,
             detail=f"File type not allowed. Allowed: {', '.join(ALLOWED_EXTENSIONS)}"
+        )
+
+    # Early size validation from Content-Length header if available
+    # This prevents reading huge files into memory before rejection
+    if file.size is not None and file.size > max_size:
+        raise HTTPException(
+            status_code=400,
+            detail=f"File too large. Maximum size: {max_size // (1024*1024)}MB"
         )
 
 
