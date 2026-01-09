@@ -105,6 +105,14 @@ class Settings(BaseSettings):
     refresh_token_expire_days: int = Field(default=7, ge=1, le=30)  # 7 days for refresh tokens
     min_password_length: int = Field(default=8, ge=6, le=128)
 
+    # Cookie Settings for Refresh Tokens
+    cookie_secure: bool = Field(default=True, description="Use secure cookies (HTTPS only)")
+    cookie_samesite: str = Field(default="lax", description="SameSite cookie attribute (strict, lax, none)")
+    cookie_domain: str | None = Field(default=None, description="Cookie domain (None for same domain)")
+
+    # Debug mode (NEVER enable in production)
+    debug: bool = Field(default=False, description="Enable debug mode (exposes error details)")
+
     # Encryption (Fernet key for encrypting sensitive data)
     encryption_key: str = Field(
         default="",

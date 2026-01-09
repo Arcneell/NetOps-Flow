@@ -67,6 +67,25 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     app.state.redis_client = setup_services.init_redis_client()
     app.state.celery_app = setup_services.get_celery_app()
 
+    # ===== CONNECTION WARMUP =====
+    # Warm up database connection pool to avoid cold start latency
+    try:
+        with SessionLocal() as db:
+            db.execute(text("SELECT 1"))
+        logger.info("Database connection pool warmed up")
+    except Exception as e:
+        logger.error(f"Database warmup failed: {e}")
+        # Don't fail startup - the health check will detect this
+
+    # Warm up Redis connection
+    try:
+        if app.state.redis_client:
+            app.state.redis_client.ping()
+            logger.info("Redis connection warmed up")
+    except Exception as e:
+        logger.error(f"Redis warmup failed: {e}")
+        # Don't fail startup - the health check will detect this
+
     logger.info("Inframate API started successfully.")
 
     # Create default admin user if not exists (idempotent)

@@ -1,7 +1,8 @@
 """
 Authentication Router - Login, token management, and refresh tokens.
+Supports both cookie-based (recommended) and header-based refresh tokens.
 """
-from fastapi import APIRouter, Depends, HTTPException, status, Request, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, status, Request, UploadFile, File, Response
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
@@ -32,6 +33,32 @@ logger = logging.getLogger(__name__)
 settings = get_settings()
 router = APIRouter(tags=["Authentication"])
 
+# Cookie name for refresh token
+REFRESH_TOKEN_COOKIE_NAME = "refresh_token"
+
+
+def set_refresh_token_cookie(response: Response, token: str, request: Request) -> None:
+    """Set refresh token as HTTP-only cookie."""
+    is_secure = request.url.scheme == "https" or settings.cookie_secure
+    response.set_cookie(
+        key=REFRESH_TOKEN_COOKIE_NAME,
+        value=token,
+        max_age=settings.refresh_token_expire_days * 24 * 60 * 60,
+        httponly=True,  # Not accessible via JavaScript
+        secure=is_secure,
+        samesite=settings.cookie_samesite,
+        domain=settings.cookie_domain,
+        path="/api/v1",  # Only sent to API endpoints
+    )
+
+
+def clear_refresh_token_cookie(response: Response) -> None:
+    """Clear refresh token cookie."""
+    response.delete_cookie(
+        key=REFRESH_TOKEN_COOKIE_NAME,
+        path="/api/v1",
+    )
+
 
 class PasswordChange(BaseModel):
     password: str
@@ -40,6 +67,7 @@ class PasswordChange(BaseModel):
 @router.post("/token")
 async def login_for_access_token(
     request: Request,
+    response: Response,
     form_data: OAuth2PasswordRequestForm = Depends(),
     db: Session = Depends(get_db)
 ):
@@ -144,9 +172,12 @@ async def login_for_access_token(
     db.add(audit_log)
     db.commit()
 
+    # Set refresh token as HTTP-only cookie (more secure)
+    set_refresh_token_cookie(response, refresh_token, request)
+
     return {
         "access_token": access_token,
-        "refresh_token": refresh_token,
+        "refresh_token": refresh_token,  # Also returned in body for backwards compatibility
         "token_type": "bearer",
         "expires_in": settings.access_token_expire_minutes * 60,
         "user": {
@@ -566,7 +597,8 @@ async def disable_mfa(
 @router.post("/refresh", response_model=schemas.TokenWithRefresh)
 async def refresh_access_token(
     request: Request,
-    token_request: schemas.RefreshTokenRequest,
+    response: Response,
+    token_request: schemas.RefreshTokenRequest = None,
     db: Session = Depends(get_db)
 ):
     """
@@ -575,11 +607,26 @@ async def refresh_access_token(
     This endpoint allows clients to obtain a new access token without
     requiring the user to re-authenticate. The old refresh token is
     revoked and a new one is issued (token rotation).
+
+    Accepts refresh token from:
+    1. HTTP-only cookie (preferred, more secure)
+    2. Request body (backwards compatibility)
     """
     client_ip = request.client.host if request.client else "unknown"
 
+    # Get refresh token from cookie first, then body (backwards compatibility)
+    refresh_token = request.cookies.get(REFRESH_TOKEN_COOKIE_NAME)
+    if not refresh_token and token_request:
+        refresh_token = token_request.refresh_token
+
+    if not refresh_token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Refresh token required"
+        )
+
     # Validate the refresh token
-    user_token = validate_refresh_token(db, token_request.refresh_token)
+    user_token = validate_refresh_token(db, refresh_token)
     if not user_token:
         logger.warning(f"Invalid refresh token attempt from IP: {client_ip}")
         raise HTTPException(
@@ -591,7 +638,8 @@ async def refresh_access_token(
     user = db.query(models.User).filter(models.User.id == user_token.user_id).first()
     if not user or not user.is_active:
         # Revoke the token if user is inactive or doesn't exist
-        revoke_refresh_token(db, token_request.refresh_token)
+        revoke_refresh_token(db, refresh_token)
+        clear_refresh_token_cookie(response)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="User account is not available"
@@ -619,7 +667,10 @@ async def refresh_access_token(
         )
 
         # Only revoke old token after new one is successfully created (token rotation)
-        revoke_refresh_token(db, token_request.refresh_token)
+        revoke_refresh_token(db, refresh_token)
+
+        # Set new refresh token as HTTP-only cookie
+        set_refresh_token_cookie(response, new_refresh_token, request)
     except Exception as e:
         logger.error(f"Token refresh failed for user {user.username}: {e}")
         db.rollback()
@@ -632,7 +683,7 @@ async def refresh_access_token(
 
     return {
         "access_token": access_token,
-        "refresh_token": new_refresh_token,
+        "refresh_token": new_refresh_token,  # Also return in body for backwards compatibility
         "token_type": "bearer",
         "expires_in": settings.access_token_expire_minutes * 60,
         "user": {
@@ -651,19 +702,30 @@ async def refresh_access_token(
 @router.post("/logout")
 async def logout(
     request: Request,
-    token_request: schemas.RefreshTokenRequest,
+    response: Response,
+    token_request: schemas.RefreshTokenRequest = None,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_active_user)
 ):
     """
-    Logout by revoking the refresh token.
+    Logout by revoking the refresh token and clearing the cookie.
 
     The client should also discard the access token on their side.
+    Accepts refresh token from cookie or request body.
     """
     client_ip = request.client.host if request.client else "unknown"
 
-    # Revoke the refresh token
-    revoked = revoke_refresh_token(db, token_request.refresh_token)
+    # Get refresh token from cookie first, then body
+    refresh_token = request.cookies.get(REFRESH_TOKEN_COOKIE_NAME)
+    if not refresh_token and token_request:
+        refresh_token = token_request.refresh_token
+
+    # Revoke the refresh token if present
+    if refresh_token:
+        revoke_refresh_token(db, refresh_token)
+
+    # Always clear the cookie
+    clear_refresh_token_cookie(response)
 
     # Log logout
     audit_log = models.AuditLog(
@@ -684,16 +746,21 @@ async def logout(
 @router.post("/logout-all")
 async def logout_all_devices(
     request: Request,
+    response: Response,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_active_user)
 ):
     """
     Logout from all devices by revoking all refresh tokens for the user.
+    Also clears the current device's refresh token cookie.
     """
     client_ip = request.client.host if request.client else "unknown"
 
     # Revoke all refresh tokens
     count = revoke_all_user_tokens(db, current_user.id)
+
+    # Clear the cookie on this device
+    clear_refresh_token_cookie(response)
 
     # Log logout all
     audit_log = models.AuditLog(

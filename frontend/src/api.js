@@ -11,6 +11,7 @@ const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 const api = axios.create({
   baseURL: `${apiUrl}/api/v1`,
   timeout: 30000,
+  withCredentials: true, // Send cookies with requests (HTTP-only refresh token)
   headers: {
     'Content-Type': 'application/json'
   }
@@ -32,36 +33,27 @@ const processQueue = (error, token = null) => {
 }
 
 /**
- * Refresh the access token using the stored refresh token.
+ * Refresh the access token using the HTTP-only cookie.
+ * The refresh token is stored in an HTTP-only cookie for security (XSS protection).
  * Returns the new access token or null if refresh fails.
  */
 async function refreshAccessToken() {
-  const refreshToken = localStorage.getItem('refreshToken')
-  if (!refreshToken) {
-    return null
-  }
-
   try {
-    const response = await axios.post(`${apiUrl}/api/v1/refresh`, {
-      refresh_token: refreshToken
+    // Make request with credentials - cookie will be sent automatically
+    const response = await axios.post(`${apiUrl}/api/v1/refresh`, {}, {
+      withCredentials: true // Ensure cookie is sent
     })
 
-    const { access_token, refresh_token: newRefreshToken } = response.data
+    const { access_token } = response.data
 
-    // Validate response contains valid tokens before storing
+    // Validate response contains valid access token before storing
     if (!access_token || typeof access_token !== 'string' || access_token.length < 10) {
       console.error('Invalid access token received from refresh endpoint')
       throw new Error('Invalid token response')
     }
 
-    if (!newRefreshToken || typeof newRefreshToken !== 'string' || newRefreshToken.length < 10) {
-      console.error('Invalid refresh token received from refresh endpoint')
-      throw new Error('Invalid token response')
-    }
-
-    // Store new tokens
+    // Store new access token (refresh token is in HTTP-only cookie)
     localStorage.setItem('token', access_token)
-    localStorage.setItem('refreshToken', newRefreshToken)
 
     // Update user data if provided and valid
     if (response.data.user && typeof response.data.user === 'object' && response.data.user.id) {
@@ -72,9 +64,8 @@ async function refreshAccessToken() {
   } catch (error) {
     // Log error for debugging (without sensitive data)
     console.error('Token refresh failed:', error.message || 'Unknown error')
-    // Refresh failed - clear tokens
+    // Refresh failed - clear access token and user data
     localStorage.removeItem('token')
-    localStorage.removeItem('refreshToken')
     localStorage.removeItem('user')
     return null
   }
