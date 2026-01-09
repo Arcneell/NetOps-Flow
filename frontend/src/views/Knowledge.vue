@@ -51,7 +51,7 @@
       </div>
 
       <!-- Admin Actions -->
-      <div v-if="isAdmin" class="card p-4">
+      <div v-if="canManageKnowledge" class="card p-4">
         <Button :label="t('knowledge.newArticle')" icon="pi pi-plus" class="w-full" @click="openArticleDialog()" />
       </div>
     </div>
@@ -61,7 +61,7 @@
       <div v-if="!selectedArticle" class="card h-full flex flex-col">
         <div class="flex justify-between items-center mb-4">
           <h3 class="text-lg font-bold">{{ t('knowledge.articles') }}</h3>
-          <div v-if="isAdmin" class="flex items-center gap-2">
+          <div v-if="canManageKnowledge" class="flex items-center gap-2">
             <Checkbox v-model="showDrafts" :binary="true" inputId="showDrafts" />
             <label for="showDrafts" class="text-sm cursor-pointer">{{ t('knowledge.draft') }}</label>
           </div>
@@ -118,7 +118,7 @@
               <span>{{ selectedArticle.view_count }} views</span>
             </div>
           </div>
-          <div v-if="isAdmin" class="flex gap-2">
+          <div v-if="canManageKnowledge" class="flex gap-2">
             <Button icon="pi pi-pencil" text rounded @click="openArticleDialog(selectedArticle)" />
             <Button v-if="!selectedArticle.is_published" icon="pi pi-check" text rounded severity="success"
                     v-tooltip="t('knowledge.publish')" @click="publishArticle(selectedArticle.id)" />
@@ -253,10 +253,15 @@ const articleForm = ref({
 
 const categoryOptions = ['troubleshooting', 'how-to', 'faq', 'policy', 'documentation'];
 
-// Computed
-const isAdmin = computed(() => {
+// Computed - Check if user can manage knowledge (tech with permission, admin, superadmin)
+const canManageKnowledge = computed(() => {
   const user = JSON.parse(localStorage.getItem('user') || '{}');
-  return user.role === 'admin';
+  if (['admin', 'superadmin'].includes(user.role)) return true;
+  if (user.role === 'tech') {
+    const permissions = user.permissions || [];
+    return permissions.includes('knowledge');
+  }
+  return false;
 });
 
 // Helpers

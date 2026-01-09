@@ -643,42 +643,42 @@ const bulkStatusOptions = computed(() => [
   { label: t('tickets.statusClosed'), value: 'closed' }
 ]);
 
-// Options
-const priorityOptions = [
+// Options (computed for i18n reactivity)
+const priorityOptions = computed(() => [
   { label: t('tickets.priorityCritical'), value: 'critical' },
   { label: t('tickets.priorityHigh'), value: 'high' },
   { label: t('tickets.priorityMedium'), value: 'medium' },
   { label: t('tickets.priorityLow'), value: 'low' }
-];
+]);
 
-const typeOptions = [
+const typeOptions = computed(() => [
   { label: t('tickets.typeIncident'), value: 'incident' },
   { label: t('tickets.typeRequest'), value: 'request' },
   { label: t('tickets.typeProblem'), value: 'problem' },
   { label: t('tickets.typeChange'), value: 'change' }
-];
+]);
 
-const categoryOptions = [
+const categoryOptions = computed(() => [
   { label: t('tickets.categoryHardware'), value: 'hardware' },
   { label: t('tickets.categorySoftware'), value: 'software' },
   { label: t('tickets.categoryNetwork'), value: 'network' },
   { label: t('tickets.categoryAccess'), value: 'access' },
   { label: t('tickets.categoryOther'), value: 'other' }
-];
+]);
 
-const impactOptions = [
+const impactOptions = computed(() => [
   { label: t('tickets.impactHigh'), value: 'high' },
   { label: t('tickets.impactMedium'), value: 'medium' },
   { label: t('tickets.impactLow'), value: 'low' }
-];
+]);
 
-const resolutionCodes = [
+const resolutionCodes = computed(() => [
   { label: t('tickets.codeFixed'), value: 'fixed' },
   { label: t('tickets.codeWorkaround'), value: 'workaround' },
   { label: t('tickets.codeCannotReproduce'), value: 'cannot_reproduce' },
   { label: t('tickets.codeDuplicate'), value: 'duplicate' },
   { label: t('tickets.codeUserError'), value: 'user_error' }
-];
+]);
 
 // Helpers
 const capitalize = (str) => str ? str.charAt(0).toUpperCase() + str.slice(1) : '';

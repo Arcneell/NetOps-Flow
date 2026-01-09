@@ -373,7 +373,11 @@
     "assigned": "Assigné",
     "dhcp": "DHCP",
     "warning": "Attention",
-    "expired": "Expiré"
+    "expired": "Expiré",
+    "expiringSoon": "Expire bientôt",
+    "renewed": "Renouvelé",
+    "compliant": "Conforme",
+    "violation": "Non conforme"
   },
   "ip": {
     "linkedIps": "IPs liées",
@@ -414,6 +418,7 @@
     "allTypes": "Tous les types",
     "allStatuses": "Tous les statuts",
     "allLocations": "Tous les emplacements",
+    "allCategories": "Toutes les catégories",
     "noEquipment": "Aucun équipement trouvé"
   },
   "remote": {
@@ -460,7 +465,9 @@
     "selected": "sélectionné(s)",
     "apply": "Appliquer",
     "clearSelection": "Effacer la sélection",
-    "actionIrreversible": "Cette action est irréversible."
+    "actionIrreversible": "Cette action est irréversible.",
+    "search": "Rechercher...",
+    "other": "Autre"
   },
   "dcim": {
     "title": "DCIM",
@@ -650,6 +657,9 @@
     "ticketStatus": "Statut",
     "ticketPriority": "Priorité",
     "ticketType": "Type",
+    "status": "Statut",
+    "type": "Type",
+    "priority": "Priorité",
     "description": "Description",
     "category": "Catégorie",
     "requester": "Demandeur",

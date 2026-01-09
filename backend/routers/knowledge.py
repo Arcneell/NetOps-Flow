@@ -194,14 +194,14 @@ def get_article(
         raise HTTPException(status_code=404, detail="Article not found")
 
     # Access control
-    if not article.is_published and current_user.role != "admin":
+    if not article.is_published and not can_manage_knowledge(current_user):
         raise HTTPException(status_code=404, detail="Article not found")
 
-    if article.is_internal and current_user.role != "admin":
+    if article.is_internal and not can_manage_knowledge(current_user):
         raise HTTPException(status_code=403, detail="Access denied")
 
     # Entity check
-    if current_user.role != "admin" and current_user.entity_id:
+    if not can_manage_knowledge(current_user) and current_user.entity_id:
         if article.entity_id and article.entity_id != current_user.entity_id:
             raise HTTPException(status_code=403, detail="Access denied")
 
