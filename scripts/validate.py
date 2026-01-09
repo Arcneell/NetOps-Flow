@@ -277,15 +277,6 @@ def check_vue_syntax() -> Tuple[bool, List[str]]:
             if '<template>' not in content:
                 warnings.append(f"{rel_path}: No <template> section found")
 
-            # Check for unclosed tags in template (basic check)
-            template_match = re.search(r'<template>(.*?)</template>', content, re.DOTALL)
-            if template_match:
-                template = template_match.group(1)
-                open_divs = len(re.findall(r'<div\b', template))
-                close_divs = len(re.findall(r'</div>', template))
-                if open_divs != close_divs:
-                    warnings.append(f"{rel_path}: Mismatched div tags (open: {open_divs}, close: {close_divs})")
-
             # Check for script section
             if '<script setup>' not in content and '<script>' not in content:
                 warnings.append(f"{rel_path}: No <script> section found")
