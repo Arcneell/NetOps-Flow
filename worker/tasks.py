@@ -150,6 +150,15 @@ class DockerSandbox:
     """
     Docker-based sandbox for script execution.
     Provides isolation using ephemeral containers.
+
+    IMPORTANT: This sandbox requires access to the Docker socket (/var/run/docker.sock).
+    This works in Docker Compose environments but has limitations in Kubernetes:
+    - Kubernetes does not expose Docker socket by default
+    - For K8s deployments, consider alternatives like:
+      - Kaniko for container builds
+      - gVisor/Kata Containers for sandboxing
+      - Kubernetes Jobs with restricted PodSecurityPolicies
+    - If running on K8s, set DOCKER_SANDBOX_ENABLED=false and use remote execution only
     """
 
     def __init__(self):

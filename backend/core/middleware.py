@@ -247,8 +247,22 @@ class AuditLoggingMiddleware(BaseHTTPMiddleware):
 
             # Add query parameters for context (filtered for sensitive data)
             query_params = dict(request.query_params)
-            # Remove sensitive parameters
-            sensitive_params = {"password", "token", "secret", "key", "code"}
+            # Remove sensitive parameters - comprehensive list to prevent accidental leaks
+            sensitive_params = {
+                # Authentication & secrets
+                "password", "passwd", "pwd", "pass",
+                "token", "access_token", "refresh_token", "api_token", "auth_token",
+                "secret", "secret_key", "api_secret",
+                "key", "api_key", "apikey", "private_key",
+                "code", "otp", "totp", "mfa_code", "verification_code",
+                # Credentials
+                "credential", "credentials", "auth",
+                "username", "user", "login",  # May be sensitive in some contexts
+                # Financial
+                "credit_card", "card_number", "cvv", "ssn",
+                # Other sensitive data
+                "license_key", "encryption_key",
+            }
             filtered_params = {
                 k: v for k, v in query_params.items()
                 if k.lower() not in sensitive_params

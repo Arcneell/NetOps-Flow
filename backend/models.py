@@ -51,9 +51,17 @@ class EncryptedString(TypeDecorator):
             except Exception as e:
                 # Log decryption failure for security audit
                 logger = logging.getLogger(__name__)
-                logger.error(f"Failed to decrypt sensitive field: {type(e).__name__} - {e}")
+                logger.error(
+                    f"Failed to decrypt sensitive field: {type(e).__name__} - {e}. "
+                    "This may indicate the ENCRYPTION_KEY has changed. "
+                    "Use rotate_encryption_key_task to migrate encrypted data to a new key."
+                )
                 # Raise exception instead of returning None to prevent data corruption/hiding
-                raise ValueError("Failed to decrypt sensitive data") from e
+                raise ValueError(
+                    "Failed to decrypt sensitive data. "
+                    "The encryption key may have changed since this data was stored. "
+                    "Run the rotate_encryption_key_task with the old and new keys to migrate data."
+                ) from e
         return value
 
 
@@ -721,7 +729,16 @@ def generate_ticket_number_on_insert(mapper, connection, target):
             {"lock_key": lock_key, "pattern": pattern}
         ).scalar()
     else:
-        # Fallback for SQLite/others: No advisory lock (less concurrency safe but compatible)
+        # WARNING: SQLite/other databases do not support advisory locks.
+        # This fallback is NOT safe for concurrent ticket creation and may result
+        # in duplicate ticket numbers under high load. Use PostgreSQL in production.
+        # This fallback exists only for development/testing purposes.
+        import logging
+        _logger = logging.getLogger(__name__)
+        _logger.warning(
+            "Generating ticket number without advisory lock. "
+            "This is NOT safe for concurrent access. Use PostgreSQL in production."
+        )
         result = connection.execute(
             text("""
                 SELECT COALESCE(
