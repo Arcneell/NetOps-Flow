@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
+import { ref, computed, onUnmounted } from 'vue'
 import api from '../api'
 
 export const useNotificationsStore = defineStore('notifications', () => {
@@ -8,6 +8,7 @@ export const useNotificationsStore = defineStore('notifications', () => {
   const count = ref({ total: 0, unread: 0 })
   const loading = ref(false)
   const pollingInterval = ref(null)
+  const isPollingActive = ref(false)
 
   // Getters
   const unreadNotifications = computed(() =>
@@ -106,24 +107,45 @@ export const useNotificationsStore = defineStore('notifications', () => {
 
   // Start polling for new notifications
   function startPolling(intervalMs = 30000) {
+    // Prevent multiple polling intervals
+    if (isPollingActive.value) {
+      return
+    }
+
     if (pollingInterval.value) {
       clearInterval(pollingInterval.value)
     }
+
+    isPollingActive.value = true
 
     // Fetch immediately
     fetchCount()
 
     // Then poll at interval
     pollingInterval.value = setInterval(() => {
-      fetchCount()
+      // Only poll if still active (prevents zombie intervals)
+      if (isPollingActive.value) {
+        fetchCount()
+      } else {
+        clearInterval(pollingInterval.value)
+        pollingInterval.value = null
+      }
     }, intervalMs)
   }
 
   function stopPolling() {
+    isPollingActive.value = false
     if (pollingInterval.value) {
       clearInterval(pollingInterval.value)
       pollingInterval.value = null
     }
+  }
+
+  // Cleanup function to be called when store is no longer needed
+  function cleanup() {
+    stopPolling()
+    notifications.value = []
+    count.value = { total: 0, unread: 0 }
   }
 
   // Get notification link based on type
@@ -180,6 +202,7 @@ export const useNotificationsStore = defineStore('notifications', () => {
     notifications,
     count,
     loading,
+    isPollingActive,
 
     // Getters
     unreadNotifications,
@@ -194,6 +217,7 @@ export const useNotificationsStore = defineStore('notifications', () => {
     deleteAllRead,
     startPolling,
     stopPolling,
+    cleanup,
     getNotificationLink,
     getNotificationIcon
   }

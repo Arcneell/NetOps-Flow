@@ -622,6 +622,11 @@ class Ticket(Base):
     resolved_at = Column(DateTime, nullable=True)
     closed_at = Column(DateTime, nullable=True)
 
+    # Soft delete
+    is_deleted = Column(Boolean, default=False, index=True)
+    deleted_at = Column(DateTime, nullable=True)
+    deleted_by_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+
     # Relationships
     requester = relationship("User", foreign_keys=[requester_id], backref="requested_tickets")
     assigned_to = relationship("User", foreign_keys=[assigned_to_id], backref="assigned_tickets")

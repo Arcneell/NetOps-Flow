@@ -36,10 +36,35 @@ const AVAILABLE_PERMISSIONS = [
   'reports'
 ]
 
+/**
+ * Safely parse user data from localStorage with validation.
+ * Returns null if data is invalid or corrupted.
+ */
+function parseStoredUser() {
+  try {
+    const stored = localStorage.getItem('user')
+    if (!stored || stored === 'null' || stored === 'undefined') {
+      return null
+    }
+    const parsed = JSON.parse(stored)
+    // Validate required user properties
+    if (!parsed || typeof parsed !== 'object' || !parsed.id || !parsed.username) {
+      console.warn('Invalid user data in localStorage, clearing...')
+      localStorage.removeItem('user')
+      return null
+    }
+    return parsed
+  } catch (e) {
+    console.error('Failed to parse user from localStorage:', e)
+    localStorage.removeItem('user')
+    return null
+  }
+}
+
 export const useAuthStore = defineStore('auth', () => {
   // State
   const token = ref(localStorage.getItem('token') || null)
-  const user = ref(JSON.parse(localStorage.getItem('user') || 'null'))
+  const user = ref(parseStoredUser())
   const isLoading = ref(false)
   const error = ref(null)
   const mfaRequired = ref(false)

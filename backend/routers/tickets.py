@@ -169,6 +169,10 @@ def list_tickets(
         joinedload(models.Ticket.assigned_to)
     )
 
+    # Exclude soft-deleted tickets by default
+    query = query.filter(models.Ticket.is_deleted == False)  # noqa: E712
+    count_query = count_query.filter(models.Ticket.is_deleted == False)  # noqa: E712
+
     # Users can only see their own tickets, tech/admin/superadmin can see all
     if not can_access_all_tickets(current_user):
         query = query.filter(models.Ticket.requester_id == current_user.id)
@@ -583,10 +587,15 @@ def update_ticket(
 @router.delete("/{ticket_id}")
 def delete_ticket(
     ticket_id: int,
+    permanent: bool = Query(default=False, description="Permanently delete instead of soft-delete"),
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user)
 ):
-    """Delete a ticket (admin/superadmin only)."""
+    """
+    Soft-delete a ticket (admin/superadmin only).
+    Use permanent=true for hard delete (superadmin only).
+    Soft-deleted tickets can be restored via PUT with is_deleted=false.
+    """
     if current_user.role not in ("admin", "superadmin"):
         raise HTTPException(status_code=403, detail="Admin access required")
 
@@ -595,11 +604,23 @@ def delete_ticket(
         raise HTTPException(status_code=404, detail="Ticket not found")
 
     ticket_number = ticket.ticket_number
-    db.delete(ticket)
-    db.commit()
 
-    logger.info(f"Ticket {ticket_number} deleted by {current_user.username}")
-    return {"message": f"Ticket {ticket_number} deleted"}
+    if permanent:
+        # Permanent delete - superadmin only
+        if current_user.role != "superadmin":
+            raise HTTPException(status_code=403, detail="Superadmin access required for permanent deletion")
+        db.delete(ticket)
+        db.commit()
+        logger.info(f"Ticket {ticket_number} permanently deleted by {current_user.username}")
+        return {"message": f"Ticket {ticket_number} permanently deleted"}
+    else:
+        # Soft delete - mark as deleted but keep record
+        ticket.is_deleted = True
+        ticket.deleted_at = datetime.now(timezone.utc)
+        ticket.deleted_by_id = current_user.id
+        db.commit()
+        logger.info(f"Ticket {ticket_number} soft-deleted by {current_user.username}")
+        return {"message": f"Ticket {ticket_number} deleted"}
 
 
 # ==================== TICKET COMMENTS ====================

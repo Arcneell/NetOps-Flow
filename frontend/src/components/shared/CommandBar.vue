@@ -340,28 +340,54 @@ const filterResultsByPermission = (searchResults) => {
   })
 }
 
-// Search debounce
+// Search debounce and abort controller
 let searchTimeout = null
+let abortController = null
+let currentSearchId = 0
+
 const search = async () => {
   if (!query.value || query.value.length < 1) {
     results.value = []
     return
   }
 
+  // Cancel any pending request
+  if (abortController) {
+    abortController.abort()
+  }
+
+  // Create new abort controller for this request
+  abortController = new AbortController()
+  const searchId = ++currentSearchId
+
   loading.value = true
   try {
     const response = await api.get('/search/', {
-      params: { q: query.value, limit: 30 }
+      params: { q: query.value, limit: 30 },
+      signal: abortController.signal
     })
+
+    // Ignore results if a newer search has started
+    if (searchId !== currentSearchId) {
+      return
+    }
+
     const rawResults = response.data.results || response.data || []
     // Filter results based on user permissions
     results.value = filterResultsByPermission(rawResults)
     selectedIndex.value = 0
   } catch (error) {
+    // Ignore abort errors
+    if (error.name === 'AbortError' || error.name === 'CanceledError') {
+      return
+    }
     console.error('Search error:', error)
     results.value = []
   } finally {
-    loading.value = false
+    // Only clear loading if this is still the current search
+    if (searchId === currentSearchId) {
+      loading.value = false
+    }
   }
 }
 
@@ -397,6 +423,10 @@ onMounted(() => {
 onUnmounted(() => {
   document.removeEventListener('keydown', handleGlobalKeydown)
   if (searchTimeout) clearTimeout(searchTimeout)
+  // Cancel any pending search request
+  if (abortController) {
+    abortController.abort()
+  }
 })
 </script>
 
