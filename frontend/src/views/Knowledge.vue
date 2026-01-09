@@ -385,15 +385,15 @@ const articleForm = ref({
 // Category options from API
 const categoryOptions = computed(() => categories.value);
 
-// Icon options for category selector
+// Icon options for category selector (validated PrimeIcons)
 const iconOptions = [
   { label: 'Dossier', value: 'pi pi-folder' },
+  { label: 'Dossier ouvert', value: 'pi pi-folder-open' },
   { label: 'Fichier', value: 'pi pi-file' },
-  { label: 'Document', value: 'pi pi-file-edit' },
   { label: 'Livre', value: 'pi pi-book' },
   { label: 'Question', value: 'pi pi-question-circle' },
   { label: 'Info', value: 'pi pi-info-circle' },
-  { label: 'Ampoule', value: 'pi pi-lightbulb' },
+  { label: 'Idée', value: 'pi pi-bolt' },
   { label: 'Outils', value: 'pi pi-wrench' },
   { label: 'Paramètres', value: 'pi pi-cog' },
   { label: 'Serveur', value: 'pi pi-server' },
@@ -403,11 +403,13 @@ const iconOptions = [
   { label: 'Sécurité', value: 'pi pi-shield' },
   { label: 'Cadenas', value: 'pi pi-lock' },
   { label: 'Utilisateurs', value: 'pi pi-users' },
+  { label: 'Utilisateur', value: 'pi pi-user' },
   { label: 'Code', value: 'pi pi-code' },
-  { label: 'Terminal', value: 'pi pi-hashtag' },
+  { label: 'Desktop', value: 'pi pi-desktop' },
   { label: 'Alerte', value: 'pi pi-exclamation-triangle' },
   { label: 'Check', value: 'pi pi-check-circle' },
   { label: 'Étoile', value: 'pi pi-star' },
+  { label: 'Favori', value: 'pi pi-star-fill' },
   { label: 'Cœur', value: 'pi pi-heart' },
   { label: 'Tag', value: 'pi pi-tag' },
   { label: 'Bookmark', value: 'pi pi-bookmark' },
@@ -416,7 +418,11 @@ const iconOptions = [
   { label: 'Email', value: 'pi pi-envelope' },
   { label: 'Téléphone', value: 'pi pi-phone' },
   { label: 'Globe', value: 'pi pi-globe' },
-  { label: 'Maison', value: 'pi pi-home' }
+  { label: 'Maison', value: 'pi pi-home' },
+  { label: 'Flèche', value: 'pi pi-arrow-right' },
+  { label: 'Lien', value: 'pi pi-link' },
+  { label: 'Commentaire', value: 'pi pi-comment' },
+  { label: 'Liste', value: 'pi pi-list' }
 ];
 
 const getIconLabel = (iconValue) => {

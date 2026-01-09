@@ -5,14 +5,18 @@ Cross-platform validation tool for checking code quality before commits.
 
 Checks:
 - Missing translations (i18n)
+- Translation key synchronization (EN/FR)
 - Python syntax errors
 - Vue file structure
-- TypeScript/JS syntax (basic)
+- PrimeIcons validity
+- Code quality (console.log, TODO/FIXME)
+- JSON syntax validation
 
 Usage:
     python scripts/validate.py           # Run all checks
     python scripts/validate.py --quick   # Quick check (syntax only)
     python scripts/validate.py --fix     # Show suggested fixes for translations
+    python scripts/validate.py --strict  # Fail on warnings too
 """
 
 import os
@@ -328,6 +332,269 @@ def check_json_syntax() -> Tuple[bool, List[str]]:
         return True, []
 
 
+# Valid PrimeIcons (comprehensive list based on PrimeVue icon library)
+VALID_PRIMEICONS = {
+    # Files & Folders
+    'pi-folder', 'pi-folder-open', 'pi-file', 'pi-file-edit', 'pi-file-pdf', 'pi-file-excel',
+    'pi-file-word', 'pi-file-import', 'pi-file-export', 'pi-file-o',
+    # Books & Knowledge
+    'pi-book', 'pi-question-circle', 'pi-question', 'pi-info-circle', 'pi-info', 'pi-bolt', 'pi-sun', 'pi-moon',
+    # Tools & Settings
+    'pi-wrench', 'pi-cog', 'pi-cogs', 'pi-sliders-h', 'pi-sliders-v',
+    # Technology
+    'pi-server', 'pi-database', 'pi-sitemap', 'pi-cloud', 'pi-cloud-upload', 'pi-cloud-download',
+    # Security
+    'pi-shield', 'pi-lock', 'pi-lock-open', 'pi-unlock', 'pi-key', 'pi-verified',
+    # Users
+    'pi-users', 'pi-user', 'pi-user-plus', 'pi-user-minus', 'pi-user-edit',
+    # Development
+    'pi-code', 'pi-desktop', 'pi-mobile', 'pi-tablet', 'pi-terminal',
+    # Alerts & Status
+    'pi-exclamation-triangle', 'pi-exclamation-circle', 'pi-circle', 'pi-circle-fill', 'pi-circle-on', 'pi-circle-off',
+    'pi-check', 'pi-check-circle', 'pi-check-square', 'pi-times', 'pi-times-circle', 'pi-ban',
+    'pi-bell', 'pi-bell-slash',
+    # Ratings & Favorites
+    'pi-star', 'pi-star-fill', 'pi-star-half', 'pi-star-half-fill', 'pi-heart', 'pi-heart-fill',
+    'pi-tag', 'pi-tags', 'pi-bookmark', 'pi-bookmark-fill',
+    # Time & Calendar
+    'pi-calendar', 'pi-calendar-plus', 'pi-calendar-minus', 'pi-calendar-times', 'pi-clock', 'pi-stopwatch',
+    # Communication
+    'pi-envelope', 'pi-send', 'pi-phone', 'pi-comment', 'pi-comments', 'pi-inbox', 'pi-paperclip',
+    # Navigation & Location
+    'pi-globe', 'pi-home', 'pi-arrow-right', 'pi-arrow-left', 'pi-arrow-up', 'pi-arrow-down',
+    'pi-arrow-circle-right', 'pi-arrow-circle-left', 'pi-arrow-circle-up', 'pi-arrow-circle-down',
+    'pi-arrows-h', 'pi-arrows-v', 'pi-arrows-alt', 'pi-link', 'pi-external-link', 'pi-directions', 'pi-directions-alt', 'pi-compass',
+    'pi-map', 'pi-map-marker',
+    # Layout & Lists
+    'pi-list', 'pi-list-check', 'pi-th-large', 'pi-table', 'pi-chart-bar', 'pi-chart-line', 'pi-chart-pie',
+    # Search & Filter
+    'pi-search', 'pi-search-plus', 'pi-search-minus', 'pi-filter', 'pi-filter-slash', 'pi-filter-fill',
+    # CRUD Operations
+    'pi-plus', 'pi-plus-circle', 'pi-minus', 'pi-minus-circle', 'pi-pencil', 'pi-trash',
+    'pi-copy', 'pi-clone', 'pi-download', 'pi-upload', 'pi-refresh', 'pi-sync', 'pi-spinner', 'pi-spin',
+    # View
+    'pi-eye', 'pi-eye-slash', 'pi-power-off', 'pi-sign-in', 'pi-sign-out',
+    # Media
+    'pi-volume-up', 'pi-volume-down', 'pi-volume-off', 'pi-camera', 'pi-image',
+    'pi-images', 'pi-video', 'pi-play', 'pi-pause', 'pi-stop', 'pi-forward', 'pi-backward',
+    'pi-step-forward', 'pi-step-backward', 'pi-step-forward-alt', 'pi-step-backward-alt',
+    # Connectivity
+    'pi-wifi', 'pi-bluetooth', 'pi-microphone', 'pi-microphone-slash',
+    # Office
+    'pi-print', 'pi-save', 'pi-share-alt',
+    # Commerce
+    'pi-qrcode', 'pi-barcode', 'pi-money-bill', 'pi-credit-card', 'pi-shopping-cart', 'pi-shopping-bag', 'pi-wallet',
+    # Objects
+    'pi-box', 'pi-gift', 'pi-palette', 'pi-flag', 'pi-flag-fill',
+    'pi-building', 'pi-warehouse', 'pi-car', 'pi-truck', 'pi-plane',
+    # Symbols
+    'pi-hashtag', 'pi-at', 'pi-percentage', 'pi-dollar', 'pi-euro', 'pi-pound', 'pi-yen',
+    # Sorting
+    'pi-sort', 'pi-sort-up', 'pi-sort-down', 'pi-sort-alpha-up', 'pi-sort-alpha-down',
+    'pi-sort-alpha-up-alt', 'pi-sort-alpha-down-alt',
+    'pi-sort-amount-up', 'pi-sort-amount-down', 'pi-sort-amount-up-alt', 'pi-sort-amount-down-alt',
+    'pi-sort-numeric-up', 'pi-sort-numeric-down', 'pi-sort-numeric-up-alt', 'pi-sort-numeric-down-alt',
+    # Alignment
+    'pi-align-left', 'pi-align-center', 'pi-align-right', 'pi-align-justify',
+    # Navigation UI
+    'pi-ellipsis-h', 'pi-ellipsis-v', 'pi-bars', 'pi-angle-up', 'pi-angle-down',
+    'pi-angle-left', 'pi-angle-right', 'pi-angle-double-up', 'pi-angle-double-down',
+    'pi-angle-double-left', 'pi-angle-double-right', 'pi-chevron-up', 'pi-chevron-down',
+    'pi-chevron-left', 'pi-chevron-right', 'pi-chevron-circle-up', 'pi-chevron-circle-down',
+    'pi-chevron-circle-left', 'pi-chevron-circle-right', 'pi-caret-up', 'pi-caret-down',
+    'pi-caret-left', 'pi-caret-right',
+    # Window
+    'pi-id-card', 'pi-ticket', 'pi-window-maximize', 'pi-window-minimize', 'pi-expand', 'pi-compress',
+    # Feedback
+    'pi-thumbs-up', 'pi-thumbs-down', 'pi-thumbs-up-fill', 'pi-thumbs-down-fill',
+    # Actions
+    'pi-history', 'pi-undo', 'pi-redo', 'pi-reply', 'pi-forward', 'pi-eject',
+    # Brands
+    'pi-slack', 'pi-google', 'pi-facebook', 'pi-twitter', 'pi-linkedin', 'pi-github', 'pi-discord',
+    'pi-microsoft', 'pi-apple', 'pi-android', 'pi-amazon', 'pi-paypal', 'pi-whatsapp', 'pi-telegram',
+    'pi-youtube', 'pi-vimeo', 'pi-instagram', 'pi-reddit', 'pi-twitch', 'pi-tiktok', 'pi-snapchat',
+    # Misc
+    'pi-prime', 'pi-equals', 'pi-not-equal', 'pi-at',
+}
+
+
+def check_primeicons() -> Tuple[bool, List[str]]:
+    """Check for invalid PrimeIcons usage in Vue files."""
+    print_header("Checking PrimeIcons")
+    warnings = []
+    checked_files = 0
+    icons_found = set()
+
+    vue_path = PROJECT_ROOT / "frontend" / "src"
+    if not vue_path.exists():
+        print_warning("Frontend src directory not found")
+        return True, []
+
+    # Pattern to match pi pi-xxx or just pi-xxx in icon contexts
+    icon_patterns = [
+        r'["\']pi\s+(pi-[a-z0-9-]+)["\']',  # 'pi pi-icon'
+        r'icon=["\']pi\s+(pi-[a-z0-9-]+)["\']',  # icon="pi pi-icon"
+        r':icon=["\']`?pi\s+(pi-[a-z0-9-]+)`?["\']',  # :icon="pi pi-icon"
+        r'class="[^"]*\b(pi-[a-z0-9-]+)\b[^"]*"',  # class containing pi-xxx
+    ]
+
+    for vue_file in vue_path.rglob("*.vue"):
+        checked_files += 1
+        try:
+            with open(vue_file, 'r', encoding='utf-8') as f:
+                content = f.read()
+
+            rel_path = vue_file.relative_to(PROJECT_ROOT)
+
+            for pattern in icon_patterns:
+                matches = re.findall(pattern, content)
+                for icon in matches:
+                    icons_found.add(icon)
+                    if icon not in VALID_PRIMEICONS:
+                        # Check if it might be a typo
+                        similar = [v for v in VALID_PRIMEICONS if icon.replace('pi-', '') in v or v.replace('pi-', '') in icon]
+                        suggestion = f" (did you mean: {similar[0]}?)" if similar else ""
+                        warnings.append(f"{rel_path}: Invalid icon '{icon}'{suggestion}")
+
+        except Exception as e:
+            warnings.append(f"{vue_file.name}: Error reading file: {e}")
+
+    if warnings:
+        print_warning(f"Found {len(warnings)} potentially invalid icon(s):")
+        for warn in sorted(set(warnings))[:15]:
+            print(f"  - {warn}")
+        if len(warnings) > 15:
+            print(f"  ... and {len(warnings) - 15} more")
+    else:
+        print_success(f"All icons in {checked_files} Vue files are valid ({len(icons_found)} unique icons)")
+
+    return len(warnings) == 0, warnings
+
+
+def check_code_quality() -> Tuple[bool, List[str]]:
+    """Check for code quality issues like console.log, TODO, FIXME."""
+    print_header("Checking Code Quality")
+    warnings = []
+    issues_by_type = {'console': 0, 'todo': 0, 'fixme': 0, 'debugger': 0}
+
+    vue_path = PROJECT_ROOT / "frontend" / "src"
+    if not vue_path.exists():
+        return True, []
+
+    # Patterns to check
+    patterns = {
+        'console': r'\bconsole\.(log|warn|error|info|debug)\s*\(',
+        'debugger': r'\bdebugger\b',
+        'todo': r'\bTODO\b',
+        'fixme': r'\bFIXME\b',
+    }
+
+    for ext in ["*.vue", "*.js", "*.ts"]:
+        for file_path in vue_path.rglob(ext):
+            try:
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    lines = f.readlines()
+
+                rel_path = file_path.relative_to(PROJECT_ROOT)
+
+                for line_num, line in enumerate(lines, 1):
+                    # Skip commented lines for console/debugger
+                    stripped = line.strip()
+                    is_comment = stripped.startswith('//') or stripped.startswith('*') or stripped.startswith('/*')
+
+                    for issue_type, pattern in patterns.items():
+                        if re.search(pattern, line):
+                            # For console/debugger, skip if in comment
+                            if issue_type in ['console', 'debugger'] and is_comment:
+                                continue
+                            issues_by_type[issue_type] += 1
+                            if issues_by_type[issue_type] <= 3:  # Limit output
+                                warnings.append(f"{rel_path}:{line_num}: {issue_type.upper()} found")
+
+            except Exception:
+                pass
+
+    total_issues = sum(issues_by_type.values())
+
+    if total_issues > 0:
+        print_warning(f"Code quality issues found:")
+        for issue_type, count in issues_by_type.items():
+            if count > 0:
+                print(f"  - {issue_type.upper()}: {count} occurrence(s)")
+    else:
+        print_success("No code quality issues found")
+
+    # Code quality issues are warnings, not errors
+    return True, warnings
+
+
+def check_duplicate_translation_keys() -> Tuple[bool, List[str]]:
+    """Check for duplicate keys at the same level within translation files."""
+    print_header("Checking for Duplicate Translation Keys")
+    errors = []
+
+    locales_path = PROJECT_ROOT / "frontend" / "src" / "i18n" / "locales"
+    if not locales_path.exists():
+        return True, []
+
+    def find_duplicates_in_object(data: dict, path: str = "") -> List[str]:
+        """Find duplicate keys at the same level in nested JSON."""
+        duplicates = []
+
+        # Check for duplicates at current level
+        # This is handled by JSON parsing - duplicate keys at same level would be overwritten
+
+        # Recurse into nested objects
+        for key, value in data.items():
+            full_path = f"{path}.{key}" if path else key
+            if isinstance(value, dict):
+                duplicates.extend(find_duplicates_in_object(value, full_path))
+
+        return duplicates
+
+    for json_file in locales_path.glob("*.json"):
+        try:
+            # Use custom JSON decoder to detect duplicates at same level
+            class DuplicateKeyChecker:
+                def __init__(self, file_path):
+                    self.file_path = file_path
+                    self.duplicates = []
+
+                def check_duplicates(self, pairs):
+                    keys = [k for k, v in pairs]
+                    seen = set()
+                    for key in keys:
+                        if key in seen:
+                            self.duplicates.append(key)
+                        seen.add(key)
+                    return dict(pairs)
+
+            checker = DuplicateKeyChecker(json_file)
+
+            with open(json_file, 'r', encoding='utf-8') as f:
+                json.load(f, object_pairs_hook=checker.check_duplicates)
+
+            if checker.duplicates:
+                rel_path = json_file.relative_to(PROJECT_ROOT)
+                for dup in checker.duplicates[:5]:
+                    errors.append(f"{rel_path}: Duplicate key '{dup}' at same level")
+
+        except json.JSONDecodeError:
+            # Already checked in check_json_syntax
+            pass
+        except Exception as e:
+            errors.append(f"{json_file.name}: Error checking: {e}")
+
+    if errors:
+        print_error(f"Found duplicate translation keys:")
+        for err in errors[:10]:
+            print(f"  - {err}")
+    else:
+        print_success("No duplicate translation keys found")
+
+    return len(errors) == 0, errors
+
+
 def run_quick_check() -> bool:
     """Run only syntax checks (fast)."""
     results = []
@@ -336,14 +603,30 @@ def run_quick_check() -> bool:
     return all(results)
 
 
-def run_full_check(show_fixes: bool = False) -> bool:
+def run_full_check(show_fixes: bool = False, strict: bool = False) -> bool:
     """Run all validation checks."""
     results = []
+    warnings_count = 0
 
     results.append(check_python_syntax()[0])
     results.append(check_json_syntax()[0])
+    results.append(check_duplicate_translation_keys()[0])
     results.append(check_missing_translations(show_fixes)[0])
     results.append(check_vue_syntax()[0])
+
+    # Icon and code quality checks (warnings)
+    icon_ok, icon_warnings = check_primeicons()
+    code_ok, code_warnings = check_code_quality()
+    warnings_count = len(icon_warnings) + len(code_warnings)
+
+    if strict:
+        results.append(icon_ok)
+        # code_quality always returns True, but in strict mode we fail if warnings
+        if code_warnings:
+            results.append(False)
+
+    if warnings_count > 0:
+        print(f"\n{Colors.YELLOW}Total warnings: {warnings_count}{Colors.RESET}")
 
     return all(results)
 
@@ -358,6 +641,8 @@ Examples:
   python scripts/validate.py           Run all checks
   python scripts/validate.py --quick   Quick syntax-only check
   python scripts/validate.py --fix     Show suggested fixes for missing translations
+  python scripts/validate.py --strict  Fail on warnings (invalid icons, code quality)
+  python scripts/validate.py --ci      CI mode with non-zero exit on failure
         """
     )
     parser.add_argument(
@@ -371,6 +656,11 @@ Examples:
         help='Show suggested fixes for translation issues'
     )
     parser.add_argument(
+        '--strict', '-s',
+        action='store_true',
+        help='Strict mode: fail on warnings (invalid icons, code quality issues)'
+    )
+    parser.add_argument(
         '--ci',
         action='store_true',
         help='CI mode: exit with non-zero code on any failure'
@@ -378,19 +668,21 @@ Examples:
 
     args = parser.parse_args()
 
-    print("=" * 50)
+    print("=" * 60)
     print(f"{Colors.BOLD}Inframate Validation Script{Colors.RESET}")
     print(f"Project: {PROJECT_ROOT}")
-    print("=" * 50)
+    mode = "Quick" if args.quick else ("Strict" if args.strict else "Standard")
+    print(f"Mode: {mode}")
+    print("=" * 60)
 
     if args.quick:
         all_passed = run_quick_check()
     else:
-        all_passed = run_full_check(args.fix)
+        all_passed = run_full_check(args.fix, args.strict)
 
-    print("\n" + "=" * 50)
+    print("\n" + "=" * 60)
     print(f"{Colors.BOLD}Summary:{Colors.RESET}")
-    print("=" * 50)
+    print("=" * 60)
 
     if all_passed:
         print(f"\n{Colors.GREEN}{Colors.BOLD}All checks passed!{Colors.RESET}")

@@ -330,6 +330,20 @@ CONTRACT_TEMPLATES = [
 ]
 
 # =============================================================================
+# Knowledge Base Categories (Dynamic)
+# =============================================================================
+
+KB_CATEGORIES = [
+    {"name": "Procedures", "description": "Standard operating procedures and emergency responses", "icon": "pi pi-list", "color": "#0ea5e9", "display_order": 1},
+    {"name": "Standards", "description": "Technical standards and configuration guidelines", "icon": "pi pi-book", "color": "#22c55e", "display_order": 2},
+    {"name": "How-To", "description": "Step-by-step guides for common tasks", "icon": "pi pi-question-circle", "color": "#f59e0b", "display_order": 3},
+    {"name": "Security", "description": "Security policies and best practices", "icon": "pi pi-shield", "color": "#ef4444", "display_order": 4},
+    {"name": "Troubleshooting", "description": "Common issues and solutions", "icon": "pi pi-wrench", "color": "#8b5cf6", "display_order": 5},
+    {"name": "Architecture", "description": "System architecture and design documents", "icon": "pi pi-sitemap", "color": "#06b6d4", "display_order": 6},
+    {"name": "FAQ", "description": "Frequently asked questions", "icon": "pi pi-info-circle", "color": "#ec4899", "display_order": 7},
+]
+
+# =============================================================================
 # Knowledge Base Articles
 # =============================================================================
 
@@ -1703,7 +1717,40 @@ def seed_tickets(db: Session, count: int = 35) -> None:
     print(f"      - Resolved/Closed: {resolved_count}")
 
 
-def seed_knowledge_articles(db: Session) -> None:
+def seed_knowledge_categories(db: Session) -> Dict[str, int]:
+    """Create knowledge base categories and return name->id mapping."""
+    print("  Creating knowledge categories...")
+
+    category_map: Dict[str, int] = {}
+
+    for cat_data in KB_CATEGORIES:
+        existing = db.query(models.KnowledgeCategory).filter(
+            models.KnowledgeCategory.name == cat_data["name"]
+        ).first()
+
+        if existing:
+            category_map[cat_data["name"]] = existing.id
+            continue
+
+        category = models.KnowledgeCategory(
+            name=cat_data["name"],
+            description=cat_data["description"],
+            icon=cat_data["icon"],
+            color=cat_data["color"],
+            display_order=cat_data["display_order"],
+            is_active=True,
+            article_count=0
+        )
+        db.add(category)
+        db.flush()
+        category_map[cat_data["name"]] = category.id
+
+    db.commit()
+    print(f"    Created {len(KB_CATEGORIES)} knowledge categories")
+    return category_map
+
+
+def seed_knowledge_articles(db: Session, category_map: Dict[str, int] = None) -> None:
     """Create knowledge base articles."""
     print("  Creating knowledge articles...")
 
@@ -1711,15 +1758,25 @@ def seed_knowledge_articles(db: Session) -> None:
     if not author:
         return
 
+    # If no category map provided, create categories first
+    if category_map is None:
+        category_map = seed_knowledge_categories(db)
+
+    articles_created = 0
     for article_data in KB_ARTICLES:
         existing = db.query(models.KnowledgeArticle).filter(models.KnowledgeArticle.slug == article_data["slug"]).first()
         if existing:
             continue
 
+        # Get category_id from map
+        category_name = article_data["category"]
+        category_id = category_map.get(category_name)
+
         article = models.KnowledgeArticle(
             title=article_data["title"],
             slug=article_data["slug"],
-            category=article_data["category"],
+            category=category_name,  # Keep legacy field for backward compatibility
+            category_id=category_id,  # New foreign key
             summary=article_data["summary"],
             content=article_data["content"],
             author_id=author.id,
@@ -1733,9 +1790,18 @@ def seed_knowledge_articles(db: Session) -> None:
             published_at=random_datetime_past(170)
         )
         db.add(article)
+        articles_created += 1
+
+        # Update category article count
+        if category_id:
+            category = db.query(models.KnowledgeCategory).filter(
+                models.KnowledgeCategory.id == category_id
+            ).first()
+            if category:
+                category.article_count = (category.article_count or 0) + 1
 
     db.commit()
-    print(f"    Created {len(KB_ARTICLES)} knowledge articles")
+    print(f"    Created {articles_created} knowledge articles")
 
 
 def seed_notifications(db: Session) -> None:
@@ -2493,6 +2559,7 @@ def clean_test_data(db: Session) -> None:
         models.TicketTemplate,
         models.Notification,
         models.KnowledgeArticle,
+        models.KnowledgeCategory,
         models.SoftwareInstallation,
         models.SoftwareLicense,
         models.Software,
