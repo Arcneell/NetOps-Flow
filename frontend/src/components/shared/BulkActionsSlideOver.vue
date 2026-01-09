@@ -8,14 +8,14 @@
   >
     <div class="space-y-6">
       <!-- Selection Summary -->
-      <div class="p-4 rounded-xl" style="background: var(--bg-secondary); border: 1px solid var(--border-default);">
+      <div class="selection-summary p-4 rounded-xl">
         <div class="flex items-center gap-3 mb-3">
-          <div class="w-10 h-10 rounded-lg flex items-center justify-center" style="background: linear-gradient(135deg, rgba(14, 165, 233, 0.2) 0%, rgba(14, 165, 233, 0.1) 100%);">
-            <i class="pi pi-check-square text-sky-500 text-lg"></i>
+          <div class="selection-icon w-10 h-10 rounded-lg flex items-center justify-center">
+            <i class="pi pi-check-square text-lg"></i>
           </div>
           <div>
-            <div class="text-2xl font-bold">{{ selectedCount }}</div>
-            <div class="text-sm opacity-60">{{ t('bulk.elementsSelected') }}</div>
+            <div class="text-2xl font-bold text-theme-primary">{{ selectedCount }}</div>
+            <div class="text-sm text-theme-secondary">{{ t('bulk.elementsSelected') }}</div>
           </div>
         </div>
         <Button
@@ -30,7 +30,7 @@
 
       <!-- Available Actions -->
       <div class="space-y-3">
-        <h4 class="text-sm font-semibold uppercase tracking-wide opacity-60 mb-4">
+        <h4 class="text-sm font-semibold uppercase tracking-wide text-theme-secondary mb-4">
           {{ t('bulk.availableActions') }}
         </h4>
 
@@ -41,7 +41,7 @@
 
     <template #footer>
       <div class="flex justify-between items-center">
-        <span class="text-sm opacity-60">{{ t('bulk.selectActionAbove') }}</span>
+        <span class="text-sm text-theme-secondary">{{ t('bulk.selectActionAbove') }}</span>
         <Button
           :label="t('common.close')"
           severity="secondary"
@@ -79,3 +79,26 @@ const visible = computed({
   set: (value) => emit('update:modelValue', value)
 })
 </script>
+
+<style scoped>
+.selection-summary {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-default);
+}
+
+.selection-icon {
+  background: var(--primary-light);
+}
+
+.selection-icon i {
+  color: var(--primary);
+}
+
+.text-theme-primary {
+  color: var(--text-primary);
+}
+
+.text-theme-secondary {
+  color: var(--text-secondary);
+}
+</style>

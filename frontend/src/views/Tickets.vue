@@ -432,8 +432,8 @@
             <i class="pi pi-user"></i>
           </div>
           <div class="flex-1">
-            <div class="font-semibold">{{ t('bulk.assignTo') }}</div>
-            <div class="text-sm opacity-60">{{ t('bulk.assignToDesc') }}</div>
+            <div class="font-semibold action-title">{{ t('bulk.assignTo') }}</div>
+            <div class="text-sm action-desc">{{ t('bulk.assignToDesc') }}</div>
           </div>
           <i :class="['pi transition-transform', showBulkAssignAction ? 'pi-chevron-up' : 'pi-chevron-down']"></i>
         </div>
@@ -452,8 +452,8 @@
             <i class="pi pi-flag"></i>
           </div>
           <div class="flex-1">
-            <div class="font-semibold">{{ t('bulk.changePriority') }}</div>
-            <div class="text-sm opacity-60">{{ t('bulk.changePriorityDesc') }}</div>
+            <div class="font-semibold action-title">{{ t('bulk.changePriority') }}</div>
+            <div class="text-sm action-desc">{{ t('bulk.changePriorityDesc') }}</div>
           </div>
           <i :class="['pi transition-transform', showBulkPriorityAction ? 'pi-chevron-up' : 'pi-chevron-down']"></i>
         </div>
@@ -472,8 +472,8 @@
             <i class="pi pi-sync"></i>
           </div>
           <div class="flex-1">
-            <div class="font-semibold">{{ t('bulk.changeStatus') }}</div>
-            <div class="text-sm opacity-60">{{ t('bulk.changeStatusDesc') }}</div>
+            <div class="font-semibold action-title">{{ t('bulk.changeStatus') }}</div>
+            <div class="text-sm action-desc">{{ t('bulk.changeStatusDesc') }}</div>
           </div>
           <i :class="['pi transition-transform', showBulkStatusAction ? 'pi-chevron-up' : 'pi-chevron-down']"></i>
         </div>
@@ -492,8 +492,8 @@
             <i class="pi pi-tag"></i>
           </div>
           <div class="flex-1">
-            <div class="font-semibold">{{ t('bulk.changeType') }}</div>
-            <div class="text-sm opacity-60">{{ t('bulk.changeTypeDesc') }}</div>
+            <div class="font-semibold action-title">{{ t('bulk.changeType') }}</div>
+            <div class="text-sm action-desc">{{ t('bulk.changeTypeDesc') }}</div>
           </div>
           <i :class="['pi transition-transform', showBulkTypeAction ? 'pi-chevron-up' : 'pi-chevron-down']"></i>
         </div>
@@ -512,8 +512,8 @@
             <i class="pi pi-lock"></i>
           </div>
           <div class="flex-1">
-            <div class="font-semibold">{{ t('bulk.closeItems') }}</div>
-            <div class="text-sm opacity-60">{{ t('bulk.closeItemsDesc') }}</div>
+            <div class="font-semibold action-title">{{ t('bulk.closeItems') }}</div>
+            <div class="text-sm action-desc">{{ t('bulk.closeItemsDesc') }}</div>
           </div>
           <i class="pi pi-chevron-right"></i>
         </div>
@@ -1163,5 +1163,19 @@ onMounted(async () => {
 
 .action-icon-info i {
   color: var(--info);
+}
+
+.action-card .action-title {
+  color: var(--text-primary);
+}
+
+.action-card .action-desc {
+  color: var(--text-secondary);
+}
+
+.action-card i.pi-chevron-up,
+.action-card i.pi-chevron-down,
+.action-card i.pi-chevron-right {
+  color: var(--text-secondary);
 }
 </style>

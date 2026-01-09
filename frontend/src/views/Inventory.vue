@@ -164,10 +164,10 @@
               <div class="p-4 grid grid-cols-3 gap-6" style="background-color: var(--bg-app);">
                 <div>
                   <h4 class="font-semibold mb-3 text-blue-500">{{ t('common.details') }}</h4>
-                  <p class="mb-2"><span class="opacity-60">{{ t('inventory.assetTag') }}:</span> {{ slotProps.data.asset_tag || '-' }}</p>
-                  <p class="mb-2"><span class="opacity-60">{{ t('inventory.purchaseDate') }}:</span> {{ formatDate(slotProps.data.purchase_date) }}</p>
-                  <p class="mb-2"><span class="opacity-60">{{ t('inventory.warrantyExpiry') }}:</span> {{ formatDate(slotProps.data.warranty_expiry) }}</p>
-                  <p><span class="opacity-60">{{ t('inventory.supplier') }}:</span> {{ slotProps.data.supplier?.name || '-' }}</p>
+                  <p class="mb-2"><span class="text-theme-secondary">{{ t('inventory.assetTag') }}:</span> {{ slotProps.data.asset_tag || '-' }}</p>
+                  <p class="mb-2"><span class="text-theme-secondary">{{ t('inventory.purchaseDate') }}:</span> {{ formatDate(slotProps.data.purchase_date) }}</p>
+                  <p class="mb-2"><span class="text-theme-secondary">{{ t('inventory.warrantyExpiry') }}:</span> {{ formatDate(slotProps.data.warranty_expiry) }}</p>
+                  <p><span class="text-theme-secondary">{{ t('inventory.supplier') }}:</span> {{ slotProps.data.supplier?.name || '-' }}</p>
                 </div>
                 <div>
                   <h4 class="font-semibold mb-3 text-blue-500">{{ t('ip.linkedIps') }}</h4>
@@ -626,7 +626,7 @@
     <Dialog v-model:visible="showLinkIpDialog" modal :header="t('ip.linkIp')" :style="{ width: '450px' }" @keydown.enter="onLinkIpDialogEnter">
       <div v-if="linkingEquipment" class="flex flex-col gap-4">
         <div class="p-3 rounded-lg" style="background-color: var(--bg-app);">
-          <span class="opacity-60">{{ t('inventory.equipment') }}:</span>
+          <span class="text-theme-secondary">{{ t('inventory.equipment') }}:</span>
           <strong class="ml-2">{{ linkingEquipment.name }}</strong>
         </div>
 
@@ -643,7 +643,7 @@
           <Dropdown v-model="selectedIpToLink" :options="availableIps" optionLabel="address" optionValue="id" :placeholder="t('ip.selectIp')" class="w-full" showClear>
             <template #option="slotProps">
               <span class="font-mono">{{ slotProps.option.address }}</span>
-              <span v-if="slotProps.option.hostname" class="ml-2 opacity-60">({{ slotProps.option.hostname }})</span>
+              <span v-if="slotProps.option.hostname" class="ml-2 text-theme-secondary">({{ slotProps.option.hostname }})</span>
             </template>
           </Dropdown>
           <p v-if="!availableIps.length" class="text-sm opacity-50 mt-2">{{ t('ip.noAvailableIps') }}</p>
@@ -712,8 +712,8 @@
             <i class="pi pi-sync"></i>
           </div>
           <div class="flex-1">
-            <div class="font-semibold">{{ t('bulk.changeStatus') }}</div>
-            <div class="text-sm opacity-60">{{ t('bulk.changeStatusDesc') }}</div>
+            <div class="font-semibold action-title">{{ t('bulk.changeStatus') }}</div>
+            <div class="text-sm action-desc">{{ t('bulk.changeStatusDesc') }}</div>
           </div>
           <i :class="['pi transition-transform', showBulkStatusAction ? 'pi-chevron-up' : 'pi-chevron-down']"></i>
         </div>
@@ -732,8 +732,8 @@
             <i class="pi pi-map-marker"></i>
           </div>
           <div class="flex-1">
-            <div class="font-semibold">{{ t('bulk.changeLocation') }}</div>
-            <div class="text-sm opacity-60">{{ t('bulk.changeLocationDesc') }}</div>
+            <div class="font-semibold action-title">{{ t('bulk.changeLocation') }}</div>
+            <div class="text-sm action-desc">{{ t('bulk.changeLocationDesc') }}</div>
           </div>
           <i :class="['pi transition-transform', showBulkLocationAction ? 'pi-chevron-up' : 'pi-chevron-down']"></i>
         </div>
@@ -753,7 +753,7 @@
           </div>
           <div class="flex-1">
             <div class="font-semibold" style="color: var(--danger);">{{ t('bulk.deleteItems') }}</div>
-            <div class="text-sm opacity-60">{{ t('bulk.deleteItemsDesc') }}</div>
+            <div class="text-sm action-desc">{{ t('bulk.deleteItemsDesc') }}</div>
           </div>
           <i class="pi pi-chevron-right"></i>
         </div>
@@ -1576,5 +1576,23 @@ onMounted(async () => {
 
 .action-icon-success i {
   color: var(--success);
+}
+
+.action-card .action-title {
+  color: var(--text-primary);
+}
+
+.action-card .action-desc {
+  color: var(--text-secondary);
+}
+
+.action-card i.pi-chevron-up,
+.action-card i.pi-chevron-down,
+.action-card i.pi-chevron-right {
+  color: var(--text-secondary);
+}
+
+.text-theme-secondary {
+  color: var(--text-secondary);
 }
 </style>

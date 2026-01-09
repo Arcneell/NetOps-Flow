@@ -59,7 +59,7 @@
             {{ t('ipam.allocatedIps') }}
           </span>
           <div class="flex items-center gap-2">
-            <span class="text-sm font-normal opacity-60">
+            <span class="text-sm font-normal text-theme-secondary">
               {{ ipData.total }} {{ t('ipam.addressesFound') }}
             </span>
             <Button
@@ -116,7 +116,7 @@
               <div class="flex items-center gap-4 flex-1 min-w-0">
                 <Checkbox :modelValue="isIpSelected(ip)" @update:modelValue="toggleIpSelection(ip)" :binary="true" />
                 <span class="font-mono text-sm font-medium ip-address">{{ ip.address }}</span>
-                <span v-if="ip.hostname" class="text-sm opacity-60 truncate">{{ ip.hostname }}</span>
+                <span v-if="ip.hostname" class="text-sm text-theme-secondary truncate">{{ ip.hostname }}</span>
                 <div v-if="ip.equipment" class="flex items-center gap-2 text-sm">
                   <i class="pi pi-box text-blue-500"></i>
                   <span
@@ -235,8 +235,8 @@
             <i class="pi pi-check-square"></i>
           </div>
           <div>
-            <div class="text-2xl font-bold">{{ selectedIps.length }}</div>
-            <div class="text-sm opacity-60">{{ t('bulk.elementsSelected') }}</div>
+            <div class="text-2xl font-bold text-theme-primary">{{ selectedIps.length }}</div>
+            <div class="text-sm text-theme-secondary">{{ t('bulk.elementsSelected') }}</div>
           </div>
         </div>
       </div>
@@ -248,8 +248,8 @@
             <i class="pi pi-sync"></i>
           </div>
           <div class="flex-1">
-            <div class="font-semibold">{{ t('bulk.changeStatus') }}</div>
-            <div class="text-sm opacity-60">{{ t('bulk.changeStatusDesc') }}</div>
+            <div class="font-semibold action-title">{{ t('bulk.changeStatus') }}</div>
+            <div class="text-sm action-desc">{{ t('bulk.changeStatusDesc') }}</div>
           </div>
           <i :class="['pi transition-transform', showBulkStatusAction ? 'pi-chevron-up' : 'pi-chevron-down']"></i>
         </div>
@@ -268,8 +268,8 @@
             <i class="pi pi-undo"></i>
           </div>
           <div class="flex-1">
-            <div class="font-semibold">{{ t('bulk.releaseItems') }}</div>
-            <div class="text-sm opacity-60">{{ t('bulk.releaseItemsDesc') }}</div>
+            <div class="font-semibold action-title">{{ t('bulk.releaseItems') }}</div>
+            <div class="text-sm action-desc">{{ t('bulk.releaseItemsDesc') }}</div>
           </div>
           <i class="pi pi-chevron-right"></i>
         </div>
@@ -701,5 +701,27 @@ watch(() => [props.modelValue, props.subnetId], ([isVisible, id]) => {
 .selection-summary {
   background: var(--bg-secondary);
   border: 1px solid var(--border-default);
+}
+
+.action-card .action-title {
+  color: var(--text-primary);
+}
+
+.action-card .action-desc {
+  color: var(--text-secondary);
+}
+
+.action-card i.pi-chevron-up,
+.action-card i.pi-chevron-down,
+.action-card i.pi-chevron-right {
+  color: var(--text-secondary);
+}
+
+.text-theme-secondary {
+  color: var(--text-secondary);
+}
+
+.text-theme-primary {
+  color: var(--text-primary);
 }
 </style>
