@@ -990,5 +990,29 @@
     "createEquipment": "Créer un nouvel équipement",
     "searchSubnets": "Rechercher des sous-réseaux...",
     "searchIps": "Rechercher des IPs..."
+  },
+  "bulk": {
+    "title": "Actions groupées",
+    "itemsSelected": "{count} éléments sélectionnés",
+    "elementsSelected": "éléments sélectionnés",
+    "availableActions": "Actions disponibles",
+    "selectActionAbove": "Sélectionnez une action à appliquer aux éléments",
+    "openBulkActions": "Actions groupées",
+    "changeStatus": "Changer le statut",
+    "changeStatusDesc": "Modifier le statut de tous les éléments sélectionnés",
+    "changeLocation": "Changer l'emplacement",
+    "changeLocationDesc": "Déplacer tous les éléments vers un autre emplacement",
+    "deleteItems": "Supprimer",
+    "deleteItemsDesc": "Supprimer définitivement tous les éléments sélectionnés",
+    "assignTo": "Assigner à",
+    "assignToDesc": "Assigner tous les éléments sélectionnés à un utilisateur",
+    "closeItems": "Fermer",
+    "closeItemsDesc": "Fermer tous les éléments résolus sélectionnés",
+    "releaseItems": "Libérer",
+    "releaseItemsDesc": "Libérer tous les éléments sélectionnés (disponible)",
+    "confirmAction": "Confirmer l'action",
+    "applyToAll": "Appliquer à {count} éléments",
+    "actionSuccess": "Action effectuée avec succès",
+    "actionPartial": "{processed} traités, {failed} échoués"
   }
 }

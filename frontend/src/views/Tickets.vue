@@ -82,7 +82,7 @@
             <Dropdown v-model="filters.ticket_type" :options="typeOptions" optionLabel="label" optionValue="value"
                       :placeholder="t('tickets.allTypes')" showClear class="w-full" @change="loadTickets" />
           </div>
-          <div v-if="canManageTickets" class="flex items-center gap-2">
+          <div class="flex items-center gap-2">
             <Checkbox v-model="filters.my_tickets" :binary="true" inputId="myTickets" @change="loadTickets" />
             <label for="myTickets" class="text-sm cursor-pointer">{{ t('tickets.myTickets') }}</label>
           </div>
@@ -105,14 +105,14 @@
           <Button :label="t('tickets.newTicket')" icon="pi pi-plus" @click="openTicketDialog()" />
         </div>
 
-        <!-- Bulk Actions Bar -->
+        <!-- Bulk Selection Bar -->
         <div v-if="selectedTickets.length > 0 && canManageTickets" class="flex items-center gap-3 mb-4 p-3 rounded-lg" style="background-color: var(--bg-app);">
-          <span class="font-medium">{{ selectedTickets.length }} {{ t('common.selected') }}</span>
+          <div class="flex items-center gap-2">
+            <i class="pi pi-check-square text-sky-500"></i>
+            <span class="font-medium">{{ selectedTickets.length }} {{ t('common.selected') }}</span>
+          </div>
           <div class="flex-1"></div>
-          <Dropdown v-model="bulkAssignee" :options="usersWithUnassign" optionLabel="username" optionValue="id"
-                    :placeholder="t('tickets.assignTo')" class="w-48" />
-          <Button :label="t('common.apply')" icon="pi pi-check" size="small" @click="applyBulkAssign" :disabled="bulkAssignee === undefined" :loading="bulkLoading" />
-          <Button :label="t('tickets.bulkClose')" icon="pi pi-lock" size="small" severity="secondary" @click="applyBulkClose" :loading="bulkLoading" />
+          <Button :label="t('bulk.openBulkActions')" icon="pi pi-list-check" @click="showBulkSlideOver = true" />
           <Button icon="pi pi-times" text rounded size="small" @click="selectedTickets = []" v-tooltip.top="t('common.clearSelection')" />
         </div>
 
@@ -417,6 +417,48 @@
         </div>
       </template>
     </Dialog>
+
+    <!-- Bulk Actions Slide-Over -->
+    <BulkActionsSlideOver
+      v-model="showBulkSlideOver"
+      :title="t('bulk.title')"
+      :selectedCount="selectedTickets.length"
+      @clear-selection="selectedTickets = []; showBulkSlideOver = false"
+    >
+      <!-- Assign Action -->
+      <div class="action-card p-4 rounded-xl cursor-pointer" @click="showBulkAssignAction = !showBulkAssignAction">
+        <div class="flex items-center gap-4">
+          <div class="action-icon">
+            <i class="pi pi-user"></i>
+          </div>
+          <div class="flex-1">
+            <div class="font-semibold">{{ t('bulk.assignTo') }}</div>
+            <div class="text-sm opacity-60">{{ t('bulk.assignToDesc') }}</div>
+          </div>
+          <i :class="['pi transition-transform', showBulkAssignAction ? 'pi-chevron-up' : 'pi-chevron-down']"></i>
+        </div>
+        <div v-if="showBulkAssignAction" class="mt-4 pt-4 border-t" style="border-color: var(--border-default);" @click.stop>
+          <Dropdown v-model="bulkAssignee" :options="usersWithUnassign" optionLabel="username" optionValue="id"
+                    :placeholder="t('tickets.assignTo')" class="w-full mb-3" />
+          <Button :label="t('bulk.applyToAll', { count: selectedTickets.length })" icon="pi pi-check"
+                  class="w-full" @click="applyBulkAssign" :disabled="bulkAssignee === undefined" :loading="bulkLoading" />
+        </div>
+      </div>
+
+      <!-- Close Action -->
+      <div class="action-card p-4 rounded-xl cursor-pointer" @click="applyBulkClose">
+        <div class="flex items-center gap-4">
+          <div class="action-icon" style="background: linear-gradient(135deg, rgba(34, 197, 94, 0.2) 0%, rgba(34, 197, 94, 0.1) 100%);">
+            <i class="pi pi-lock text-green-500"></i>
+          </div>
+          <div class="flex-1">
+            <div class="font-semibold">{{ t('bulk.closeItems') }}</div>
+            <div class="text-sm opacity-60">{{ t('bulk.closeItemsDesc') }}</div>
+          </div>
+          <i class="pi pi-chevron-right"></i>
+        </div>
+      </div>
+    </BulkActionsSlideOver>
     </div>
   </div>
 </template>
@@ -429,6 +471,7 @@ import { useI18n } from 'vue-i18n';
 import { useTicketsStore } from '../stores/tickets';
 import { useAuthStore } from '../stores/auth';
 import Breadcrumbs from '../components/shared/Breadcrumbs.vue';
+import BulkActionsSlideOver from '../components/shared/BulkActionsSlideOver.vue';
 import api from '../api';
 
 const route = useRoute();
@@ -517,6 +560,8 @@ const assignToUserId = ref(null);
 const selectedTickets = ref([]);
 const bulkAssignee = ref(undefined);
 const bulkLoading = ref(false);
+const showBulkSlideOver = ref(false);
+const showBulkAssignAction = ref(false);
 
 // Users with unassign option for bulk operations
 const usersWithUnassign = computed(() => {
@@ -851,6 +896,8 @@ const applyBulkAssign = async () => {
     }
     selectedTickets.value = [];
     bulkAssignee.value = undefined;
+    showBulkSlideOver.value = false;
+    showBulkAssignAction.value = false;
     loadTickets();
   } catch (e) {
     toast.add({ severity: 'error', summary: t('common.error'), detail: e.response?.data?.detail || t('common.error') });
@@ -873,6 +920,7 @@ const applyBulkClose = async () => {
       toast.add({ severity: 'warn', summary: t('common.warning'), detail: t('tickets.bulkClosePartial', { processed: result.processed, failed: result.failed }) });
     }
     selectedTickets.value = [];
+    showBulkSlideOver.value = false;
     loadTickets();
   } catch (e) {
     toast.add({ severity: 'error', summary: t('common.error'), detail: e.response?.data?.detail || t('common.error') });
@@ -910,5 +958,32 @@ onMounted(async () => {
 <style scoped>
 .ticket-detail-dialog :deep(.p-dialog-content) {
   overflow-y: auto;
+}
+
+.action-card {
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-default);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  margin-bottom: 0.75rem;
+}
+
+.action-card:hover {
+  border-color: var(--border-strong);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.action-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, rgba(14, 165, 233, 0.2) 0%, rgba(14, 165, 233, 0.1) 100%);
+}
+
+.action-icon i {
+  color: rgb(14, 165, 233);
 }
 </style>

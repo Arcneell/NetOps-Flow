@@ -79,15 +79,14 @@
           <Dropdown v-model="filterLocation" :options="locationOptions" optionLabel="label" optionValue="id" :placeholder="t('filters.allLocations')" showClear class="w-48" />
         </div>
 
-        <!-- Bulk Actions Bar -->
+        <!-- Bulk Selection Bar -->
         <div v-if="selectedEquipment.length > 0" class="flex items-center gap-3 mb-4 p-3 rounded-lg" style="background-color: var(--bg-app);">
-          <span class="font-medium">{{ selectedEquipment.length }} {{ t('common.selected') }}</span>
+          <div class="flex items-center gap-2">
+            <i class="pi pi-check-square text-sky-500"></i>
+            <span class="font-medium">{{ selectedEquipment.length }} {{ t('common.selected') }}</span>
+          </div>
           <div class="flex-1"></div>
-          <Dropdown v-model="bulkStatus" :options="statusOptions" optionLabel="label" optionValue="value" :placeholder="t('inventory.changeStatus')" class="w-40" />
-          <Button :label="t('common.apply')" icon="pi pi-check" size="small" @click="applyBulkStatus" :disabled="!bulkStatus" />
-          <Dropdown v-model="bulkLocation" :options="locationOptionsWithClear" optionLabel="label" optionValue="id" :placeholder="t('inventory.changeLocation')" class="w-48" />
-          <Button :label="t('common.apply')" icon="pi pi-check" size="small" @click="applyBulkLocation" :disabled="bulkLocation === undefined" />
-          <Button :label="t('common.delete')" icon="pi pi-trash" size="small" severity="danger" @click="confirmBulkDelete" />
+          <Button :label="t('bulk.openBulkActions')" icon="pi pi-list-check" @click="showBulkSlideOver = true" />
           <Button icon="pi pi-times" text rounded size="small" @click="selectedEquipment = []" v-tooltip.top="t('common.clearSelection')" />
         </div>
 
@@ -698,6 +697,68 @@
       :equipmentId="selectedEquipmentId"
       @edit="handleEditFromSlideOver"
     />
+
+    <!-- Bulk Actions Slide-Over -->
+    <BulkActionsSlideOver
+      v-model="showBulkSlideOver"
+      :title="t('bulk.title')"
+      :selectedCount="selectedEquipment.length"
+      @clear-selection="selectedEquipment = []; showBulkSlideOver = false"
+    >
+      <!-- Change Status Action -->
+      <div class="action-card p-4 rounded-xl cursor-pointer" @click="showBulkStatusAction = !showBulkStatusAction">
+        <div class="flex items-center gap-4">
+          <div class="action-icon">
+            <i class="pi pi-sync"></i>
+          </div>
+          <div class="flex-1">
+            <div class="font-semibold">{{ t('bulk.changeStatus') }}</div>
+            <div class="text-sm opacity-60">{{ t('bulk.changeStatusDesc') }}</div>
+          </div>
+          <i :class="['pi transition-transform', showBulkStatusAction ? 'pi-chevron-up' : 'pi-chevron-down']"></i>
+        </div>
+        <div v-if="showBulkStatusAction" class="mt-4 pt-4 border-t" style="border-color: var(--border-default);" @click.stop>
+          <Dropdown v-model="bulkStatus" :options="statusOptions" optionLabel="label" optionValue="value"
+                    :placeholder="t('inventory.changeStatus')" class="w-full mb-3" />
+          <Button :label="t('bulk.applyToAll', { count: selectedEquipment.length })" icon="pi pi-check"
+                  class="w-full" @click="applyBulkStatus" :disabled="!bulkStatus" :loading="bulkLoading" />
+        </div>
+      </div>
+
+      <!-- Change Location Action -->
+      <div class="action-card p-4 rounded-xl cursor-pointer" @click="showBulkLocationAction = !showBulkLocationAction">
+        <div class="flex items-center gap-4">
+          <div class="action-icon" style="background: linear-gradient(135deg, rgba(234, 179, 8, 0.2) 0%, rgba(234, 179, 8, 0.1) 100%);">
+            <i class="pi pi-map-marker text-yellow-500"></i>
+          </div>
+          <div class="flex-1">
+            <div class="font-semibold">{{ t('bulk.changeLocation') }}</div>
+            <div class="text-sm opacity-60">{{ t('bulk.changeLocationDesc') }}</div>
+          </div>
+          <i :class="['pi transition-transform', showBulkLocationAction ? 'pi-chevron-up' : 'pi-chevron-down']"></i>
+        </div>
+        <div v-if="showBulkLocationAction" class="mt-4 pt-4 border-t" style="border-color: var(--border-default);" @click.stop>
+          <Dropdown v-model="bulkLocation" :options="locationOptionsWithClear" optionLabel="label" optionValue="id"
+                    :placeholder="t('inventory.changeLocation')" class="w-full mb-3" />
+          <Button :label="t('bulk.applyToAll', { count: selectedEquipment.length })" icon="pi pi-check"
+                  class="w-full" @click="applyBulkLocation" :disabled="bulkLocation === undefined" :loading="bulkLoading" />
+        </div>
+      </div>
+
+      <!-- Delete Action -->
+      <div class="action-card action-card-danger p-4 rounded-xl cursor-pointer" @click="confirmBulkDelete">
+        <div class="flex items-center gap-4">
+          <div class="action-icon" style="background: linear-gradient(135deg, rgba(239, 68, 68, 0.2) 0%, rgba(239, 68, 68, 0.1) 100%);">
+            <i class="pi pi-trash text-red-500"></i>
+          </div>
+          <div class="flex-1">
+            <div class="font-semibold text-red-500">{{ t('bulk.deleteItems') }}</div>
+            <div class="text-sm opacity-60">{{ t('bulk.deleteItemsDesc') }}</div>
+          </div>
+          <i class="pi pi-chevron-right"></i>
+        </div>
+      </div>
+    </BulkActionsSlideOver>
     </div>
   </div>
 </template>
@@ -711,6 +772,7 @@ import api from '../api';
 import ExpiryBadge from '../components/shared/ExpiryBadge.vue';
 import Breadcrumbs from '../components/shared/Breadcrumbs.vue';
 import EquipmentDetailSlideOver from '../components/shared/EquipmentDetailSlideOver.vue';
+import BulkActionsSlideOver from '../components/shared/BulkActionsSlideOver.vue';
 
 const route = useRoute();
 const router = useRouter();
@@ -761,6 +823,9 @@ const selectedEquipment = ref([]);
 const bulkStatus = ref(null);
 const bulkLocation = ref(undefined);
 const bulkLoading = ref(false);
+const showBulkSlideOver = ref(false);
+const showBulkStatusAction = ref(false);
+const showBulkLocationAction = ref(false);
 
 // Editing states
 const editingEquipment = ref(null);
@@ -1352,6 +1417,7 @@ const executeBulkDelete = async () => {
     }
 
     showBulkDeleteDialog.value = false;
+    showBulkSlideOver.value = false;
     selectedEquipment.value = [];
     loadEquipment();
   } catch (e) {
@@ -1379,6 +1445,8 @@ const applyBulkStatus = async () => {
 
     bulkStatus.value = null;
     selectedEquipment.value = [];
+    showBulkSlideOver.value = false;
+    showBulkStatusAction.value = false;
     loadEquipment();
   } catch (e) {
     toast.add({ severity: 'error', summary: t('common.error'), detail: e.response?.data?.detail || t('common.error') });
@@ -1405,6 +1473,8 @@ const applyBulkLocation = async () => {
 
     bulkLocation.value = undefined;
     selectedEquipment.value = [];
+    showBulkSlideOver.value = false;
+    showBulkLocationAction.value = false;
     loadEquipment();
   } catch (e) {
     toast.add({ severity: 'error', summary: t('common.error'), detail: e.response?.data?.detail || t('common.error') });
@@ -1449,3 +1519,36 @@ onMounted(async () => {
   await loadData();
 });
 </script>
+
+<style scoped>
+.action-card {
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-default);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  margin-bottom: 0.75rem;
+}
+
+.action-card:hover {
+  border-color: var(--border-strong);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.action-card-danger:hover {
+  border-color: rgba(239, 68, 68, 0.5);
+}
+
+.action-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, rgba(14, 165, 233, 0.2) 0%, rgba(14, 165, 233, 0.1) 100%);
+}
+
+.action-icon i {
+  color: rgb(14, 165, 233);
+}
+</style>

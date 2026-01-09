@@ -990,5 +990,29 @@
     "createEquipment": "Create New Equipment",
     "searchSubnets": "Search subnets...",
     "searchIps": "Search IPs..."
+  },
+  "bulk": {
+    "title": "Bulk Actions",
+    "itemsSelected": "{count} items selected",
+    "elementsSelected": "elements selected",
+    "availableActions": "Available Actions",
+    "selectActionAbove": "Select an action to apply to all selected items",
+    "openBulkActions": "Bulk Actions",
+    "changeStatus": "Change Status",
+    "changeStatusDesc": "Update the status of all selected items",
+    "changeLocation": "Change Location",
+    "changeLocationDesc": "Move all selected items to a different location",
+    "deleteItems": "Delete Items",
+    "deleteItemsDesc": "Permanently delete all selected items",
+    "assignTo": "Assign To",
+    "assignToDesc": "Assign all selected items to a user",
+    "closeItems": "Close Items",
+    "closeItemsDesc": "Close all selected resolved items",
+    "releaseItems": "Release Items",
+    "releaseItemsDesc": "Release all selected items (set to available)",
+    "confirmAction": "Confirm Action",
+    "applyToAll": "Apply to {count} items",
+    "actionSuccess": "Action completed successfully",
+    "actionPartial": "{processed} processed, {failed} failed"
   }
 }

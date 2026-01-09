@@ -90,14 +90,14 @@
             />
           </div>
 
-          <!-- Bulk Actions Bar -->
+          <!-- Bulk Selection Bar -->
           <div v-if="selectedIps.length > 0" class="flex items-center gap-3 mb-4 p-3 rounded-lg" style="background-color: var(--bg-secondary);">
-            <span class="font-medium text-sm">{{ selectedIps.length }} {{ t('common.selected') }}</span>
+            <div class="flex items-center gap-2">
+              <i class="pi pi-check-square text-sky-500"></i>
+              <span class="font-medium text-sm">{{ selectedIps.length }} {{ t('common.selected') }}</span>
+            </div>
             <div class="flex-1"></div>
-            <Dropdown v-model="bulkStatus" :options="bulkStatusOptions" optionLabel="label" optionValue="value"
-                      :placeholder="t('ipam.changeStatus')" class="w-40" />
-            <Button :label="t('common.apply')" icon="pi pi-check" size="small" @click="applyBulkStatus" :disabled="!bulkStatus" :loading="bulkLoading" />
-            <Button :label="t('ipam.releaseSelected')" icon="pi pi-undo" size="small" severity="secondary" @click="applyBulkRelease" :loading="bulkLoading" />
+            <Button :label="t('bulk.openBulkActions')" icon="pi pi-list-check" size="small" @click="showBulkDialog = true" />
             <Button icon="pi pi-times" text rounded size="small" @click="selectedIps = []" v-tooltip.top="t('common.clearSelection')" />
           </div>
 
@@ -224,6 +224,65 @@
       </div>
     </template>
   </Dialog>
+
+  <!-- Bulk Actions Dialog -->
+  <Dialog v-model:visible="showBulkDialog" modal :header="t('bulk.title')" :style="{ width: '450px' }">
+    <div class="space-y-4">
+      <!-- Selection Summary -->
+      <div class="p-4 rounded-xl" style="background: var(--bg-secondary); border: 1px solid var(--border-default);">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-lg flex items-center justify-center" style="background: linear-gradient(135deg, rgba(14, 165, 233, 0.2) 0%, rgba(14, 165, 233, 0.1) 100%);">
+            <i class="pi pi-check-square text-sky-500 text-lg"></i>
+          </div>
+          <div>
+            <div class="text-2xl font-bold">{{ selectedIps.length }}</div>
+            <div class="text-sm opacity-60">{{ t('bulk.elementsSelected') }}</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Change Status Action -->
+      <div class="action-card p-4 rounded-xl cursor-pointer" @click="showBulkStatusAction = !showBulkStatusAction">
+        <div class="flex items-center gap-4">
+          <div class="action-icon">
+            <i class="pi pi-sync"></i>
+          </div>
+          <div class="flex-1">
+            <div class="font-semibold">{{ t('bulk.changeStatus') }}</div>
+            <div class="text-sm opacity-60">{{ t('bulk.changeStatusDesc') }}</div>
+          </div>
+          <i :class="['pi transition-transform', showBulkStatusAction ? 'pi-chevron-up' : 'pi-chevron-down']"></i>
+        </div>
+        <div v-if="showBulkStatusAction" class="mt-4 pt-4 border-t" style="border-color: var(--border-default);" @click.stop>
+          <Dropdown v-model="bulkStatus" :options="bulkStatusOptions" optionLabel="label" optionValue="value"
+                    :placeholder="t('ipam.changeStatus')" class="w-full mb-3" />
+          <Button :label="t('bulk.applyToAll', { count: selectedIps.length })" icon="pi pi-check"
+                  class="w-full" @click="applyBulkStatus" :disabled="!bulkStatus" :loading="bulkLoading" />
+        </div>
+      </div>
+
+      <!-- Release Action -->
+      <div class="action-card p-4 rounded-xl cursor-pointer" @click="applyBulkRelease">
+        <div class="flex items-center gap-4">
+          <div class="action-icon" style="background: linear-gradient(135deg, rgba(234, 179, 8, 0.2) 0%, rgba(234, 179, 8, 0.1) 100%);">
+            <i class="pi pi-undo text-yellow-500"></i>
+          </div>
+          <div class="flex-1">
+            <div class="font-semibold">{{ t('bulk.releaseItems') }}</div>
+            <div class="text-sm opacity-60">{{ t('bulk.releaseItemsDesc') }}</div>
+          </div>
+          <i class="pi pi-chevron-right"></i>
+        </div>
+      </div>
+    </div>
+
+    <template #footer>
+      <div class="flex justify-between items-center">
+        <Button :label="t('common.clearSelection')" text size="small" @click="selectedIps = []; showBulkDialog = false" />
+        <Button :label="t('common.close')" severity="secondary" outlined @click="showBulkDialog = false" />
+      </div>
+    </template>
+  </Dialog>
 </template>
 
 <script setup>
@@ -268,6 +327,8 @@ const searchQuery = ref('')
 const selectedIps = ref([])
 const bulkStatus = ref(null)
 const bulkLoading = ref(false)
+const showBulkDialog = ref(false)
+const showBulkStatusAction = ref(false)
 
 const bulkStatusOptions = computed(() => [
   { label: t('status.available'), value: 'available' },
@@ -473,6 +534,8 @@ const applyBulkStatus = async () => {
     }
     selectedIps.value = []
     bulkStatus.value = null
+    showBulkDialog.value = false
+    showBulkStatusAction.value = false
     await loadIps()
     emit('refresh')
   } catch (error) {
@@ -496,6 +559,7 @@ const applyBulkRelease = async () => {
       toast.add({ severity: 'warn', summary: t('common.warning'), detail: t('ipam.bulkReleasePartial', { processed: result.processed, failed: result.failed }), life: 3000 })
     }
     selectedIps.value = []
+    showBulkDialog.value = false
     await loadIps()
     emit('refresh')
   } catch (error) {
@@ -513,6 +577,8 @@ watch(() => [props.modelValue, props.subnetId], ([isVisible, id]) => {
     searchQuery.value = ''
     selectedIps.value = []
     bulkStatus.value = null
+    showBulkDialog.value = false
+    showBulkStatusAction.value = false
     loadSubnetDetails()
   }
 }, { immediate: true })
@@ -593,5 +659,30 @@ watch(() => [props.modelValue, props.subnetId], ([isVisible, id]) => {
 
 .text-muted {
   color: var(--text-muted);
+}
+
+.action-card {
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-default);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.action-card:hover {
+  border-color: var(--border-strong);
+  background-color: var(--bg-hover);
+}
+
+.action-card.danger:hover {
+  border-color: rgb(239 68 68 / 0.5);
+  background-color: rgb(239 68 68 / 0.1);
+}
+
+.action-card.danger:hover .action-icon {
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.3) 0%, rgba(239, 68, 68, 0.2) 100%);
+}
+
+.action-icon {
+  background: linear-gradient(135deg, rgba(14, 165, 233, 0.2) 0%, rgba(14, 165, 233, 0.1) 100%);
+  transition: all 0.2s ease;
 }
 </style>
