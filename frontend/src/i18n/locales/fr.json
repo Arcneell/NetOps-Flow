@@ -467,7 +467,10 @@
     "clearSelection": "Effacer la sélection",
     "actionIrreversible": "Cette action est irréversible.",
     "search": "Rechercher...",
-    "other": "Autre"
+    "other": "Autre",
+    "icon": "Icône",
+    "color": "Couleur",
+    "description": "Description"
   },
   "dcim": {
     "title": "DCIM",
@@ -796,7 +799,18 @@
     "categoryHowTo": "Guide pratique",
     "categoryFaq": "FAQ",
     "categoryPolicy": "Politique",
-    "categoryDocumentation": "Documentation"
+    "categoryDocumentation": "Documentation",
+    "manageCategories": "Gérer les Catégories",
+    "addCategory": "Ajouter une Catégorie",
+    "editCategory": "Modifier la Catégorie",
+    "existingCategories": "Catégories Existantes",
+    "noCategoriesYet": "Aucune catégorie créée",
+    "categoryName": "Nom de la catégorie",
+    "categoryCreated": "Catégorie créée avec succès",
+    "categoryUpdated": "Catégorie mise à jour avec succès",
+    "categoryDeleted": "Catégorie supprimée avec succès",
+    "cannotDeleteWithArticles": "Impossible de supprimer une catégorie contenant des articles",
+    "selectCategory": "Sélectionner une catégorie"
   },
   "admin": {
     "title": "Administration",

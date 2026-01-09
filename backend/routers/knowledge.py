@@ -1,6 +1,7 @@
 """
 Knowledge Base Router for self-service articles and documentation.
 Provides article management with search and feedback functionality.
+Includes dynamic category management for organizing articles.
 """
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session, joinedload
@@ -17,6 +18,145 @@ from backend import models, schemas
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/knowledge", tags=["knowledge"])
+
+
+# ==================== CATEGORY ENDPOINTS ====================
+
+@router.get("/categories", response_model=List[schemas.KnowledgeCategory])
+def list_categories(
+    include_inactive: bool = False,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    """List all knowledge base categories."""
+    query = db.query(models.KnowledgeCategory)
+
+    if not include_inactive:
+        query = query.filter(models.KnowledgeCategory.is_active == True)
+
+    categories = query.order_by(
+        models.KnowledgeCategory.display_order,
+        models.KnowledgeCategory.name
+    ).all()
+
+    return categories
+
+
+@router.post("/categories", response_model=schemas.KnowledgeCategory)
+def create_category(
+    category_data: schemas.KnowledgeCategoryCreate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    """Create a new knowledge base category (admin only)."""
+    if not can_manage_knowledge(current_user):
+        raise HTTPException(status_code=403, detail="Admin access required")
+
+    # Check for duplicate name
+    existing = db.query(models.KnowledgeCategory).filter(
+        models.KnowledgeCategory.name == category_data.name
+    ).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="Category with this name already exists")
+
+    category = models.KnowledgeCategory(**category_data.model_dump())
+    db.add(category)
+    db.commit()
+    db.refresh(category)
+
+    logger.info(f"Knowledge category '{category.name}' created by {current_user.username}")
+    return category
+
+
+@router.get("/categories/{category_id}", response_model=schemas.KnowledgeCategory)
+def get_category(
+    category_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    """Get a specific category by ID."""
+    category = db.query(models.KnowledgeCategory).filter(
+        models.KnowledgeCategory.id == category_id
+    ).first()
+
+    if not category:
+        raise HTTPException(status_code=404, detail="Category not found")
+
+    return category
+
+
+@router.put("/categories/{category_id}", response_model=schemas.KnowledgeCategory)
+def update_category(
+    category_id: int,
+    category_data: schemas.KnowledgeCategoryUpdate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    """Update a knowledge base category (admin only)."""
+    if not can_manage_knowledge(current_user):
+        raise HTTPException(status_code=403, detail="Admin access required")
+
+    category = db.query(models.KnowledgeCategory).filter(
+        models.KnowledgeCategory.id == category_id
+    ).first()
+
+    if not category:
+        raise HTTPException(status_code=404, detail="Category not found")
+
+    # Check for duplicate name if name is being changed
+    update_data = category_data.model_dump(exclude_unset=True)
+    if "name" in update_data and update_data["name"] != category.name:
+        existing = db.query(models.KnowledgeCategory).filter(
+            models.KnowledgeCategory.name == update_data["name"],
+            models.KnowledgeCategory.id != category_id
+        ).first()
+        if existing:
+            raise HTTPException(status_code=400, detail="Category with this name already exists")
+
+    for field, value in update_data.items():
+        setattr(category, field, value)
+
+    db.commit()
+    db.refresh(category)
+
+    logger.info(f"Knowledge category '{category.name}' updated by {current_user.username}")
+    return category
+
+
+@router.delete("/categories/{category_id}")
+def delete_category(
+    category_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    """Delete a knowledge base category (admin only)."""
+    if not can_manage_knowledge(current_user):
+        raise HTTPException(status_code=403, detail="Admin access required")
+
+    category = db.query(models.KnowledgeCategory).filter(
+        models.KnowledgeCategory.id == category_id
+    ).first()
+
+    if not category:
+        raise HTTPException(status_code=404, detail="Category not found")
+
+    # Check if there are articles using this category
+    article_count = db.query(models.KnowledgeArticle).filter(
+        models.KnowledgeArticle.category_id == category_id
+    ).count()
+
+    if article_count > 0:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot delete category with {article_count} article(s). Move articles to another category first."
+        )
+
+    name = category.name
+    db.delete(category)
+    db.commit()
+
+    logger.info(f"Knowledge category '{name}' deleted by {current_user.username}")
+    return {"message": f"Category '{name}' deleted"}
 
 
 def can_manage_knowledge(user: models.User) -> bool:
@@ -53,6 +193,7 @@ def generate_slug(title: str, db: Session, existing_id: int = None) -> str:
 @router.get("/articles", response_model=schemas.PaginatedKnowledgeResponse)
 def list_articles(
     category: Optional[str] = None,
+    category_id: Optional[int] = None,
     tag: Optional[str] = None,
     search: Optional[str] = None,
     published_only: bool = True,
@@ -62,7 +203,9 @@ def list_articles(
     current_user: models.User = Depends(get_current_user)
 ):
     """List knowledge base articles with pagination."""
-    query = db.query(models.KnowledgeArticle)
+    query = db.query(models.KnowledgeArticle).options(
+        joinedload(models.KnowledgeArticle.category_rel)
+    )
 
     # Entity filtering for non-privileged users
     if not can_manage_knowledge(current_user) and current_user.entity_id:
@@ -81,8 +224,11 @@ def list_articles(
     if not can_manage_knowledge(current_user):
         query = query.filter(models.KnowledgeArticle.is_internal == False)
 
-    # Category filter
-    if category:
+    # Category filter - support both category_id and legacy category string
+    if category_id:
+        query = query.filter(models.KnowledgeArticle.category_id == category_id)
+    elif category:
+        # Legacy: filter by string category name
         query = query.filter(models.KnowledgeArticle.category == category)
 
     # Tag filter (JSON array contains)
@@ -118,6 +264,8 @@ def list_articles(
             slug=a.slug,
             summary=a.summary,
             category=a.category,
+            category_id=a.category_id,
+            category_name=a.category_rel.name if a.category_rel else None,
             is_published=a.is_published,
             is_internal=a.is_internal,
             view_count=a.view_count,
@@ -153,7 +301,9 @@ def get_popular_articles(
     current_user: models.User = Depends(get_current_user)
 ):
     """Get most viewed articles."""
-    query = db.query(models.KnowledgeArticle).filter(
+    query = db.query(models.KnowledgeArticle).options(
+        joinedload(models.KnowledgeArticle.category_rel)
+    ).filter(
         models.KnowledgeArticle.is_published == True
     )
 
@@ -171,6 +321,8 @@ def get_popular_articles(
             slug=a.slug,
             summary=a.summary,
             category=a.category,
+            category_id=a.category_id,
+            category_name=a.category_rel.name if a.category_rel else None,
             is_published=a.is_published,
             view_count=a.view_count,
             created_at=a.created_at
@@ -187,7 +339,8 @@ def get_article(
     """Get article by slug."""
     article = db.query(models.KnowledgeArticle).options(
         joinedload(models.KnowledgeArticle.author),
-        joinedload(models.KnowledgeArticle.last_editor)
+        joinedload(models.KnowledgeArticle.last_editor),
+        joinedload(models.KnowledgeArticle.category_rel)
     ).filter(models.KnowledgeArticle.slug == slug).first()
 
     if not article:
@@ -216,6 +369,8 @@ def get_article(
         content=article.content,
         summary=article.summary,
         category=article.category,
+        category_id=article.category_id,
+        category_name=article.category_rel.name if article.category_rel else None,
         tags=article.tags or [],
         is_published=article.is_published,
         is_internal=article.is_internal,
@@ -279,6 +434,7 @@ def create_article(
         content=article_data.content,
         summary=article_data.summary,
         category=article_data.category,
+        category_id=article_data.category_id,
         tags=article_data.tags,
         is_published=article_data.is_published,
         is_internal=article_data.is_internal,
@@ -291,8 +447,23 @@ def create_article(
     db.commit()
     db.refresh(article)
 
+    # Update category article count
+    if article.category_id:
+        _update_category_article_count(db, article.category_id)
+
     logger.info(f"Knowledge article '{article.title}' created by {current_user.username}")
     return article
+
+
+def _update_category_article_count(db: Session, category_id: int):
+    """Update the article_count for a category."""
+    count = db.query(models.KnowledgeArticle).filter(
+        models.KnowledgeArticle.category_id == category_id
+    ).count()
+    db.query(models.KnowledgeCategory).filter(
+        models.KnowledgeCategory.id == category_id
+    ).update({"article_count": count})
+    db.commit()
 
 
 @router.put("/articles/{article_id}", response_model=schemas.KnowledgeArticle)
@@ -315,6 +486,10 @@ def update_article(
 
     update_data = article_data.model_dump(exclude_unset=True)
 
+    # Track category changes for count update
+    old_category_id = article.category_id
+    new_category_id = update_data.get("category_id", old_category_id)
+
     # Regenerate slug if title changed
     if "title" in update_data:
         update_data["slug"] = generate_slug(update_data["title"], db, article_id)
@@ -332,6 +507,13 @@ def update_article(
 
     db.commit()
     db.refresh(article)
+
+    # Update category article counts if category changed
+    if old_category_id != new_category_id:
+        if old_category_id:
+            _update_category_article_count(db, old_category_id)
+        if new_category_id:
+            _update_category_article_count(db, new_category_id)
 
     logger.info(f"Knowledge article '{article.title}' updated by {current_user.username}")
     return article
@@ -355,8 +537,13 @@ def delete_article(
         raise HTTPException(status_code=404, detail="Article not found")
 
     title = article.title
+    category_id = article.category_id
     db.delete(article)
     db.commit()
+
+    # Update category article count
+    if category_id:
+        _update_category_article_count(db, category_id)
 
     logger.info(f"Knowledge article '{title}' deleted by {current_user.username}")
     return {"message": f"Article '{title}' deleted"}

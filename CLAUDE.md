@@ -233,7 +233,8 @@ frontend/src/utils/
 
 ### Base de Connaissances
 - Articles avec éditeur Markdown
-- Catégorisation et tags
+- **Catégories dynamiques** : Création/modification/suppression depuis l'interface web
+- Tags libres pour classification additionnelle
 - Recherche full-text (titre, contenu, résumé)
 - URL basée sur slug unique
 - Système de feedback (helpful/not helpful)
@@ -242,6 +243,7 @@ frontend/src/utils/
 - Workflow publication : brouillon → publié
 - Articles internes (admin/tech uniquement)
 - Articles populaires (top vues)
+- Interface de gestion des catégories avec icône et couleur personnalisables
 
 ### Notifications In-App
 - Cloche de notification dans le header
@@ -484,7 +486,8 @@ En production, les secrets peuvent être lus depuis des fichiers via les variabl
 - `ticket_attachments` - Pièces jointes par ticket
 - `notifications` - Notifications in-app (type, lu/non-lu, lien ressource)
 - `system_settings` - Paramètres système (key, value JSON, category, is_sensitive)
-- `knowledge_articles` - Articles base de connaissances (slug, versioning, feedback)
+- `knowledge_categories` - Catégories de la base de connaissances (nom, icône, couleur, article_count)
+- `knowledge_articles` - Articles base de connaissances (slug, versioning, feedback, category_id FK)
 - `sla_policies` - Politiques SLA configurables par priorité (+ heures ouvrées)
 - `webhooks` - Configuration webhooks externes (events, url, secret HMAC)
 - `webhook_deliveries` - Logs de livraison webhooks (status, response, retries)
@@ -569,13 +572,15 @@ En production, les secrets peuvent être lus depuis des fichiers via les variabl
 | /api/v1/notifications/read-all | POST | Marquer tous comme lus |
 | /api/v1/notifications/delete-read | DELETE | Supprimer les lus |
 | /api/v1/notifications/broadcast | POST | Broadcast admin |
+| /api/v1/knowledge/categories | GET/POST | Liste/Créer catégories KB |
+| /api/v1/knowledge/categories/{id} | GET/PUT/DELETE | Détail/Modifier/Supprimer catégorie |
 | /api/v1/knowledge/articles | GET/POST | Liste/Créer articles KB |
 | /api/v1/knowledge/articles/{slug} | GET | Article par slug |
 | /api/v1/knowledge/articles/{id} | PUT/DELETE | Modifier/Supprimer article |
 | /api/v1/knowledge/articles/{id}/feedback | POST | Feedback article |
 | /api/v1/knowledge/articles/{id}/publish | POST | Publier article |
 | /api/v1/knowledge/articles/{id}/unpublish | POST | Dépublier article |
-| /api/v1/knowledge/articles/categories | GET | Liste catégories |
+| /api/v1/knowledge/articles/categories | GET | Liste catégories (legacy) |
 | /api/v1/knowledge/articles/popular | GET | Articles populaires |
 | /api/v1/export/equipment | GET | Export CSV équipements |
 | /api/v1/export/tickets | GET | Export CSV tickets |

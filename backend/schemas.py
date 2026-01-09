@@ -904,11 +904,45 @@ class NotificationCount(BaseModel):
 
 # ==================== KNOWLEDGE BASE SCHEMAS ====================
 
+# --- Knowledge Category ---
+class KnowledgeCategoryBase(BaseModel):
+    name: str = Field(..., min_length=1, max_length=100)
+    description: Optional[str] = None
+    icon: str = Field("pi-folder", max_length=50)
+    color: str = Field("#0ea5e9", max_length=20)
+    is_active: bool = True
+    display_order: int = 0
+
+
+class KnowledgeCategoryCreate(KnowledgeCategoryBase):
+    pass
+
+
+class KnowledgeCategoryUpdate(BaseModel):
+    name: Optional[str] = Field(None, min_length=1, max_length=100)
+    description: Optional[str] = None
+    icon: Optional[str] = Field(None, max_length=50)
+    color: Optional[str] = Field(None, max_length=20)
+    is_active: Optional[bool] = None
+    display_order: Optional[int] = None
+
+
+class KnowledgeCategory(KnowledgeCategoryBase):
+    id: int
+    article_count: int = 0
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
 class KnowledgeArticleBase(BaseModel):
     title: str
     content: str
     summary: Optional[str] = None
-    category: Optional[str] = None
+    category: Optional[str] = None  # Legacy string category (deprecated)
+    category_id: Optional[int] = None  # New foreign key to KnowledgeCategory
     tags: List[str] = Field(default_factory=list)
     is_published: bool = False
     is_internal: bool = False
@@ -922,7 +956,8 @@ class KnowledgeArticleUpdate(BaseModel):
     title: Optional[str] = None
     content: Optional[str] = None
     summary: Optional[str] = None
-    category: Optional[str] = None
+    category: Optional[str] = None  # Legacy
+    category_id: Optional[int] = None
     tags: Optional[List[str]] = None
     is_published: Optional[bool] = None
     is_internal: Optional[bool] = None
@@ -952,7 +987,9 @@ class KnowledgeArticleBrief(BaseModel):
     title: str
     slug: str
     summary: Optional[str] = None
-    category: Optional[str] = None
+    category: Optional[str] = None  # Legacy
+    category_id: Optional[int] = None
+    category_name: Optional[str] = None  # From KnowledgeCategory relationship
     is_published: bool
     is_internal: bool = False
     view_count: int
@@ -974,6 +1011,7 @@ class KnowledgeArticleFull(KnowledgeArticle):
     """Article with author info"""
     author_name: Optional[str] = None
     last_editor_name: Optional[str] = None
+    category_name: Optional[str] = None  # From KnowledgeCategory relationship
 
 
 class KnowledgeArticleFeedback(BaseModel):

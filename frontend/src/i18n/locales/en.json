@@ -467,7 +467,10 @@
     "clearSelection": "Clear selection",
     "actionIrreversible": "This action is irreversible.",
     "search": "Search...",
-    "other": "Other"
+    "other": "Other",
+    "icon": "Icon",
+    "color": "Color",
+    "description": "Description"
   },
   "dcim": {
     "title": "DCIM",
@@ -796,7 +799,18 @@
     "categoryHowTo": "How-to",
     "categoryFaq": "FAQ",
     "categoryPolicy": "Policy",
-    "categoryDocumentation": "Documentation"
+    "categoryDocumentation": "Documentation",
+    "manageCategories": "Manage Categories",
+    "addCategory": "Add Category",
+    "editCategory": "Edit Category",
+    "existingCategories": "Existing Categories",
+    "noCategoriesYet": "No categories created yet",
+    "categoryName": "Category name",
+    "categoryCreated": "Category created successfully",
+    "categoryUpdated": "Category updated successfully",
+    "categoryDeleted": "Category deleted successfully",
+    "cannotDeleteWithArticles": "Cannot delete category with articles",
+    "selectCategory": "Select a category"
   },
   "admin": {
     "title": "Administration",

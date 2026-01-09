@@ -793,6 +793,28 @@ class Notification(Base):
 
 # ==================== KNOWLEDGE BASE MODELS ====================
 
+class KnowledgeCategory(Base):
+    """
+    Categories for organizing knowledge base articles.
+    User-created and manageable from the web interface.
+    """
+    __tablename__ = "knowledge_categories"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, unique=True, nullable=False, index=True)
+    description = Column(Text, nullable=True)
+    icon = Column(String, default="pi-folder")  # PrimeIcons class
+    color = Column(String, default="#0ea5e9")  # Accent color for UI
+    is_active = Column(Boolean, default=True, index=True)
+    display_order = Column(Integer, default=0)  # For custom sorting
+    article_count = Column(Integer, default=0)  # Cached count for performance
+    created_at = Column(DateTime, default=utc_now)
+    updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
+
+    # Relationships
+    articles = relationship("KnowledgeArticle", back_populates="category_rel")
+
+
 class KnowledgeArticle(Base):
     """
     Knowledge base articles for self-service and technician reference.
@@ -806,7 +828,8 @@ class KnowledgeArticle(Base):
     summary = Column(Text, nullable=True)  # Short description for search results
 
     # Classification
-    category = Column(String, nullable=True, index=True)  # troubleshooting, how-to, faq, policy
+    category = Column(String, nullable=True, index=True)  # Legacy string category (deprecated)
+    category_id = Column(Integer, ForeignKey("knowledge_categories.id", ondelete="SET NULL"), nullable=True, index=True)
     tags = Column(JSONB, default=[])  # ["network", "vpn", "connectivity"] - JSONB for GIN index
 
     # Visibility
@@ -836,6 +859,7 @@ class KnowledgeArticle(Base):
     author = relationship("User", foreign_keys=[author_id], backref="authored_articles")
     last_editor = relationship("User", foreign_keys=[last_editor_id])
     entity = relationship("Entity", backref="knowledge_articles")
+    category_rel = relationship("KnowledgeCategory", back_populates="articles")
 
     # GIN index for JSON tags column (fast tag-based searches)
     __table_args__ = (

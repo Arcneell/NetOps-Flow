@@ -20,18 +20,28 @@
 
         <!-- Categories -->
         <div class="mb-4">
-          <h4 class="text-sm font-semibold opacity-70 mb-2">{{ t('knowledge.categories') }}</h4>
+          <div class="flex justify-between items-center mb-2">
+            <h4 class="text-sm font-semibold opacity-70">{{ t('knowledge.categories') }}</h4>
+            <Button v-if="canManageKnowledge" icon="pi pi-cog" text rounded size="small"
+                    v-tooltip="t('knowledge.manageCategories')" @click="showCategoryDialog = true" />
+          </div>
           <div class="space-y-1">
-            <div v-for="cat in categories" :key="cat"
-                 class="p-2 rounded-lg cursor-pointer transition-all hover:translate-x-1"
-                 :class="selectedCategory === cat ? 'bg-sky-500/20 text-sky-400' : 'hover:bg-white/5'"
-                 @click="selectCategory(cat)">
-              {{ cat }}
+            <div v-for="cat in categories" :key="cat.id"
+                 class="p-2 rounded-lg cursor-pointer transition-all hover:translate-x-1 flex items-center gap-2"
+                 :class="selectedCategoryId === cat.id ? 'bg-sky-500/20 text-sky-400' : 'hover:bg-white/5'"
+                 @click="selectCategory(cat.id)">
+              <i :class="cat.icon || 'pi pi-folder'" :style="{ color: cat.color }"></i>
+              <span class="flex-1">{{ cat.name }}</span>
+              <span class="text-xs opacity-50">({{ cat.article_count }})</span>
             </div>
-            <div v-if="selectedCategory"
+            <div v-if="selectedCategoryId"
                  class="p-2 rounded-lg cursor-pointer text-sm opacity-50 hover:opacity-100"
                  @click="selectCategory(null)">
               {{ t('filters.allCategories') }}
+            </div>
+            <div v-if="categories.length === 0 && canManageKnowledge"
+                 class="text-sm opacity-50 text-center py-2">
+              {{ t('knowledge.noCategoriesYet') }}
             </div>
           </div>
         </div>
@@ -82,7 +92,7 @@
               </div>
               <p v-if="article.summary" class="text-sm opacity-70 mb-3 line-clamp-2">{{ article.summary }}</p>
               <div class="flex justify-between items-center text-xs opacity-50">
-                <span v-if="article.category" class="bg-white/10 px-2 py-1 rounded">{{ article.category }}</span>
+                <span v-if="article.category_name || article.category" class="bg-white/10 px-2 py-1 rounded">{{ article.category_name || article.category }}</span>
                 <span>{{ formatDate(article.created_at) }}</span>
               </div>
             </div>
@@ -129,7 +139,7 @@
         </div>
 
         <div class="flex gap-2 mb-4">
-          <Tag v-if="selectedArticle.category" :value="selectedArticle.category" />
+          <Tag v-if="selectedArticle.category_name || selectedArticle.category" :value="selectedArticle.category_name || selectedArticle.category" />
           <Tag v-for="tag in selectedArticle.tags" :key="tag" :value="tag" severity="secondary" />
         </div>
 
@@ -169,7 +179,7 @@
         <div class="grid grid-cols-2 gap-4">
           <div>
             <label class="block text-sm font-medium mb-1">{{ t('knowledge.category') }}</label>
-            <Dropdown v-model="articleForm.category" :options="categoryOptions" optionLabel="label" optionValue="value" class="w-full" editable showClear />
+            <Dropdown v-model="articleForm.category_id" :options="categoryOptions" optionLabel="name" optionValue="id" class="w-full" showClear :placeholder="t('knowledge.selectCategory')" />
           </div>
           <div>
             <label class="block text-sm font-medium mb-1">{{ t('knowledge.tags') }}</label>
@@ -196,6 +206,67 @@
           <Button :label="t('common.cancel')" severity="secondary" outlined @click="showArticleDialog = false" />
           <Button :label="t('common.save')" icon="pi pi-check" @click="saveArticle" :loading="saving" />
         </div>
+      </template>
+    </Dialog>
+
+    <!-- Category Management Dialog -->
+    <Dialog v-model:visible="showCategoryDialog" modal :header="t('knowledge.manageCategories')" :style="{ width: '600px' }">
+      <div class="space-y-4">
+        <!-- Add new category form -->
+        <div class="p-4 rounded-lg" style="background-color: var(--bg-app);">
+          <h4 class="font-semibold mb-3">{{ editingCategory ? t('knowledge.editCategory') : t('knowledge.addCategory') }}</h4>
+          <div class="grid grid-cols-2 gap-4 mb-3">
+            <div>
+              <label class="block text-sm font-medium mb-1">{{ t('common.name') }} <span class="text-red-500">*</span></label>
+              <InputText v-model="categoryForm.name" class="w-full" :placeholder="t('knowledge.categoryName')" />
+            </div>
+            <div>
+              <label class="block text-sm font-medium mb-1">{{ t('common.icon') }}</label>
+              <InputText v-model="categoryForm.icon" class="w-full" placeholder="pi-folder" />
+            </div>
+          </div>
+          <div class="grid grid-cols-2 gap-4 mb-3">
+            <div>
+              <label class="block text-sm font-medium mb-1">{{ t('common.description') }}</label>
+              <InputText v-model="categoryForm.description" class="w-full" />
+            </div>
+            <div>
+              <label class="block text-sm font-medium mb-1">{{ t('common.color') }}</label>
+              <div class="flex gap-2">
+                <InputText v-model="categoryForm.color" class="w-full" placeholder="#0ea5e9" />
+                <div class="w-10 h-10 rounded border flex-shrink-0" :style="{ backgroundColor: categoryForm.color }"></div>
+              </div>
+            </div>
+          </div>
+          <div class="flex justify-end gap-2">
+            <Button v-if="editingCategory" :label="t('common.cancel')" size="small" severity="secondary" outlined @click="resetCategoryForm" />
+            <Button :label="editingCategory ? t('common.update') : t('common.add')" size="small" icon="pi pi-check" @click="saveCategory" :loading="savingCategory" />
+          </div>
+        </div>
+
+        <!-- Existing categories list -->
+        <div>
+          <h4 class="font-semibold mb-3">{{ t('knowledge.existingCategories') }}</h4>
+          <div v-if="categories.length === 0" class="text-center py-4 opacity-50">
+            {{ t('knowledge.noCategoriesYet') }}
+          </div>
+          <div v-else class="space-y-2">
+            <div v-for="cat in categories" :key="cat.id"
+                 class="flex items-center gap-3 p-3 rounded-lg transition-all"
+                 style="background-color: var(--bg-app);">
+              <i :class="cat.icon || 'pi pi-folder'" :style="{ color: cat.color }"></i>
+              <span class="flex-1 font-medium">{{ cat.name }}</span>
+              <span class="text-sm opacity-50">{{ cat.article_count }} {{ t('knowledge.articles') }}</span>
+              <Button icon="pi pi-pencil" text rounded size="small" @click="editCategory(cat)" />
+              <Button icon="pi pi-trash" text rounded size="small" severity="danger"
+                      :disabled="cat.article_count > 0" v-tooltip="cat.article_count > 0 ? t('knowledge.cannotDeleteWithArticles') : ''"
+                      @click="confirmDeleteCategory(cat)" />
+            </div>
+          </div>
+        </div>
+      </div>
+      <template #footer>
+        <Button :label="t('common.close')" severity="secondary" @click="showCategoryDialog = false" />
       </template>
     </Dialog>
     </div>
@@ -227,10 +298,21 @@ const popularArticles = ref([]);
 const categories = ref([]);
 const selectedArticle = ref(null);
 const searchQuery = ref('');
-const selectedCategory = ref(null);
+const selectedCategoryId = ref(null);
 const showDrafts = ref(false);
 const feedbackSubmitted = ref(false);
 const saving = ref(false);
+
+// Category management state
+const showCategoryDialog = ref(false);
+const editingCategory = ref(null);
+const savingCategory = ref(false);
+const categoryForm = ref({
+  name: '',
+  description: '',
+  icon: 'pi pi-folder',
+  color: '#0ea5e9'
+});
 
 // Pagination state
 const articlesTotal = ref(0);
@@ -245,19 +327,14 @@ const articleForm = ref({
   title: '',
   summary: '',
   content: '',
-  category: null,
+  category_id: null,
   tags: [],
   is_published: false,
   is_internal: false
 });
 
-const categoryOptions = computed(() => [
-  { label: t('knowledge.categoryTroubleshooting'), value: 'troubleshooting' },
-  { label: t('knowledge.categoryHowTo'), value: 'how-to' },
-  { label: t('knowledge.categoryFaq'), value: 'faq' },
-  { label: t('knowledge.categoryPolicy'), value: 'policy' },
-  { label: t('knowledge.categoryDocumentation'), value: 'documentation' }
-]);
+// Category options from API
+const categoryOptions = computed(() => categories.value);
 
 // Computed - Check if user can manage knowledge (tech with permission, admin, superadmin)
 const canManageKnowledge = computed(() => {
@@ -296,7 +373,7 @@ const loadArticles = async (loadMore = false) => {
       params.append('skip', articles.value.length);
     }
     if (searchQuery.value) params.append('search', searchQuery.value);
-    if (selectedCategory.value) params.append('category', selectedCategory.value);
+    if (selectedCategoryId.value) params.append('category_id', selectedCategoryId.value);
     if (!showDrafts.value) params.append('published_only', 'true');
 
     const response = await api.get(`/knowledge/articles?${params}`);
@@ -331,15 +408,15 @@ const loadPopularArticles = async () => {
 
 const loadCategories = async () => {
   try {
-    const response = await api.get('/knowledge/articles/categories');
+    const response = await api.get('/knowledge/categories');
     categories.value = response.data;
   } catch {
     // Silent fail - non-critical data
   }
 };
 
-const selectCategory = (cat) => {
-  selectedCategory.value = cat;
+const selectCategory = (categoryId) => {
+  selectedCategoryId.value = categoryId;
   articles.value = []; // Reset for new category
   loadArticles();
 };
@@ -366,7 +443,7 @@ const openArticleDialog = (article = null) => {
       title: article.title,
       summary: article.summary || '',
       content: article.content,
-      category: article.category,
+      category_id: article.category_id,
       tags: article.tags || [],
       is_published: article.is_published,
       is_internal: article.is_internal
@@ -376,7 +453,7 @@ const openArticleDialog = (article = null) => {
       title: '',
       summary: '',
       content: '',
-      category: null,
+      category_id: null,
       tags: [],
       is_published: false,
       is_internal: false
@@ -462,6 +539,61 @@ const submitFeedback = async (helpful) => {
     }
   } catch {
     // Silent fail - feedback is non-critical
+  }
+};
+
+// Category management functions
+const resetCategoryForm = () => {
+  editingCategory.value = null;
+  categoryForm.value = {
+    name: '',
+    description: '',
+    icon: 'pi pi-folder',
+    color: '#0ea5e9'
+  };
+};
+
+const editCategory = (cat) => {
+  editingCategory.value = cat;
+  categoryForm.value = {
+    name: cat.name,
+    description: cat.description || '',
+    icon: cat.icon || 'pi pi-folder',
+    color: cat.color || '#0ea5e9'
+  };
+};
+
+const saveCategory = async () => {
+  if (!categoryForm.value.name) {
+    toast.add({ severity: 'warn', summary: t('validation.error'), detail: t('validation.fillRequiredFields') });
+    return;
+  }
+  savingCategory.value = true;
+  try {
+    if (editingCategory.value) {
+      await api.put(`/knowledge/categories/${editingCategory.value.id}`, categoryForm.value);
+      toast.add({ severity: 'success', summary: t('common.success'), detail: t('knowledge.categoryUpdated') });
+    } else {
+      await api.post('/knowledge/categories', categoryForm.value);
+      toast.add({ severity: 'success', summary: t('common.success'), detail: t('knowledge.categoryCreated') });
+    }
+    resetCategoryForm();
+    loadCategories();
+  } catch (e) {
+    toast.add({ severity: 'error', summary: t('common.error'), detail: e.response?.data?.detail || t('common.error') });
+  } finally {
+    savingCategory.value = false;
+  }
+};
+
+const confirmDeleteCategory = async (cat) => {
+  if (!confirm(t('common.confirmDeleteItem'))) return;
+  try {
+    await api.delete(`/knowledge/categories/${cat.id}`);
+    toast.add({ severity: 'success', summary: t('common.deleted'), detail: t('knowledge.categoryDeleted') });
+    loadCategories();
+  } catch (e) {
+    toast.add({ severity: 'error', summary: t('common.error'), detail: e.response?.data?.detail });
   }
 };
 
