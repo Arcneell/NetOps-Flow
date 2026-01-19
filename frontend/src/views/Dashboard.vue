@@ -11,6 +11,16 @@
       </div>
     </div>
 
+    <!-- État de chargement des données -->
+    <div v-if="dashboardLoading" class="dashboard-loading-block" role="status" aria-live="polite">
+      <div class="dashboard-loading-inner">
+        <i class="pi pi-spin pi-spinner dashboard-loading-spinner" aria-hidden="true"></i>
+        <span class="dashboard-loading-text">{{ t('dashboard.loading') }}</span>
+      </div>
+    </div>
+
+    <!-- Contenu (alertes, stats, tickets, etc.) -->
+    <template v-else>
     <!-- Alert Banner (if critical alerts exist) - Admin only -->
     <div v-if="isAdmin && criticalAlerts.length > 0 && !bannerDismissed" class="alert-banner rounded-xl p-4">
       <div class="flex items-center gap-3">
@@ -503,6 +513,7 @@
         </router-link>
       </div>
     </div>
+    </template>
   </div>
 </template>
 
@@ -547,6 +558,7 @@ const alertsSection = ref(null);
 const lastRefresh = ref('');
 const bannerDismissed = ref(false);
 const dismissedAlerts = ref([]);
+const dashboardLoading = ref(true);
 
 const username = computed(() => {
   const userStr = localStorage.getItem('user');
@@ -737,6 +749,7 @@ const saveDismissedAlerts = () => {
 };
 
 const loadDashboard = async () => {
+  dashboardLoading.value = true;
   try {
     // Load ticket stats for all users
     const ticketStatsRes = await api.get('/tickets/stats');
@@ -762,6 +775,8 @@ const loadDashboard = async () => {
     lastRefresh.value = new Date().toLocaleTimeString();
   } catch {
     // Error handled by API interceptor
+  } finally {
+    dashboardLoading.value = false;
   }
 };
 
@@ -781,6 +796,34 @@ onMounted(() => {
 </script>
 
 <style scoped>
+.dashboard-loading-block {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 280px;
+  border-radius: var(--radius-xl);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-default);
+}
+
+.dashboard-loading-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+}
+
+.dashboard-loading-spinner {
+  font-size: 2rem;
+  color: var(--primary);
+}
+
+.dashboard-loading-text {
+  font-size: 0.9375rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
 .alert-banner {
   background: linear-gradient(135deg, #dc2626 0%, #ea580c 50%, #dc2626 100%);
   border: 1px solid rgba(239, 68, 68, 0.5);

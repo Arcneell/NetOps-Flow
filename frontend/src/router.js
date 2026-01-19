@@ -5,6 +5,7 @@ import {
   hasPermission,
   isSuperadmin
 } from './utils/permissions'
+import { startRouteLoading, endRouteLoading } from './routeLoading'
 
 // Eagerly loaded routes (critical path for initial page load)
 import Login from './views/Login.vue'
@@ -109,6 +110,16 @@ const routes = [
 const router = createRouter({
   history: createWebHistory(),
   routes
+})
+
+// Indicateur de chargement (overlay) pendant les changements de page.
+// Délai ~120 ms avant affichage pour éviter un flash sur les navigations rapides.
+router.beforeEach((_to, _from, next) => {
+  startRouteLoading()
+  next()
+})
+router.afterEach(() => {
+  endRouteLoading()
 })
 
 router.beforeEach((to, from, next) => {

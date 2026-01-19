@@ -1,9 +1,12 @@
 /**
  * Axios API Client with enhanced interceptors.
  * Handles token management, refresh, and global error notifications.
+ *
+ * IMPORTANT: The notification store is accessed lazily (dynamic import + try/catch)
+ * to avoid "getActivePinia() was called but there was no active Pinia" when
+ * API errors occur during initial bootstrap (before Vue/Pinia is mounted).
  */
 import axios from 'axios'
-import { useNotificationStore } from './stores/notification'
 
 const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
@@ -176,57 +179,55 @@ api.interceptors.response.use(
 )
 
 /**
- * Get notification store instance.
- * Wrapped in a function to avoid circular dependencies.
+ * Get notification store instance (lazy).
+ * Uses dynamic import to avoid loading the store before Pinia is initialized.
+ * Returns null if Pinia is not active or the store cannot be accessed.
  */
-function getNotificationStore() {
+async function getNotificationStore() {
   try {
+    const { useNotificationStore } = await import('./stores/notification')
     return useNotificationStore()
   } catch {
-    // Notification store not available during initialization
+    // Pinia not yet initialized or store unavailable (e.g. during bootstrap)
     return null
   }
 }
 
 /**
  * Show error toast notification.
+ * Safe to call from interceptors: never throws, never rejects.
  */
 function showErrorToast(summary, detail) {
-  const notificationStore = getNotificationStore()
-  if (notificationStore) {
-    notificationStore.error(summary, detail, 5000)
-  }
-  // Silent fallback if notification store not available
+  getNotificationStore()
+    .then(store => { if (store) store.error(summary, detail, 5000) })
+    .catch(() => {})
 }
 
 /**
  * Show success toast notification.
  */
 export function showSuccessToast(summary, detail) {
-  const notificationStore = getNotificationStore()
-  if (notificationStore) {
-    notificationStore.success(summary, detail, 3000)
-  }
+  getNotificationStore()
+    .then(store => { if (store) store.success(summary, detail, 3000) })
+    .catch(() => {})
 }
 
 /**
  * Show info toast notification.
  */
 export function showInfoToast(summary, detail) {
-  const notificationStore = getNotificationStore()
-  if (notificationStore) {
-    notificationStore.info(summary, detail, 3000)
-  }
+  getNotificationStore()
+    .then(store => { if (store) store.info(summary, detail, 3000) })
+    .catch(() => {})
 }
 
 /**
  * Show warning toast notification.
  */
 export function showWarningToast(summary, detail) {
-  const notificationStore = getNotificationStore()
-  if (notificationStore) {
-    notificationStore.warning(summary, detail, 4000)
-  }
+  getNotificationStore()
+    .then(store => { if (store) store.warning(summary, detail, 4000) })
+    .catch(() => {})
 }
 
 export default api

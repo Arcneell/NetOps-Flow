@@ -48,6 +48,7 @@
     "welcome": "Bienvenue",
     "welcomeSubtitle": "Voici un aperçu de vos opérations réseau",
     "lastRefresh": "Dernière actualisation",
+    "loading": "Chargement du tableau de bord...",
     "attentionRequired": "Attention Requise",
     "criticalItems": "éléments critiques nécessitent votre attention",
     "viewAlerts": "Voir les Alertes",

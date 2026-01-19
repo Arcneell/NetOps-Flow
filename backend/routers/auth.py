@@ -18,7 +18,6 @@ from backend.core.security import (
     generate_totp_secret,
     get_totp_uri,
     verify_totp_code,
-    decrypt_value,
     generate_refresh_token,
     create_refresh_token_record,
     validate_refresh_token,
@@ -395,18 +394,9 @@ async def verify_mfa(
             detail="MFA is not enabled for this user"
         )
 
-    # Decrypt TOTP secret
-    try:
-        decrypted_secret = decrypt_value(user.totp_secret)
-    except Exception as e:
-        logger.error(f"Failed to decrypt TOTP secret for user {user.username}: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="MFA configuration error"
-        )
-
-    # Verify TOTP code
-    if not verify_totp_code(decrypted_secret, mfa_data.code):
+    # user.totp_secret is already decrypted by EncryptedString (process_result_value)
+    # when reading from the DB - do NOT call decrypt_value() again.
+    if not verify_totp_code(user.totp_secret, mfa_data.code):
         logger.warning(f"Failed MFA verification for user: {user.username} from IP: {client_ip}")
 
         # Log failed MFA attempt

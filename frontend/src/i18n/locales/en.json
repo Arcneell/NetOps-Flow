@@ -48,6 +48,7 @@
     "welcome": "Welcome",
     "welcomeSubtitle": "Here's your network operations overview",
     "lastRefresh": "Last refresh",
+    "loading": "Loading dashboard...",
     "attentionRequired": "Attention Required",
     "criticalItems": "critical items need your attention",
     "viewAlerts": "View Alerts",

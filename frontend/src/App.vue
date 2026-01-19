@@ -20,7 +20,7 @@
       <div class="flex-grow py-5 overflow-y-auto custom-scrollbar">
         <nav class="flex flex-col">
           <!-- Dashboard -->
-          <router-link to="/" custom v-slot="{ navigate, isActive }">
+          <router-link to="/" custom v-slot="{ navigate, isActive }" @mouseenter="prefetchRoute('/')">
             <div @click="navigate" :class="['sidebar-link', isActive ? 'active' : '']">
               <i class="pi pi-th-large"></i>
               <span>{{ t('nav.dashboard') }}</span>
@@ -30,13 +30,13 @@
           <!-- Helpdesk Section -->
           <div class="sidebar-section-title">Helpdesk</div>
 
-          <router-link to="/tickets" custom v-slot="{ navigate, isActive }">
+          <router-link to="/tickets" custom v-slot="{ navigate, isActive }" @mouseenter="prefetchRoute('/tickets')">
             <div @click="navigate" :class="['sidebar-link', isActive ? 'active' : '']">
               <i class="pi pi-ticket"></i>
               <span>{{ t('tickets.title') }}</span>
             </div>
           </router-link>
-          <router-link to="/knowledge" custom v-slot="{ navigate, isActive }">
+          <router-link to="/knowledge" custom v-slot="{ navigate, isActive }" @mouseenter="prefetchRoute('/knowledge')">
             <div @click="navigate" :class="['sidebar-link', isActive ? 'active' : '']">
               <i class="pi pi-book"></i>
               <span>{{ t('knowledge.title') }}</span>
@@ -46,7 +46,7 @@
           <!-- Network Section - Permission-based -->
           <div v-if="hasPermission('ipam')" class="sidebar-section-title">{{ t('nav.network') }}</div>
 
-          <router-link v-if="hasPermission('ipam')" to="/ipam" custom v-slot="{ navigate, isActive }">
+          <router-link v-if="hasPermission('ipam')" to="/ipam" custom v-slot="{ navigate, isActive }" @mouseenter="prefetchRoute('/ipam')">
             <div @click="navigate" :class="['sidebar-link', isActive ? 'active' : '']">
               <i class="pi pi-sitemap"></i>
               <span>{{ t('nav.ipam') }}</span>
@@ -56,7 +56,7 @@
           <!-- Assets Section - Permission-based -->
           <div v-if="hasPermission('inventory') || hasPermission('dcim') || hasPermission('contracts') || hasPermission('software')" class="sidebar-section-title">{{ t('nav.inventory') }}</div>
 
-          <router-link v-if="hasPermission('inventory')" to="/inventory" custom v-slot="{ navigate, isActive }">
+          <router-link v-if="hasPermission('inventory')" to="/inventory" custom v-slot="{ navigate, isActive }" @mouseenter="prefetchRoute('/inventory')">
             <div @click="navigate" :class="['sidebar-link', isActive ? 'active' : '']">
               <i class="pi pi-box"></i>
               <span>{{ t('nav.inventory') }}</span>
@@ -68,13 +68,13 @@
               <span>{{ t('dcim.title') }}</span>
             </div>
           </router-link>
-          <router-link v-if="hasPermission('contracts')" to="/contracts" custom v-slot="{ navigate, isActive }">
+          <router-link v-if="hasPermission('contracts')" to="/contracts" custom v-slot="{ navigate, isActive }" @mouseenter="prefetchRoute('/contracts')">
             <div @click="navigate" :class="['sidebar-link', isActive ? 'active' : '']">
               <i class="pi pi-file-edit"></i>
               <span>{{ t('contracts.title') }}</span>
             </div>
           </router-link>
-          <router-link v-if="hasPermission('software')" to="/software" custom v-slot="{ navigate, isActive }">
+          <router-link v-if="hasPermission('software')" to="/software" custom v-slot="{ navigate, isActive }" @mouseenter="prefetchRoute('/software')">
             <div @click="navigate" :class="['sidebar-link', isActive ? 'active' : '']">
               <i class="pi pi-desktop"></i>
               <span>{{ t('software.title') }}</span>
@@ -84,7 +84,7 @@
           <!-- Automation Section - Superadmin only -->
           <div v-if="isSuperadmin" class="sidebar-section-title">{{ t('nav.automation') }}</div>
 
-          <router-link v-if="isSuperadmin" to="/scripts" custom v-slot="{ navigate, isActive }">
+          <router-link v-if="isSuperadmin" to="/scripts" custom v-slot="{ navigate, isActive }" @mouseenter="prefetchRoute('/scripts')">
             <div @click="navigate" :class="['sidebar-link', isActive ? 'active' : '']">
               <i class="pi pi-code"></i>
               <span>{{ t('nav.scriptRunner') }}</span>
@@ -94,13 +94,13 @@
           <!-- System Section - Admin and above -->
           <div v-if="isAdmin" class="sidebar-section-title">{{ t('nav.system') }}</div>
 
-          <router-link v-if="isAdmin" to="/users" custom v-slot="{ navigate, isActive }">
+          <router-link v-if="isAdmin" to="/users" custom v-slot="{ navigate, isActive }" @mouseenter="prefetchRoute('/users')">
             <div @click="navigate" :class="['sidebar-link', isActive ? 'active' : '']">
               <i class="pi pi-users"></i>
               <span>{{ t('users.title') }}</span>
             </div>
           </router-link>
-          <router-link v-if="isSuperadmin" to="/administration" custom v-slot="{ navigate, isActive }">
+          <router-link v-if="isSuperadmin" to="/administration" custom v-slot="{ navigate, isActive }" @mouseenter="prefetchRoute('/administration')">
             <div @click="navigate" :class="['sidebar-link', isActive ? 'active' : '']">
               <i class="pi pi-cog"></i>
               <span>{{ t('admin.title') }}</span>
@@ -111,7 +111,7 @@
 
       <!-- User Profile -->
       <div class="sidebar-footer">
-        <router-link to="/settings" class="flex items-center gap-3 flex-1 min-w-0 hover:opacity-80 transition-opacity">
+        <router-link to="/settings" class="flex items-center gap-3 flex-1 min-w-0 hover:opacity-80 transition-opacity" @mouseenter="prefetchRoute('/settings')">
           <div class="user-avatar-container">
             <img v-if="user.avatar && !avatarError" :src="`${apiUrl}/api/v1/avatars/${user.avatar}`" class="user-avatar-img" alt="" @error="avatarError = true">
             <div v-else class="user-avatar">
@@ -214,6 +214,9 @@
 
   <!-- Global Command Bar -->
   <CommandBar v-model="showCommandBar" />
+
+  <!-- Overlay de chargement pendant les changements de page -->
+  <RouteLoadingOverlay />
 </template>
 
 <script setup>
@@ -223,6 +226,7 @@ import { useI18n } from 'vue-i18n';
 import api from './api';
 import NotificationBell from './components/shared/NotificationBell.vue';
 import CommandBar from './components/shared/CommandBar.vue';
+import RouteLoadingOverlay from './components/shared/RouteLoadingOverlay.vue';
 import { useAuthStore } from './stores/auth';
 import { hasPermission as checkPermission } from './utils/permissions';
 
@@ -260,6 +264,11 @@ const currentRouteName = computed(() => {
   if(route.name === 'Administration') return t('admin.title');
   return route.name;
 });
+
+const prefetchRoute = (path) => {
+  const rec = router.getRoutes().find((r) => r.path === path);
+  if (rec?.component && typeof rec.component === 'function') rec.component();
+};
 
 const setLang = (lang) => {
   locale.value = lang;

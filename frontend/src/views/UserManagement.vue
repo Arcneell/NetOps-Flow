@@ -242,15 +242,15 @@
     </Dialog>
 
     <!-- Delete User Confirmation Dialog -->
-    <Dialog v-model:visible="showDeleteDialog" modal :header="t('users.deleteUser')" :style="{ width: '400px' }" @keydown.enter="deleteUser">
+    <Dialog v-model:visible="showDeleteDialog" modal :header="t('users.deleteUser')" :style="{ width: '400px' }">
       <div class="flex items-center gap-3">
         <i class="pi pi-exclamation-triangle text-red-500 text-2xl"></i>
-        <span>{{ t('users.confirmDeleteUser') }} <b>{{ userToDelete?.username }}</b>?</span>
+        <span>{{ t('users.confirmDeleteUser') }} <b>{{ userToDelete?.username }}</b> ?</span>
       </div>
       <template #footer>
         <div class="flex justify-end gap-3">
-          <Button :label="t('common.cancel')" severity="secondary" outlined @click="showDeleteDialog = false" />
-          <Button :label="t('common.delete')" icon="pi pi-trash" @click="deleteUser" severity="danger" :loading="deleting" />
+          <Button type="button" :label="t('common.cancel')" severity="secondary" outlined @click="showDeleteDialog = false" />
+          <Button type="button" :label="t('common.delete')" icon="pi pi-trash" severity="danger" :loading="deleting" @click="deleteUser" />
         </div>
       </template>
     </Dialog>
@@ -513,15 +513,18 @@ const confirmDeleteUser = (user) => {
 
 const deleteUser = async () => {
   if (!userToDelete.value) return;
+  const id = userToDelete.value.id;
 
   deleting.value = true;
   try {
-    await api.delete(`/users/${userToDelete.value.id}`);
+    await api.delete(`/users/${id}`);
     toast.add({ severity: 'success', summary: t('common.deleted'), detail: t('users.userDeleted') });
     showDeleteDialog.value = false;
+    userToDelete.value = null;
     await loadUsers();
   } catch (e) {
-    toast.add({ severity: 'error', summary: t('common.error'), detail: e.response?.data?.detail || t('common.error') });
+    const msg = e?.response?.data?.detail ?? t('common.error');
+    toast.add({ severity: 'error', summary: t('common.error'), detail: String(msg) });
   } finally {
     deleting.value = false;
   }

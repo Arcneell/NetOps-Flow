@@ -2,6 +2,7 @@
 User Management Router - Admin operations for users.
 """
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import Response
 from sqlalchemy.orm import Session
 from typing import List
 import re
@@ -207,8 +208,34 @@ def delete_user(
     if db_user.role == "superadmin" and current_user.role != "superadmin":
         raise HTTPException(status_code=403, detail="Only superadmins can delete superadmin users")
 
-    db.delete(db_user)
-    db.commit()
+    # Save for logging before delete (after commit the object is expired/deleted)
+    username_deleted = db_user.username
 
-    logger.info(f"User '{db_user.username}' deleted by admin '{current_user.username}'")
-    return {"ok": True}
+    # Manually clear/delete related rows before DELETE user.
+    # Ensures it works even if the DB FKs don't have ON DELETE CASCADE/SET NULL
+    # (e.g. tables created before those constraints were in the models).
+    try:
+        db.query(models.UserToken).filter(models.UserToken.user_id == user_id).delete(synchronize_session=False)
+        db.query(models.Notification).filter(models.Notification.user_id == user_id).delete(synchronize_session=False)
+        db.query(models.AuditLog).filter(models.AuditLog.user_id == user_id).update({models.AuditLog.user_id: None}, synchronize_session=False)
+        db.query(models.Ticket).filter(models.Ticket.requester_id == user_id).update({models.Ticket.requester_id: None}, synchronize_session=False)
+        db.query(models.Ticket).filter(models.Ticket.assigned_to_id == user_id).update({models.Ticket.assigned_to_id: None}, synchronize_session=False)
+        db.query(models.Ticket).filter(models.Ticket.deleted_by_id == user_id).update({models.Ticket.deleted_by_id: None}, synchronize_session=False)
+        db.query(models.TicketComment).filter(models.TicketComment.user_id == user_id).update({models.TicketComment.user_id: None}, synchronize_session=False)
+        db.query(models.TicketHistory).filter(models.TicketHistory.user_id == user_id).update({models.TicketHistory.user_id: None}, synchronize_session=False)
+        db.query(models.TicketAttachment).filter(models.TicketAttachment.uploaded_by_id == user_id).update({models.TicketAttachment.uploaded_by_id: None}, synchronize_session=False)
+        db.query(models.KnowledgeArticle).filter(models.KnowledgeArticle.author_id == user_id).update({models.KnowledgeArticle.author_id: None}, synchronize_session=False)
+        db.query(models.KnowledgeArticle).filter(models.KnowledgeArticle.last_editor_id == user_id).update({models.KnowledgeArticle.last_editor_id: None}, synchronize_session=False)
+        db.query(models.TicketTemplate).filter(models.TicketTemplate.created_by_id == user_id).update({models.TicketTemplate.created_by_id: None}, synchronize_session=False)
+        db.query(models.Webhook).filter(models.Webhook.created_by_id == user_id).update({models.Webhook.created_by_id: None}, synchronize_session=False)
+        db.query(models.SystemSettings).filter(models.SystemSettings.updated_by_id == user_id).update({models.SystemSettings.updated_by_id: None}, synchronize_session=False)
+
+        db.delete(db_user)
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        logger.exception(f"Failed to delete user {user_id}: {e}")
+        raise HTTPException(status_code=500, detail="Could not delete user: referential integrity or database error.")
+
+    logger.info(f"User '{username_deleted}' deleted by admin '{current_user.username}'")
+    return Response(status_code=204)
