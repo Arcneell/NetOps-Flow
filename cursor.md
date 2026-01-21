@@ -162,7 +162,7 @@ Settings → Security → Enable 2FA → scanner QR (Google Authenticator, Authy
 - Transitions : cubic-bezier(0.4,0,0.2,1), hover translateY(-1px) ou translateX(2px)
 
 ### Git
-- Messages : Add, Fix, Update. Pas de secrets. User : Arcneell (arcneel.pro@gmail.com).
+- Messages : Add, Fix, Update. **En anglais uniquement, sans exception.** Pas de secrets. User : Arcneell (arcneel.pro@gmail.com).
 
 ## Structure Base de Données
 
