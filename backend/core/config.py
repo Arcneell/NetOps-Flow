@@ -263,7 +263,7 @@ class Settings(BaseSettings):
         logger.warning(
             "ENCRYPTION_KEY is not a valid Fernet key format. "
             "Deriving a key using PBKDF2. For production, generate a proper "
-            "Fernet key with: python -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())'"
+            "Fernet key with: openssl rand -base64 32 | tr '+/' '-_'"
         )
         return _derive_fernet_key(v)
 

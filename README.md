@@ -103,7 +103,7 @@ cp .env.example .env
 
 # Generate required secrets
 openssl rand -base64 32  # For JWT_SECRET_KEY
-python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"  # For ENCRYPTION_KEY
+openssl rand -base64 32 | tr '+/' '-_'  # For ENCRYPTION_KEY (Fernet, url-safe base64)
 
 # Start
 docker-compose up --build
