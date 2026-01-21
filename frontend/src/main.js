@@ -6,7 +6,8 @@ import { createPinia } from 'pinia'
 import App from './App.vue'
 import router from './router'
 import i18n, { initLang } from './i18n/index.js'
-import './style.css'
+// style.css en non-bloquant : si 468 (proxy/WAF) ou autre échec, l'app reste utilisable
+import('./style.css').catch(() => {})
 
 // PrimeVue
 import PrimeVue from 'primevue/config'

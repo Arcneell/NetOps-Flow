@@ -212,3 +212,4 @@ Settings → Security → Enable 2FA → scanner QR (Google Authenticator, Authy
 - **429** : rate limit, attendre
 - **Sandbox** : `docker build -t inframate-sandbox:latest -f docker/sandbox.Dockerfile .`
 - **macOS ARM64** : WinRM non dispo (SSH ok)
+- **468 / style.css / écran blanc** : Le code HTTP 468 est non standard (souvent proxy/WAF/antivirus, ex. Symantec). L’app charge `style.css` en non-bloquant et applique un style de secours dans `index.html` ; l’écran blanc ne devrait plus se produire. Si le 468 persiste : tester en navigateur externe ou sans proxy d’entreprise, et vérifier les règles du proxy/firewall.
